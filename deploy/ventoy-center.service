@@ -1,0 +1,23 @@
+[Unit]
+Description=Ventoy Center provisioning controller
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ventoy-center
+Group=ventoy-center
+ExecStart=/usr/local/bin/ventoy-center serve --config /var/lib/ventoy-center/config.json
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/ventoy-center/data
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

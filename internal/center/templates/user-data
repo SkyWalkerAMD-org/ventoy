@@ -1,0 +1,48 @@
+#cloud-config
+autoinstall:
+  version: 1
+  refresh-installer:
+    update: false
+  packages:
+    - curl
+  locale: en_US.UTF-8
+  keyboard:
+    layout: us
+  identity:
+    hostname: {{yaml .Machine.Name}}
+    username: {{yaml .Request.Username}}
+    password: {{yaml .Request.PasswordHash}}
+  ssh:
+    install-server: true
+    allow-pw: false
+    authorized-keys: [{{if .Request.SSHKey}}{{yaml .Request.SSHKey}}{{end}}]
+  storage:
+    layout:
+      name: direct
+      match:
+        serial: {{yaml .Machine.DiskSerial}}
+  early-commands:
+    - |
+{{indent 6 .Guard}}
+  late-commands:
+    - |
+      set -eu
+      umask 077
+      printf '%s' {{sh (b64 .Bootstrap)}} | base64 -d > /target/usr/local/sbin/ventoy-center-bootstrap
+      chmod 0700 /target/usr/local/sbin/ventoy-center-bootstrap
+      cat > /target/etc/systemd/system/ventoy-center-bootstrap.service <<'VCUNIT'
+      [Unit]
+      Description=Ventoy Center installation handoff
+      Wants=network-online.target
+      After=network-online.target
+      ConditionPathExists=/usr/local/sbin/ventoy-center-bootstrap
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/ventoy-center-bootstrap
+      TimeoutStartSec=30min
+      UMask=0077
+      [Install]
+      WantedBy=multi-user.target
+      VCUNIT
+      curtin in-target --target=/target -- systemctl enable ventoy-center-bootstrap.service
+  shutdown: reboot

@@ -1,0 +1,80 @@
+name: verify-and-build
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.25.x'
+          cache: false
+      - run: go vet ./...
+      - run: go test ./...
+      - if: runner.os == 'Linux'
+        run: go test -race ./...
+      - run: node --check internal/center/web/app.js
+  build:
+    needs: test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.25.x'
+          cache: false
+      - name: Build portable binaries
+        run: |
+          mkdir -p dist/linux dist/windows
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o dist/linux/ventoy-center ./cmd/ventoy-center
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -o dist/windows/ventoy-center.exe ./cmd/ventoy-center
+          cp -r deploy docs README.md dist/linux/
+          cp -r deploy docs README.md dist/windows/
+          tar -czf dist/ventoy-center-linux-amd64.tar.gz -C dist/linux .
+          (cd dist/windows && zip -qr ../ventoy-center-windows-amd64.zip .)
+          cd dist
+          sha256sum ventoy-center-linux-amd64.tar.gz ventoy-center-windows-amd64.zip > SHA256SUMS
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ventoy-center-packages
+          path: |
+            dist/ventoy-center-linux-amd64.tar.gz
+            dist/ventoy-center-windows-amd64.zip
+            dist/SHA256SUMS
+  linux-startup:
+    needs: test
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [rockylinux:8, rockylinux:9, rockylinux:10, debian:12, debian:13, ubuntu:24.04, ubuntu:26.04]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.25.x'
+          cache: false
+      - run: CGO_ENABLED=0 go build -trimpath -o dist/ventoy-center ./cmd/ventoy-center
+      - name: Verify binary startup in target userland
+        env:
+          TARGET_IMAGE: ${{ matrix.image }}
+        run: |
+          docker run --rm -v "$PWD/dist:/app:ro" "$TARGET_IMAGE" sh -ec '
+            /app/ventoy-center version
+            /app/ventoy-center init --dir /tmp/ventoy-test
+            /app/ventoy-center serve --config /tmp/ventoy-test/config.json &
+            pid=$!
+            sleep 2
+            kill -0 "$pid"
+            kill -TERM "$pid"
+            wait "$pid"
+          '

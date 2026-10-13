@@ -1,0 +1,42 @@
+Ventoy Center installation bundle
+Task: {{.ID}}
+Machine: {{.Machine.Name}} / {{.Machine.MAC}}
+Target disk serial: {{.Machine.DiskSerial}}
+Firmware: {{.Machine.Firmware}}
+ISO: {{.ISO}}
+Expires: {{.Expires}}
+
+This bundle authorizes erasure of ONLY the recorded disk on the recorded machine.
+It contains a single-task credential and possibly an initial OS password.
+Keep it in a restricted administrator directory, never a public repository.
+
+1. Put this bundle under iVentoy user/managed/{{.ID}}/.
+2. For concurrent tasks using the same source ISO, give each task a distinct ISO
+   path under iso/managed/ (a hard link on the same filesystem avoids copying).
+3. In iVentoy image management, bind that task's ISO path to:
+{{if eq .OS "windows"}}   autounattend.xml and injection.7z. Run Make-Injection.ps1 with the path to 7z.exe.
+   REQUIRED: WinPE-WMI, WinPE-NetFX, WinPE-Scripting, WinPE-PowerShell and
+   WinPE-StorageWMI must be added to the installer's boot.wim using matching ADK
+   components. A stock Windows ISO normally lacks these components. The guard
+   deliberately blocks installation when they are absent. Include NIC/storage
+   drivers for the target hardware. Windows 11 requires supported UEFI hardware.
+{{else if eq .OS "ubuntu"}}   user-data (Ubuntu Server autoinstall).
+{{else}}   kickstart.cfg (Rocky Linux 9 DVD ISO; use a matching local repository for boot ISO).
+{{end}}4. Select that script as the default, with a nonzero script-selection timeout.
+5. In iVentoy Pro Matrix Boot, map exactly {{.Machine.MAC}} to this task's ISO.
+   Use a non-destructive default menu for unknown machines; do not set a global
+   destructive default ISO/script. Protect the iVentoy management interface.
+6. Client: choose the NETWORK adapter in the BIOS/UEFI boot menu. The guard
+   verifies identity and obtains the one-use authorization before erasing.
+7. After completion, remove this MAC rule and the task-specific ISO alias/script.
+   Prefer one-time network boot. Replaying this bundle is rejected by the controller.
+
+No iVentoy configuration, DHCP service, or BMC power setting is changed by download.
+{{if .Enroll}}Linux first boot installs the pinned fyhocsys-node package and imports the
+provided connection file. State "enrolled" means import and local service checks
+passed. Verify a NEW heartbeat in fyhocsys before accepting central connectivity.
+The original sckocp installation and license must be prepared separately.
+{{else if eq .OS "windows"}}The current fyhocsys distribution has no Windows node. Windows installation
+status is tracked here; it is NOT reported as enrolled in fyhocsys.
+{{end}}
+Read the repository deployment guide before use on physical machines.

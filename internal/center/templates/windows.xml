@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+  <settings pass="windowsPE">
+    <component name="Microsoft-Windows-International-Core-WinPE" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+      <SetupUILanguage><UILanguage>{{.Request.Locale}}</UILanguage></SetupUILanguage>
+      <InputLocale>{{.Request.Locale}}</InputLocale><SystemLocale>{{.Request.Locale}}</SystemLocale><UILanguage>{{.Request.Locale}}</UILanguage><UserLocale>{{.Request.Locale}}</UserLocale>
+    </component>
+    <component name="Microsoft-Windows-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+      <RunSynchronous><RunSynchronousCommand wcm:action="add"><Order>1</Order><Path>cmd.exe /c if exist X:\ventoy-center\preinstall.cmd (call X:\ventoy-center\preinstall.cmd) else (cmd.exe /k echo Required installation guard is missing. Stop setup.)</Path></RunSynchronousCommand></RunSynchronous>
+      <ImageInstall><OSImage>
+        <InstallFrom><MetaData wcm:action="add"><Key>/IMAGE/INDEX</Key><Value>{{.Request.WindowsImage}}</Value></MetaData></InstallFrom>
+        <InstallTo><DiskID>{{.Machine.WindowsDisk}}</DiskID><PartitionID>{{.Partition}}</PartitionID></InstallTo>
+        <WillShowUI>OnError</WillShowUI>
+      </OSImage></ImageInstall>
+      <UserData><AcceptEula>true</AcceptEula></UserData>
+    </component>
+  </settings>
+  <settings pass="specialize">
+    <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"><ComputerName>{{xml .Machine.Name}}</ComputerName><TimeZone>UTC</TimeZone></component>
+    <component name="Microsoft-Windows-Deployment" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+      <RunSynchronous><RunSynchronousCommand wcm:action="add"><Order>1</Order><Path>powershell.exe -NoProfile -ExecutionPolicy Bypass -File %SystemDrive%\ProgramData\VentoyCenter\postinstall.ps1</Path></RunSynchronousCommand></RunSynchronous>
+    </component>
+  </settings>
+  <settings pass="oobeSystem">
+    <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+      <OOBE><HideEULAPage>true</HideEULAPage><HideOnlineAccountScreens>true</HideOnlineAccountScreens><HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE><ProtectYourPC>1</ProtectYourPC></OOBE>
+      <UserAccounts><LocalAccounts><LocalAccount wcm:action="add"><Name>{{xml .Request.Username}}</Name><Group>Administrators</Group><Password><Value>{{xml .Request.Password}}</Value><PlainText>true</PlainText></Password></LocalAccount></LocalAccounts></UserAccounts>
+    </component>
+  </settings>
+</unattend>

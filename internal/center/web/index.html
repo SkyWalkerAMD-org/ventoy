@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Ventoy Center · 部署工作台</title><link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="#overview"><span class="brand-mark">V</span><span>Ventoy <strong>Center</strong><small>网络部署工作台</small></span></a>
+    <div class="nav-label">工作空间</div>
+    <nav aria-label="主导航">
+      <a href="#overview" data-nav="overview">◫ <span>部署总览</span></a>
+      <a href="#machines" data-nav="machines">▦ <span>目标机器</span></a>
+      <a href="#jobs" data-nav="jobs">↗ <span>安装任务</span></a>
+      <a href="#images" data-nav="images">▱ <span>镜像与接入</span></a>
+    </nav>
+    <div class="sidebar-bottom"><span class="dot"></span> 私有部署 · 局域网 PXE<br><small id="version">载入版本信息…</small></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar"><div><span class="muted">工作空间</span><span class="slash">/</span><span id="breadcrumb">部署总览</span></div><div class="top-actions"><span id="connection-state" class="muted">尚未连接</span><button id="refresh" class="quiet">刷新</button><button id="logout" class="quiet">退出</button></div></header>
+    <main>
+      <section id="overview" class="page">
+        <div class="page-heading"><div><div class="eyebrow">DEPLOYMENT CONTROL</div><h1>让每台机器，准备就绪。</h1><p>从网卡启动，到系统安装，再到压测环境接入。</p></div><button class="primary" data-action="new-job">＋ 新建安装任务</button></div>
+        <div class="metrics"><article><span>已登记机器</span><strong id="count-machines">—</strong><small>通过 MAC 与资产编号识别</small></article><article><span>等待启动</span><strong id="count-ready">—</strong><small>已授权，等待客户端网启</small></article><article><span>正在部署</span><strong id="count-running">—</strong><small>根据客户端实际回传更新</small></article><article><span>已安装 / 已配置接入</span><strong id="count-done">—</strong><small>中心连接以 fyhocsys 心跳为准</small></article></div>
+        <article class="flow-panel"><div><span class="label">部署路径</span><h2>一次准备，按机器部署</h2><p>保持现有 DHCP，由 iVentoy 提供网络引导。</p></div><ol><li><b>01</b><span>登记机器<small>MAC · 目标磁盘</small></span></li><li><b>02</b><span>生成安装包<small>镜像 · 安装配置</small></span></li><li><b>03</b><span>网卡启动<small>iVentoy · 自动安装</small></span></li><li><b>04</b><span>完成交接<small>Linux 自动配置接入</small></span></li></ol></article>
+        <div class="section-heading"><h2>最近的安装任务</h2><a href="#jobs">查看全部 →</a></div><div id="recent-jobs" class="panel"></div>
+        <div class="note"><span>↳</span><p>首次部署先用一台测试机验证启动、网卡驱动与磁盘识别。安装包生成后，需要在 iVentoy 中关联镜像、脚本与 MAC 规则。</p></div>
+      </section>
+      <section id="machines" class="page" hidden>
+        <div class="page-heading"><div><div class="eyebrow">MACHINES</div><h1>目标机器</h1><p>固定机器身份与安装磁盘，避免依赖容易变化的磁盘顺序。</p></div><button class="primary" data-action="new-machine">＋ 登记机器</button></div><div id="machine-table" class="panel"></div>
+      </section>
+      <section id="jobs" class="page" hidden>
+        <div class="page-heading"><div><div class="eyebrow">INSTALLATION QUEUE</div><h1>安装任务</h1><p>保存草稿、确认目标盘，再交给网启环境执行。</p></div><button class="primary" data-action="new-job">＋ 新建安装任务</button></div><div id="all-jobs" class="panel"></div>
+      </section>
+      <section id="images" class="page" hidden>
+        <div class="page-heading"><div><div class="eyebrow">IMAGES & INTEGRATIONS</div><h1>镜像与接入</h1><p>镜像保存在服务器，由 iVentoy 提供给客户端。</p></div></div>
+        <div class="integration-grid"><article class="panel padded"><div class="label">网络启动</div><h2>iVentoy / PXE</h2><p>外部 DHCP 提供地址，iVentoy 提供引导。专业版可按 MAC 指定每台机器的镜像。</p><a id="iventoy-link" class="button" target="_blank" rel="noopener noreferrer">打开 iVentoy ↗</a></article><article class="panel padded"><div class="label">安装后接入</div><h2>fyhocsys</h2><p>Linux 首次启动安装节点包并导入专属连接文件。Windows 当前仅跟踪安装状态，等待 Windows 节点支持。</p><a id="fyhocsys-link" class="button" target="_blank" rel="noopener noreferrer">打开 fyhocsys ↗</a></article></div>
+        <div class="section-heading"><h2>ISO 镜像</h2><span class="muted">复制到配置的 iso_dir 后刷新</span></div><div id="image-table" class="panel"></div>
+        <div class="section-heading"><h2>fyhocsys 节点包</h2><span class="muted">复制到配置的 package_dir 后刷新</span></div><div id="package-table" class="panel"></div>
+      </section>
+      <div id="warnings" class="warning" hidden></div>
+    </main>
+    <footer><span>Ventoy Center</span><span>Rocky 9 优先适配 · Windows / Linux 服务端</span></footer>
+  </div>
+</div>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+<dialog id="login-dialog"><form id="login-form"><span class="brand-mark">V</span><h2>连接部署工作台</h2><p>使用服务器初始化时生成的管理口令。</p><label>管理口令<input name="token" type="password" required autocomplete="current-password" autofocus></label><p class="form-error" id="login-error"></p><button class="primary full">连接工作台</button><small>口令仅保存在当前浏览器会话中。</small></form></dialog>
+<dialog id="machine-dialog"><form id="machine-form"><div class="dialog-heading"><h2>登记目标机器</h2><button type="button" class="close" data-close aria-label="关闭">×</button></div><p>请从目标机器核对信息；安装时会再次验证 MAC 和磁盘。</p><div class="form-grid"><label>节点名<input name="name" required maxlength="15" placeholder="BUILD-001"></label><label>资产编号<input name="serial" required placeholder="ASSET-EXAMPLE-001"></label><label>启动网卡 MAC<input name="mac" required placeholder="02:00:00:00:01:01"></label><label>目标磁盘序列号<input name="disk_serial" required placeholder="DISK-EXAMPLE-001"></label><label>启动模式<select name="firmware"><option value="uefi">UEFI</option><option value="bios">Legacy BIOS</option></select></label><label>Windows 磁盘编号<input name="windows_disk" type="number" min="0" max="255" value="0" required></label></div><div class="dialog-actions"><button type="button" data-close>取消</button><button class="primary">保存机器</button></div></form></dialog>
+<dialog id="job-dialog" class="wide"><form id="job-form"><div class="dialog-heading"><h2>新建安装任务</h2><button type="button" class="close" data-close aria-label="关闭">×</button></div><p>先保存草稿；授权时会再次确认清空哪台机器的哪块盘。</p><div class="form-grid"><label>目标机器<select name="machine_id" required></select></label><label>目标系统<select name="os"><option value="rocky">Rocky Linux 9</option><option value="ubuntu">Ubuntu Server 24.04</option><option value="windows">Windows 11 / Server 2022</option></select></label><label class="span-2">ISO 镜像<select name="iso" required></select></label><label>本地管理员用户名<input name="username" value="operator" required></label><label data-windows hidden>Windows 镜像索引<input name="windows_image" type="number" min="1" max="100" value="1"></label><label data-windows hidden>Windows 镜像语言<select name="locale"><option value="zh-CN">简体中文 (zh-CN)</option><option value="en-US">English (en-US)</option></select></label><label class="span-2" data-linux>Linux 密码哈希<input name="password_hash" type="password" autocomplete="new-password" placeholder="使用 openssl passwd -6 生成"></label><label class="span-2" data-linux>SSH 公钥（可选）<input name="ssh_key" placeholder="ssh-ed25519 …"></label><label class="span-2" data-windows hidden>Windows 初始管理员密码<input name="password" type="password" minlength="14" autocomplete="new-password"></label></div><p class="warning" data-windows hidden>Windows 需要含 PowerShell 与 StorageWMI 的 WinPE。当前 fyhocsys 暂无 Windows 节点包。</p><label class="check"><input name="enroll" type="checkbox" checked> 安装后自动配置 fyhocsys 接入</label><div id="enroll-fields" class="form-grid"><label>fyhocsys-node 安装包<select name="package"></select></label><label>专属节点连接文件<input name="connection" type="file" accept=".json,application/json"></label></div><div class="dialog-actions"><button type="button" data-close>取消</button><button class="primary">保存任务草稿</button></div></form></dialog>
+<dialog id="arm-dialog"><form id="arm-form"><div class="dialog-heading"><h2>授权安装</h2><button type="button" class="close" data-close aria-label="关闭">×</button></div><p id="arm-target"></p><div class="warning">客户端启动后将清空目标磁盘。授权在 24 小时内有效，只允许启动一次安装。</div><label>输入完整节点名<input name="name" required autocomplete="off"></label><label>输入目标磁盘序列号<input name="disk_serial" required autocomplete="off"></label><label class="check"><input type="checkbox" name="erase" required> 我已核对目标，并同意清空这块磁盘</label><div class="dialog-actions"><button type="button" data-close>返回</button><button class="danger">授权这次安装</button></div></form></dialog>
+<dialog id="close-dialog"><form id="close-form"><div class="dialog-heading"><h2>结束失败任务</h2><button type="button" class="close" data-close aria-label="关闭">×</button></div><p id="close-target"></p><div class="warning">此操作只结束任务记录，不会停止客户端正在执行的安装程序。请先在客户端确认安装已停止。</div><label>输入完整节点名<input name="name" required autocomplete="off"></label><label>结单原因<input name="reason" required maxlength="160"></label><label class="check"><input name="stopped" type="checkbox" required> 我已确认客户端停止安装</label><div class="dialog-actions"><button type="button" data-close>返回</button><button class="danger">标记失败并结束</button></div></form></dialog>
+<dialog id="detail-dialog" class="wide"><div class="dialog-heading"><h2>任务记录</h2><button class="close" data-close aria-label="关闭">×</button></div><div id="job-detail"></div></dialog>
+<script src="/app.js" defer></script>
+</body></html>
