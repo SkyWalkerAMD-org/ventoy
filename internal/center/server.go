@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -27,10 +28,11 @@ import (
 var webFiles embed.FS
 
 type Server struct {
-	config Config
-	store  *Store
-	admin  string
-	ca     []byte
+	config        Config
+	store         *Store
+	admin         string
+	ca            []byte
+	preparationMu sync.Mutex
 }
 type Media struct {
 	Path             string `json:"path"`
@@ -107,6 +109,10 @@ func (s *Server) Handler() http.Handler {
 	m.HandleFunc("POST /api/jobs/{id}/cancel", s.auth(s.cancelJob))
 	m.HandleFunc("POST /api/jobs/{id}/close", s.auth(s.closeJob))
 	m.HandleFunc("GET /api/jobs/{id}/bundle", s.auth(s.bundle))
+	m.HandleFunc("GET /api/iventoy", s.auth(s.iventoyStatus))
+	m.HandleFunc("GET /api/jobs/{id}/preparation", s.auth(s.preparationPlan))
+	m.HandleFunc("POST /api/jobs/{id}/prepare", s.auth(s.prepareJob))
+	m.HandleFunc("POST /api/jobs/{id}/cleanup", s.auth(s.cleanupJob))
 	m.HandleFunc("POST /bootstrap/{id}/event", s.bootEvent)
 	m.HandleFunc("GET /bootstrap/{id}/connection", s.connection)
 	m.HandleFunc("GET /bootstrap/{id}/package", s.nodePackage)
@@ -170,6 +176,9 @@ func media(dir string, extensions ...string) ([]Media, error) {
 			return err
 		}
 		if d.IsDir() {
+			if path == filepath.Join(dir, "ventoy-center") {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		if !d.Type().IsRegular() {
@@ -284,6 +293,10 @@ func (s *Server) createJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.Profile, req.OS = p.ID, p.OS
+	if strings.EqualFold(strings.Split(req.ISO, "/")[0], "ventoy-center") {
+		fail(w, 400, "ventoy-center 目录用于任务镜像，请选择原始 ISO")
+		return
+	}
 	if err := validateMediaProfile(p, req.ISO); err != nil {
 		fail(w, 400, err.Error())
 		return

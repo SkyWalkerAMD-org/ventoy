@@ -2,7 +2,7 @@
 
 局域网批量装机管理端。客户端在 BIOS / UEFI 的 Boot 菜单选择网卡，由 **iVentoy / PXE** 加载镜像和自动安装配置；本项目负责目标机器、安装任务、授权、安装包和进度回传。
 
-**当前：0.2.0-alpha.1，Linux 装机优先。** 本阶段只做直推装机，不修改 sckocstp / fyhocsys，也不创建新的自动接入任务。Windows 保留为次要支持，接入工作待装机流程完成后再考虑。
+**当前：0.3.0-alpha.1，Linux 装机优先。** 本阶段只做直推装机，不修改 sckocstp / fyhocsys，也不创建新的自动接入任务。Windows 保留为次要支持，接入工作待装机流程完成后再考虑。
 
 服务端和安装包生成已实现；iVentoy 规则仍通过其原生界面配置。没有进行真实硬件 PXE 安装验收，不应作为已验收的无人值守生产装机系统使用。
 
@@ -14,6 +14,7 @@
 - 24 小时任务凭据、单次安装领取、持久状态、取消与过期检查；服务重启不自动重发安装。
 - 生成 CentOS 7.9、Rocky 8 / 9 / 10 Kickstart，Ubuntu Server 20.04 / 22.04 / 24.04 / 26.04 LTS autoinstall，Debian 11 / 12 / 13 preseed。
 - Linux 安装前核对身份和磁盘、首次启动核对系统版本并回传安装状态。Debian 使用专门的安装环境保护脚本。
+- 同机 iVentoy 文件准备：独立镜像硬链接、安装脚本、持久清单、失败重试和任务结束后的受限清理。
 - Windows 安装前核对 MAC、磁盘序列号、磁盘编号和固件模式；需提前制作含所需可选组件的 WinPE。
 
 ## 当前边界
@@ -28,7 +29,7 @@
 
 | 平台 | 交付方式 | 当前验证范围 |
 | --- | --- | --- |
-| Rocky Linux 9（首要目标，包含用户的 9.8 环境） | 静态 Linux x86-64 二进制 + systemd | 单元测试、CI 启动检查；9.8 实机共机验收待做 |
+| Rocky Linux 9（首要目标，包含用户的 9.8 环境） | 静态 Linux x86-64 二进制 + systemd | 单元测试、CI 启动检查；9.8 同机服务、TLS 与管理接口已验证，客户端 PXE 待验收 |
 | Rocky Linux 8 / 10 | 同一 Linux 二进制 | CI 启动检查，不等于 systemd / PXE 实机验收 |
 | Debian 12 / 13 | 同一 Linux 二进制 + systemd | 同上 |
 | Ubuntu 24.04 / 26.04 | 同一 Linux 二进制 + systemd | 同上；其他 24–26 间的短周期版本未单独验证 |
@@ -54,6 +55,7 @@ go build -o ventoy-center ./cmd/ventoy-center
 
 - [Rocky 9 与 fyhocsys 同机部署](docs/deployment/rocky9.md)
 - [外部 DHCP、iVentoy 和安装包配置](docs/deployment/pxe.md)
+- [同机准备 iVentoy 文件和权限配置](docs/deployment/iventoy-files.md)
 - [Linux 安装版本、镜像和验收矩阵](docs/deployment/linux-targets.md)
 - [Windows 与其他 Linux 服务端](docs/deployment/platforms.md)
 - [架构、任务状态与尚未完成的能力](docs/development/architecture.md)

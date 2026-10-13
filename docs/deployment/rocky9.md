@@ -4,6 +4,8 @@
 
 ## 1. 安装管理端
 
+先运行 `sh deploy/inspect-linux.sh` 做只读检查，确认旧 TFTP / DHCP 和端口占用。替换旧 PXE 前核对服务用途；保留原目录，不把停用 TFTP 扩大为停用已有 DHCP。
+
 使用 CI 的 `ventoy-center-packages` 产物，核对 `SHA256SUMS`，解压 Linux 包，在解压目录执行：
 
 ```sh
@@ -51,7 +53,8 @@ sudo journalctl -u ventoy-center -n 50 --no-pager
 1. 把合法持有的 ISO 放到 `iso_dir`。目录和文件名按 iVentoy 要求使用无空格的 ASCII 名称。
 2. 单独安装 iVentoy Linux x86-64，专业版授权保存在其 `data` 目录。不要把该目录纳入本项目仓库。
 3. 在 iVentoy 的 `iso` 目录建立到镜像的链接，或把管理端的 `iso_dir` 指向 iVentoy 的实际镜像目录。确保两项服务有对应读取权限。当前管理端扫描不递归进入符号链接目录，宜直接配置真实目录。
-4. 继续按 [PXE 配置](pxe.md) 配合已有 DHCP，先使用正常手工安装镜像验证网卡能引导。
+4. 按[同机文件准备](iventoy-files.md)配置 `iventoy_root`、专用目录权限和 systemd 写目录。
+5. 继续按 [PXE 配置](pxe.md) 配合已有 DHCP，先使用正常手工安装镜像验证网卡能引导。
 
 ## 4. 准备安装目标
 

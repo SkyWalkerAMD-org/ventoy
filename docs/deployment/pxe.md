@@ -16,7 +16,7 @@ iVentoy 的当前[端口说明](https://www.iventoy.com/cn/doc_portnum.html)包�
 
 1. 在本项目登记机器。Linux 可通过 `ip link`、`lsblk -dn -o NAME,SERIAL,TRAN` 核对信息；Windows PE 通过 `Get-CimInstance Win32_NetworkAdapter` 和 `Get-Disk` 核对。
 2. 创建任务并选择系统版本与源 ISO。安装目标限定为单块、序列号可识别的非 USB 磁盘；已有 RAID / LVM 成员会被拒绝，需先人工准备存储。
-3. 授权后下载 ZIP。ZIP 里有任务清单、自动安装配置、所需注入文件和校验清单。
+3. 授权后，Linux 可用“iVentoy 文件”直接[准备同机文件](iventoy-files.md)，随后按第 5 步关联。也可下载 ZIP，包含任务清单、自动配置、注入文件和校验清单。
 4. 解压到 iVentoy 的 `user/managed/任务号`。为此任务建立独立 ISO 路径，可使用同文件系统硬链接。
 5. 在 iVentoy 镜像管理页把此 ISO 关联到该任务的自动脚本。设置脚本默认编号与非零超时，详见[全自动安装说明](https://www.iventoy.com/cn/doc_unattend_install.html)。
 6. 在专业版[分机独启](https://www.iventoy.com/cn/doc_matrix_boot.html)中，将准确 MAC 关联到该 ISO 路径。未知机器保留普通菜单，不使用会清盘的全局默认配置。

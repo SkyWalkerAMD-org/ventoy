@@ -44,18 +44,19 @@ type Event struct {
 	Message string    `json:"message"`
 }
 type Job struct {
-	ID            string    `json:"id"`
-	Machine       Machine   `json:"machine"`
-	OS            string    `json:"os"`
-	Profile       string    `json:"profile"`
-	ISO           string    `json:"iso"`
-	State         string    `json:"state"`
-	Created       time.Time `json:"created"`
-	Expires       time.Time `json:"expires"`
-	Enroll        bool      `json:"enroll"`
-	Package       string    `json:"package,omitempty"`
-	PackageSHA256 string    `json:"package_sha256,omitempty"`
-	Events        []Event   `json:"events"`
+	ID            string       `json:"id"`
+	Machine       Machine      `json:"machine"`
+	OS            string       `json:"os"`
+	Profile       string       `json:"profile"`
+	ISO           string       `json:"iso"`
+	State         string       `json:"state"`
+	Created       time.Time    `json:"created"`
+	Expires       time.Time    `json:"expires"`
+	Enroll        bool         `json:"enroll"`
+	Package       string       `json:"package,omitempty"`
+	PackageSHA256 string       `json:"package_sha256,omitempty"`
+	Events        []Event      `json:"events"`
+	Preparation   *Preparation `json:"preparation,omitempty"`
 }
 type PrivateJob struct {
 	Job

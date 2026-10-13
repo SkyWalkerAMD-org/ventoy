@@ -20,3 +20,5 @@ Linux CI 另用 Pykickstart 3.78 的 RHEL7/8/9/10 解析器检查 Kickstart，�
 CI 在 Linux 和 Windows 测试 Go 代码，在 Linux 运行 race 检查，输出两种平台的二进制包。另外用 Rocky 8/9/10、Debian 12/13、Ubuntu 24.04/26.04 容器检查静态二进制启动。CI 的容器步骤不能证明 PXE、硬件驱动或完整操作系统安装成功。
 
 使用固定提交的官方 GitHub Actions。不要把 ISO、凭据、私有 fyhocsys 源码或运行状态提交到公开仓库。
+
+同机文件准备测试使用临时假 iVentoy 目录和字符串 ISO，验证硬链接、清单先落盘、重启后重试、源镜像保留、执行期间禁止清理，以及未知文件、内容修改、镜像替换和符号链接冲突时拒绝删除。Windows 测试环境需允许创建 NTFS 硬链接；受限沙箱拒绝硬链接不等于程序不支持 Windows。

@@ -34,7 +34,8 @@ function renderJobs(target,jobs) {
   table(target,['目标机器','系统 / 镜像','状态','创建时间','操作'],jobs.map(job=>{
     const name=el('div',job.machine.name);name.append(el('small',job.machine.mac));const system=el('div',jobSystem(job));system.append(el('small',job.iso));const actions=el('div',null,'actions');
     if(job.state==='draft')actions.append(button('授权安装',()=>openArm(job)));
-    if(job.state==='ready')actions.append(button('下载安装包',()=>downloadBundle(job),'primary'));
+    if(job.state==='ready')actions.append(button('下载安装包',()=>downloadBundle(job)));
+    if(job.os!=='windows' && (job.state==='ready'||job.preparation))actions.append(button('iVentoy 文件',()=>openPreparation(job),'primary'));
     actions.append(button('记录',()=>details(job)));
     if(['installing','enrolling'].includes(job.state))actions.append(button('结束失败任务',()=>{closeId=job.id;$('#close-form').reset();$('#close-target').textContent='目标机器：'+job.machine.name;$('#close-dialog').showModal();}));
     if(['draft','ready'].includes(job.state))actions.append(button('取消',async()=>{await post(`/api/jobs/${job.id}/cancel`);await refresh();}));
@@ -108,6 +109,23 @@ $('#job-form').elements.profile.addEventListener('change',updateJobFields);
 $('#job-form').elements.iso.addEventListener('change',()=>{const f=$('#job-form');const image=data.images.find(i=>i.path===f.elements.iso.value);if(image?.suggested_profile)f.elements.profile.value=image.suggested_profile;updateJobFields();});
 $$('[data-action]').forEach(b=>b.addEventListener('click',()=>b.dataset.action==='new-machine'?newMachine():newJob()));
 async function submit(form,action){const b=$('button[type=submit]',form)||$('button.primary:last-child',form)||$('button.danger',form);if(b)b.disabled=true;try{await action();await refresh(true);form.closest('dialog').close();}catch(error){notify(error.message);}finally{if(b)b.disabled=false;}}
+async function openPreparation(job) {
+  const plan=await (await api(`/api/jobs/${job.id}/preparation`)).json();
+  const root=$('#preparation-body');root.replaceChildren();
+  root.append(el('p',plan.prepared?'任务文件已准备。请在 iVentoy 中完成以下关联。':'在同机 iVentoy 目录生成安装脚本和独立 ISO 硬链接。'));
+  const dl=el('dl',null,'detail-grid');
+  for(const [label,value] of [['目标机器',job.machine.name],['启动 MAC',plan.mac],['镜像路径',plan.image_selection||'—'],['自动安装脚本',plan.script_selection||'—']])dl.append(el('dt',label),el('dd',value));
+  root.append(dl);
+  if(plan.reason)root.append(el('p',plan.reason,'warning'));
+  const steps=el('ol',null,'preparation-steps');
+  for(const text of ['准备文件后，在 iVentoy 镜像管理刷新并选择上述镜像，关联自动安装脚本。','将脚本设为默认，设置非零选择超时；在专业版分机独启中把上述 MAC 绑定到此镜像。','客户端从网卡启动。任务结束后，先移除 iVentoy 中的关联，再清理任务文件。'])steps.append(el('li',text));
+  root.append(steps);
+  const actions=el('div',null,'dialog-actions');
+  if(plan.can_prepare)actions.append(button(plan.prepared?'核对已准备文件':'准备安装文件',async()=>{await post(`/api/jobs/${job.id}/prepare`);await refresh(true);await openPreparation(job);notify('安装文件已准备；请按页面指引完成 iVentoy 关联');},'primary'));
+  if(plan.can_cleanup)actions.append(button('清理任务文件',async()=>{await post(`/api/jobs/${job.id}/cleanup`);await refresh(true);$('#preparation-dialog').close();notify('任务文件已清理，原始 ISO 保留');}));
+  root.append(actions);
+  if(!$('#preparation-dialog').open)$('#preparation-dialog').showModal();
+}
 $('#machine-form').addEventListener('submit',event=>{event.preventDefault();const f=event.target;submit(f,async()=>{const body=Object.fromEntries(new FormData(f));body.windows_disk=Number(body.windows_disk);await post('/api/machines',body);notify('目标机器已登记');});});
 $('#job-form').addEventListener('submit',event=>{event.preventDefault();const f=event.target;submit(f,async()=>{const form=new FormData(f);const profile=profileFor(form.get('profile'));if(!profile)throw new Error('请选择系统版本');const win=profile.os==='windows';const body={machine_id:form.get('machine_id'),profile:profile.id,os:profile.os,iso:form.get('iso'),username:form.get('username'),password:win?form.get('password'):'',password_hash:win?'':form.get('password_hash'),ssh_key:win?'':form.get('ssh_key'),windows_image:Number(form.get('windows_image')),locale:form.get('locale'),enroll:false};await post('/api/jobs',body);notify('草稿已保存；授权后可生成安装包');});});
 function openArm(job){armId=job.id;$('#arm-form').reset();$('#arm-target').textContent=`${job.machine.name} · ${job.machine.mac} · 磁盘 ${job.machine.disk_serial}`;$('#arm-dialog').showModal();}

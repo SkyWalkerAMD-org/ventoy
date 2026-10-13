@@ -43,6 +43,10 @@ flowchart LR
 | POST `/api/jobs/{id}/cancel` | 取消尚未开始的任务 |
 | POST `/api/jobs/{id}/close` | 操作员确认客户端已停止安装后，将进行中记录结为失败 |
 | GET `/api/jobs/{id}/bundle` | 下载已授权安装包 |
+| GET `/api/iventoy` | 检查同机 iVentoy 目录是否可用于文件准备 |
+| GET `/api/jobs/{id}/preparation` | 查看任务文件路径和可执行操作 |
+| POST `/api/jobs/{id}/prepare` | 先保存清单，再创建或核对 Linux 文件及 ISO 硬链接 |
+| POST `/api/jobs/{id}/cleanup` | 终结任务后，核对完整清单再清理受管文件 |
 
 安装接口使用单任务凭据：
 
@@ -60,7 +64,7 @@ MAC 和磁盘序列号是防误操作检查，不是抵御主动伪造客户端�
 
 ## 后续必须完成
 
-1. Rocky 9.8 同机部署和单台客户端真实 PXE 安装验收。
+1. 单台客户端真实 PXE 安装验收。Rocky 9.8 同机服务启动、TLS 和管理接口已验证；不代表客户端安装已验收。
 2. iVentoy 专业版适配：在确定版本上验证读取、变更、读回、回滚与单机规则撤销，才实现网页直接下发。
 3. 各 Linux profile 的完整安装测试；安装中断后的超时诊断、批量选择、批量授权和并发限制。人工结单已实现，需操作员确认客户端停止安装。
 4. Windows WinPE 构建自动化、WinRE 分区和驱动仓库（次要优先级）。

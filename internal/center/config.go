@@ -13,7 +13,7 @@ import (
 	"strings"
 )
 
-const Version = "0.2.0-alpha.1"
+const Version = "0.3.0-alpha.1"
 
 type Config struct {
 	Listen         string `json:"listen"`
@@ -26,6 +26,7 @@ type Config struct {
 	TLSKey         string `json:"tls_key_file"`
 	BootstrapCA    string `json:"bootstrap_ca_file"`
 	IVentoyURL     string `json:"iventoy_url"`
+	IVentoyRoot    string `json:"iventoy_root,omitempty"`
 	FYHOCSYSURL    string `json:"fyhocsys_url"`
 }
 
@@ -89,7 +90,7 @@ func loadConfig(path string) (Config, error) {
 		return c, err
 	}
 	base, _ := filepath.Abs(filepath.Dir(path))
-	for _, p := range []*string{&c.DataDir, &c.ISODir, &c.PackageDir, &c.AdminTokenFile, &c.TLSCert, &c.TLSKey, &c.BootstrapCA} {
+	for _, p := range []*string{&c.DataDir, &c.ISODir, &c.PackageDir, &c.AdminTokenFile, &c.TLSCert, &c.TLSKey, &c.BootstrapCA, &c.IVentoyRoot} {
 		if *p != "" && !filepath.IsAbs(*p) {
 			*p = filepath.Join(base, *p)
 		}
