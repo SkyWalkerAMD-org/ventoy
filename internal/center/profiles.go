@@ -60,7 +60,9 @@ var mediaPatterns = []struct {
 	re      *regexp.Regexp
 	profile string
 }{
-	{regexp.MustCompile(`(?i)^centos[-_]7\.9[^a-z]`), "centos-7.9"},
+	{regexp.MustCompile(`(?i)^centos[-_]7\.9([._-]|$)`), "centos-7.9"},
+	// The official 7.9 release uses 7 + build 2009 in its ISO filenames.
+	{regexp.MustCompile(`(?i)^centos[-_]7[-_]x86_64[-_](dvd|everything|minimal|netinstall)[-_]2009([._-]|$)`), "centos-7.9"},
 	{regexp.MustCompile(`(?i)^rocky[-_]8[._-]`), "rocky-8"},
 	{regexp.MustCompile(`(?i)^rocky[-_]9[._-]`), "rocky-9"},
 	{regexp.MustCompile(`(?i)^rocky[-_]10[._-]`), "rocky-10"},
@@ -94,6 +96,9 @@ func validateMediaProfile(p Profile, path string) error {
 	}
 	if p.OS == "ubuntu" && (strings.Contains(name, "desktop") || strings.Contains(name, "legacy-server")) {
 		return errors.New("Ubuntu 模板需要 live-server 安装镜像")
+	}
+	if p.OS == "centos" && (strings.Contains(name, "netinstall") || strings.Contains(name, "minimal") || strings.Contains(name, "live")) {
+		return errors.New("CentOS 7.9 模板需要完整 DVD / Everything 2009 镜像")
 	}
 	if p.OS == "debian" && strings.Contains(name, "live") {
 		return errors.New("Debian 模板需要 netinst 或 DVD-1，不能使用 Live 镜像")

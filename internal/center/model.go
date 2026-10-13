@@ -128,6 +128,9 @@ func validateJob(r JobRequest) error {
 			return errors.New("当前 fyhocsys 没有 Windows 节点包；Windows 任务暂不能启用自动接入")
 		}
 	} else {
+		if r.Username == "operator" {
+			return errors.New("operator 是 Linux 内置系统账户，请使用 deployadmin 等独立管理员用户名")
+		}
 		if !hashRE.MatchString(r.PasswordHash) {
 			return errors.New("Linux 需要完整的 SHA-512 crypt 密码哈希（可用 openssl passwd -6 生成）")
 		}

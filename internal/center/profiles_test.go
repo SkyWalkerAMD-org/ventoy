@@ -15,7 +15,7 @@ import (
 )
 
 func profileRequest(p Profile, machine string) JobRequest {
-	return JobRequest{Profile: p.ID, MachineID: machine, ISO: "test.iso", Username: "operator", PasswordHash: "$6$example$" + strings.Repeat("a", 86), Password: "Example-Password-123!", WindowsImage: 1, Locale: "en-US"}
+	return JobRequest{Profile: p.ID, MachineID: machine, ISO: "test.iso", Username: "deployadmin", PasswordHash: "$6$example$" + strings.Repeat("a", 86), Password: "Example-Password-123!", WindowsImage: 1, Locale: "en-US"}
 }
 
 func TestProfileSelectionAndCompatibility(t *testing.T) {
@@ -33,6 +33,12 @@ func TestProfileSelectionAndCompatibility(t *testing.T) {
 	for _, test := range []struct{ path, id string }{
 		{"Rocky/Rocky-10.2-x86_64-dvd1.iso", "rocky-10"},
 		{"CentOS/CentOS-7.9-x86_64-Everything-2009.iso", "centos-7.9"},
+		{"CentOS/CentOS-7-x86_64-DVD-2009.iso", "centos-7.9"},
+		{"CentOS/CentOS-7-x86_64-Everything-2009.iso", "centos-7.9"},
+		{"CentOS/CentOS-7-x86_64-DVD-1810.iso", ""},
+		{"CentOS/CentOS-7.90-x86_64-DVD.iso", ""},
+		{"CentOS/CentOS-8.5.2111-x86_64-dvd1.iso", ""},
+		{"CentOS/CentOS-Stream-9-latest-x86_64-dvd1.iso", ""},
 		{"Ubuntu/ubuntu-20.04.6-live-server-amd64.iso", "ubuntu-20.04"},
 		{"Debian/debian-13.1.0-amd64-netinst.iso", "debian-13"},
 		{"custom-linux.iso", ""}, {"rocky-100-x86_64.iso", ""},
@@ -45,6 +51,43 @@ func TestProfileSelectionAndCompatibility(t *testing.T) {
 		p, _ := findProfile(test[0])
 		if validateMediaProfile(p, test[1]) == nil {
 			t.Fatal("incompatible ISO accepted", test)
+		}
+	}
+}
+
+func TestCentOS79MediaSelection(t *testing.T) {
+	p, _ := findProfile("centos-7.9")
+	for _, name := range []string{"CentOS-7-x86_64-DVD-2009.iso", "CentOS-7-x86_64-Everything-2009.iso", "CentOS-7.9-x86_64-DVD-2009.iso"} {
+		if err := validateMediaProfile(p, name); err != nil {
+			t.Errorf("full installation media %s rejected: %v", name, err)
+		}
+		other, _ := findProfile("rocky-9")
+		if err := validateMediaProfile(other, name); err == nil {
+			t.Errorf("CentOS media %s accepted for Rocky", name)
+		}
+	}
+	for _, name := range []string{"CentOS-7-x86_64-NetInstall-2009.iso", "CentOS-7-x86_64-Minimal-2009.iso", "CentOS-7.9-live-x86_64.iso"} {
+		if err := validateMediaProfile(p, name); err == nil {
+			t.Errorf("incomplete media %s accepted for DVD-only template", name)
+		}
+	}
+}
+
+func TestLinuxAdministratorName(t *testing.T) {
+	for _, p := range profiles {
+		r := profileRequest(p, "fixture-machine")
+		r.OS = p.OS
+		if err := validateJob(r); err != nil {
+			t.Fatalf("default administrator rejected for %s: %v", p.ID, err)
+		}
+		r.Username = "operator"
+		err := validateJob(r)
+		if p.OS == "windows" {
+			if err != nil {
+				t.Fatalf("Windows account unexpectedly rejected: %v", err)
+			}
+		} else if err == nil || !strings.Contains(err.Error(), "内置系统账户") {
+			t.Fatalf("reserved Linux account accepted for %s: %v", p.ID, err)
 		}
 	}
 }
@@ -104,6 +147,9 @@ func TestEveryProfileProducesInstallationBundle(t *testing.T) {
 				main := map[string]string{"kickstart": "kickstart.cfg", "autoinstall": "user-data", "preseed": "preseed.cfg", "unattend": "autounattend.xml"}[p.Installer]
 				if files[main] == "" {
 					t.Fatal("missing installation entry", main)
+				}
+				if p.OS == "centos" && (!strings.Contains(files[main], "\n@^minimal\n@core\n") || strings.Contains(files[main], "@^minimal-environment")) {
+					t.Fatal("package environment does not exist in the CentOS 7.9 DVD comps metadata")
 				}
 				for name, content := range files {
 					if name != "SHA256SUMS" && !strings.Contains(files["SHA256SUMS"], fmt.Sprintf("%x  %s", sha256.Sum256([]byte(content)), name)) {

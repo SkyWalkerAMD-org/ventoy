@@ -12,6 +12,11 @@ event() { request -H 'Content-Type: application/json' --data "{\"state\":\"$1\"}
 trap 'event failed >/dev/null 2>&1 || true' ERR
 [ "$(hostname | tr '[:lower:]' '[:upper:]')" = {{sh .Machine.Name}} ]
 {{.VersionCheck}}
+# A successful installer exit must also leave the requested human login account.
+[ "$(id -u {{sh .Request.Username}})" -ge 1000 ]
+case "$(getent passwd {{sh .Request.Username}} | cut -d: -f7)" in
+    ''|*/nologin|*/false|*/true) echo 'Administrator login shell unavailable' >&2; false ;;
+esac
 {{if .Enroll}}event enrolling
 request {{sh (printf "%s/package" .Base)}} -o "$work/node.{{if eq .OS "ubuntu"}}deb{{else}}rpm{{end}}"
 printf '%s  %s\n' {{sh .PackageSHA256}} "$work/node.{{if eq .OS "ubuntu"}}deb{{else}}rpm{{end}}" | sha256sum -c -

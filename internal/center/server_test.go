@@ -62,7 +62,7 @@ func createFixtureJob(t *testing.T, s *Server, kind string, enroll bool) Private
 	mustCode(t, w, 201)
 	var m Machine
 	json.Unmarshal(w.Body.Bytes(), &m)
-	req := JobRequest{MachineID: m.ID, OS: kind, ISO: "test.iso", Username: "operator", Password: "A-long<&password123", PasswordHash: "$6$example$" + strings.Repeat("a", 86), WindowsImage: 1, Locale: "zh-CN", Enroll: enroll}
+	req := JobRequest{MachineID: m.ID, OS: kind, ISO: "test.iso", Username: "deployadmin", Password: "A-long<&password123", PasswordHash: "$6$example$" + strings.Repeat("a", 86), WindowsImage: 1, Locale: "zh-CN", Enroll: enroll}
 	if enroll {
 		req.Package = "fyhocsys-node-test.rpm"
 		if kind == "ubuntu" {

@@ -1,5 +1,15 @@
 # 开发记录
 
+## 0.3.0-alpha.2 — 2026-10-13
+
+- 修复 CentOS 7.9 安装环境缺少 `base64`、旧版 `lsblk` 不能读取 VirtIO 磁盘序列号导致的安装前中止。
+- 按 CentOS 7.9 DVD 的软件包清单使用 `minimal` 环境，避免安装器因错误的软件包组等待人工应答。
+- 默认管理员改为 `deployadmin`，拒绝 Linux 内置 `operator` 账户；首次启动核对普通用户 UID 与登录 shell，再报告安装完成。
+- 识别官方 `CentOS-7-x86_64-DVD-2009.iso` / Everything 文件名，拒绝不适用于当前模板的 Minimal、NetInstall 和 Live 镜像。
+- 增加旧版 / 新版磁盘标识、重复序列号、错误版本、固件、USB、RAID 和授权拒绝的隔离回归测试。
+- 记录用户当前的 18 个目标版本，Ubuntu 限 Server / live-server；CentOS 7.9 优先，其余逐 ISO 验收。
+- CentOS 7.9 官方 DVD 已在独立 UEFI 虚拟机中通过无人值守安装、无 ISO 磁盘启动、SSH / sudo 登录、完成回报和凭据重放拒绝；真实硬件完整 PXE 自动安装仍待验收。
+
 ## 0.2.0-alpha.1 — 2026-10-13
 
 - 调整为 Linux 直推装机优先；新任务仅安装系统，sckocstp / fyhocsys 接入后置，不改其代码。

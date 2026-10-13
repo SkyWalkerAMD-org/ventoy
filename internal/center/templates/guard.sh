@@ -8,7 +8,18 @@ for nic in /sys/class/net/*/address; do
     if [ "$(cat "$nic")" = {{sh .Machine.MAC}} ]; then matched=1; fi
 done
 [ "$matched" -eq 1 ] || { echo 'MAC mismatch; installation stopped' >&2; exit 1; }
-disk=$(lsblk -dn -o NAME,SERIAL | awk -v serial={{sh .Machine.DiskSerial}} '$2 == serial {print $1}')
+disk_matches() {
+    # CentOS 7's lsblk leaves SERIAL empty for virtio-blk, even when sysfs has it.
+    # Examine every whole disk so the fallback cannot hide duplicate serials.
+    for candidate in $(lsblk -dn -o NAME,TYPE | awk '$2 == "disk" {print $1}'); do
+        serial=$(lsblk -dn -o SERIAL "/dev/$candidate" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        if [ -z "$serial" ] && [ -r "/sys/block/$candidate/serial" ]; then
+            serial=$(cat "/sys/block/$candidate/serial" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        fi
+        if [ "$serial" = "$1" ]; then printf '%s\n' "$candidate"; fi
+    done
+}
+disk=$(disk_matches {{sh .Machine.DiskSerial}})
 [ "$(printf '%s\n' "$disk" | wc -l)" -eq 1 ] && [ -n "$disk" ] || { echo 'Target disk not uniquely identified' >&2; exit 1; }
 case "$disk" in *[!a-zA-Z0-9_-]*) echo 'Invalid disk name' >&2; exit 1;; esac
 [ -b "/dev/$disk" ] || exit 1
@@ -21,7 +32,8 @@ fi
 {{if eq .Machine.Firmware "uefi"}}[ -d /sys/firmware/efi ] || { echo 'UEFI boot required' >&2; exit 1; }
 {{else}}[ ! -d /sys/firmware/efi ] || { echo 'Legacy BIOS boot required' >&2; exit 1; }
 {{end}}
-printf '%s' {{sh (b64 .CA)}} | base64 -d > /tmp/ventoy-center-ca.crt
+# CentOS 7's installer omits base64; PEM is safe as a quoted shell literal.
+printf '%s' {{sh .CA}} > /tmp/ventoy-center-ca.crt
 {{if .CA}}curl --cacert /tmp/ventoy-center-ca.crt{{else}}curl{{end}} --fail --silent --show-error --connect-timeout 10 --max-time 30 \
     -H {{sh (printf "Authorization: Bearer %s" .Token)}} -H 'Content-Type: application/json' \
     --data '{"state":"installing"}' {{sh (printf "%s/event" .Base)}}

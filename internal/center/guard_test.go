@@ -9,6 +9,168 @@ import (
 	"testing"
 )
 
+func TestBootstrapRequiresHumanLogin(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("requires Linux /bin/bash")
+	}
+	for _, mode := range []string{"valid", "system-uid", "missing-user", "nologin"} {
+		t.Run(mode, func(t *testing.T) {
+			root := t.TempDir()
+			bin := filepath.Join(root, "bin")
+			if err := os.MkdirAll(bin, 0700); err != nil {
+				t.Fatal(err)
+			}
+			commands := map[string]string{
+				"hostname":  "echo LAB-001",
+				"id":        "case \"$BOOT_TEST_MODE\" in system-uid) echo 11;; missing-user) exit 1;; *) echo 1000;; esac",
+				"getent":    "case \"$BOOT_TEST_MODE\" in nologin) echo 'deployadmin:x:1000:1000::/home/deployadmin:/sbin/nologin';; *) echo 'deployadmin:x:1000:1000::/home/deployadmin:/bin/bash';; esac",
+				"curl":      "printf '%s\\n' \"$@\" >> \"$BOOT_TEST_LOG\"",
+				"systemctl": "exit 0",
+			}
+			for name, body := range commands {
+				if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\n"+body+"\n"), 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			d := renderData{Base: "https://controller.invalid/bootstrap/test", VersionCheck: ":", PrivateJob: PrivateJob{Job: Job{Machine: Machine{Name: "LAB-001"}}, Request: JobRequest{Username: "deployadmin"}, Token: "fixture-token"}}
+			script, err := render("bootstrap.sh", d)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Redirect all writable script paths into the fixture directory.
+			script = strings.NewReplacer("/var/lib/", root+"/var/lib/", "/usr/local/", root+"/usr/local/").Replace(script)
+			logPath := filepath.Join(root, "events.log")
+			cmd := exec.Command("/bin/bash")
+			cmd.Stdin = strings.NewReader(script)
+			cmd.Env = append(os.Environ(), "PATH="+bin+":/usr/bin:/bin", "BOOT_TEST_MODE="+mode, "BOOT_TEST_LOG="+logPath)
+			output, err := cmd.CombinedOutput()
+			log, _ := os.ReadFile(logPath)
+			installed := strings.Contains(string(log), `{"state":"installed"}`)
+			failed := strings.Contains(string(log), `{"state":"failed"}`)
+			if mode == "valid" {
+				if err != nil || !installed || failed {
+					t.Fatalf("valid account: %v, %s, %s", err, log, output)
+				}
+			} else if err == nil || installed || !failed {
+				t.Fatalf("invalid account reported success: %v, %s, %s", err, log, output)
+			}
+		})
+	}
+}
+
+// CentOS 7.9 util-linux 2.23 omits virtio SERIAL, although the kernel exposes it.
+// Run the real hook against fixture devices, without touching disks or networking.
+func TestCentOSGuardDiskIdentity(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("requires Linux /bin/bash")
+	}
+	for _, mode := range []string{"legacy-virtio", "modern-virtio", "sata", "missing-serial", "wrong-serial", "conflicting-serial", "duplicate-mixed", "duplicate-virtio", "wrong-mac", "wrong-version", "wrong-firmware", "usb", "raid", "claim-rejected"} {
+		t.Run(mode, func(t *testing.T) {
+			root := t.TempDir()
+			write := func(name, content string, perm os.FileMode) {
+				t.Helper()
+				path := filepath.Join(root, name)
+				if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, []byte(content), perm); err != nil {
+					t.Fatal(err)
+				}
+			}
+			mac := "02:00:00:00:01:01"
+			if mode == "wrong-mac" {
+				mac = "02:00:00:00:02:02"
+			}
+			write("sys/class/net/eth0/address", mac+"\n", 0600)
+			if mode != "wrong-firmware" {
+				if err := os.MkdirAll(filepath.Join(root, "sys/firmware/efi"), 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			serial := "DISK-001"
+			if mode == "wrong-serial" || mode == "sata" {
+				serial = "OTHER-DISK"
+			}
+			if mode != "missing-serial" {
+				write("sys/block/vda/serial", "  "+serial+"  \n", 0600)
+			}
+			if mode == "duplicate-virtio" {
+				write("sys/block/vdb/serial", "DISK-001\n", 0600)
+			}
+			for _, disk := range []string{"sda", "vda", "vdb"} {
+				write("dev/"+disk, "fixture disk", 0600)
+			}
+			write("etc/os-release", "ID=centos\nVERSION_ID=7\n", 0600)
+			release := "CentOS Linux release 7.9.2009 (Core)"
+			if mode == "wrong-version" {
+				release = "CentOS Linux release 7.6.1810 (Core)"
+			}
+			write("etc/centos-release", release+"\n", 0600)
+			if err := os.MkdirAll(filepath.Join(root, "tmp"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			write("bin/udevadm", "#!/bin/sh\nexit 0\n", 0700)
+			write("bin/base64", "#!/bin/sh\necho 'base64 unavailable in CentOS 7 installer' >&2\nexit 127\n", 0700)
+			write("bin/lsblk", `#!/bin/sh
+case "$3" in
+ NAME,TYPE) printf 'sda disk\nvda disk\nvdb disk\nsda1 part\nsr0 rom\n' ;;
+ SERIAL)
+  case "${4##*/}" in
+   sda) case "$GUARD_TEST_MODE" in sata|duplicate-mixed) echo DISK-001;; *) echo OTHER-DISK;; esac ;;
+   vda) case "$GUARD_TEST_MODE" in modern-virtio) echo DISK-001;; conflicting-serial) echo DIFFERENT;; esac ;;
+  esac ;;
+ TYPE) echo disk ;;
+ TRAN) if [ "$GUARD_TEST_MODE" = usb ]; then echo usb; fi ;;
+ FSTYPE) if [ "$GUARD_TEST_MODE" = raid ]; then echo linux_raid_member; fi ;;
+ *) exit 2 ;;
+esac
+exit 0
+`, 0700)
+			write("bin/curl", "#!/bin/sh\necho CLAIM >> \"$GUARD_TEST_LOG\"\n[ \"$GUARD_TEST_MODE\" != claim-rejected ]\n", 0700)
+			p, _ := findProfile("centos-7.9")
+			d := renderData{Target: p, CA: "fixture CA\nquoted 'value'\n", Base: "https://controller.invalid/bootstrap/test", PrivateJob: PrivateJob{Job: Job{Machine: Machine{MAC: "02:00:00:00:01:01", DiskSerial: "DISK-001", Firmware: "uefi"}}, Token: "fixture-token"}}
+			var err error
+			d.VersionCheck, err = render("version-check.sh", d)
+			if err != nil {
+				t.Fatal(err)
+			}
+			script, err := render("guard.sh", d)
+			if err != nil {
+				t.Fatal(err)
+			}
+			script = strings.NewReplacer("/sys/", root+"/sys/", "/dev/", root+"/dev/", "/etc/", root+"/etc/", "/tmp/", root+"/tmp/", "[ -b ", "[ -f ").Replace(script)
+			script += "\nprintf 'SELECTED %s\\n' \"$disk\" >> \"$GUARD_TEST_LOG\"\n"
+			logPath := filepath.Join(root, "operations.log")
+			cmd := exec.Command("/bin/bash")
+			cmd.Stdin = strings.NewReader(script)
+			cmd.Env = append(os.Environ(), "PATH="+filepath.Join(root, "bin")+":/usr/bin:/bin", "GUARD_TEST_LOG="+logPath, "GUARD_TEST_MODE="+mode)
+			output, err := cmd.CombinedOutput()
+			log, _ := os.ReadFile(logPath)
+			allowed := mode == "legacy-virtio" || mode == "modern-virtio" || mode == "sata"
+			if allowed {
+				want := "vda"
+				if mode == "sata" {
+					want = "sda"
+				}
+				if err != nil || string(log) != "CLAIM\nSELECTED "+want+"\n" {
+					t.Fatalf("identity check: %v, %s, %s", err, log, output)
+				}
+				ca, err := os.ReadFile(filepath.Join(root, "tmp/ventoy-center-ca.crt"))
+				if err != nil || string(ca) != d.CA {
+					t.Fatalf("CA was not preserved without base64: %v", err)
+				}
+			} else {
+				if err == nil || strings.Contains(string(log), "SELECTED") {
+					t.Fatalf("unsafe selection: %v, %s, %s", err, log, output)
+				}
+				if mode != "claim-rejected" && strings.Contains(string(log), "CLAIM") {
+					t.Fatal("claimed before validating disk identity")
+				}
+			}
+		})
+	}
+}
+
 // Execute only the authorization hook with synthetic sysfs, devices and commands.
 // No installer, real block device or external server is accessed by this test.
 func TestDebianGuardAuthorizesOnlyAfterChecks(t *testing.T) {
