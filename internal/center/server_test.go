@@ -70,10 +70,22 @@ func createFixtureJob(t *testing.T, s *Server, kind string, enroll bool) Private
 		}
 		req.Connection = json.RawMessage(`{"node":"LAB-001","token":"PRIVATE-FYH-SECRET"}`)
 	}
-	w = request(s, "POST", "/api/jobs", s.admin, req)
+	createReq := req
+	createReq.Enroll = false
+	w = request(s, "POST", "/api/jobs", s.admin, createReq)
 	mustCode(t, w, 201)
 	var j Job
 	json.Unmarshal(w.Body.Bytes(), &j)
+	if enroll {
+		// Preserve coverage of existing alpha.1 tasks. New tasks cannot enroll.
+		if err := s.store.update(func(st *State) error {
+			old := findJob(st, j.ID)
+			old.Enroll, old.Request = true, req
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
 	state := s.store.snapshot()
 	return *findJob(&state, j.ID)
 }

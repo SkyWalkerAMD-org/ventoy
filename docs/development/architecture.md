@@ -10,16 +10,18 @@ flowchart LR
     Client --> Installer[Windows / Linux 安装器]
     Installer -->|单次领取与进度| Controller
     Installer --> FirstBoot[Linux 首次启动]
-    FirstBoot -->|导入专属连接文件| FYH[现有 fyhocsys 中心]
+    FirstBoot -->|系统版本与安装结果| Controller
 ```
 
-服务端部署目标与安装目标分开建模。服务端首先在 Rocky 9 与 fyhocsys 共机运行，也提供 Linux / Windows 二进制。任务安装目标由 `os`、ISO、hostname、MAC、目标磁盘与固件模式决定。
+服务端部署目标与安装目标分开建模。服务端首先在 Rocky 9 与 fyhocsys 共机运行，也提供 Linux / Windows 二进制。任务安装目标由 `profile`、ISO、hostname、MAC、目标磁盘与固件模式决定；`os` 是发行版家族，必须与 profile 一致。
+
+`internal/center/profiles.go` 为唯一版本目录，管理接口和网页共用。旧版未带 profile 的 Rocky/Ubuntu/Windows 任务分别保留 Rocky 9、Ubuntu 24.04、原 Windows 通用模板的含义。新界面明确选择版本；CentOS 和 Debian API 必须提供 profile。
 
 ## 任务状态
 
 `draft → ready → installing → installed`：普通装机，以及当前的 Windows 流程。
 
-`draft → ready → installing → enrolling → enrolled`：Linux 配置 fyhocsys 接入。
+`draft → ready → installing → enrolling → enrolled`：仅保留对 alpha.1 历史接入任务的兼容。当前创建接口拒绝 `enroll: true`；不修改既有 sckocstp / fyhocsys 代码或服务。
 
 `draft / ready → canceled`；客户端可在非终结执行阶段回报 `failed`。任何状态都不能直接重新领取 `installing`。取消无法撤销已开始的磁盘写入，因此开始后取消请求会被拒绝。
 
@@ -33,10 +35,10 @@ flowchart LR
 
 | 方法 / 路径 | 功能 |
 | --- | --- |
-| GET `/api/overview` | 已脱敏的机器、任务、媒体与服务地址 |
+| GET `/api/overview` | 已脱敏的机器、任务、媒体、profiles 与服务地址 |
 | POST `/api/machines` | 登记机器 |
 | DELETE `/api/machines/{id}` | 移除没有未结束任务的登记；历史任务保留机器快照 |
-| POST `/api/jobs` | 创建草稿 |
+| POST `/api/jobs` | 按 profile 创建仅安装系统的草稿；校验家族与镜像建议一致 |
 | POST `/api/jobs/{id}/arm` | 核对节点名、磁盘序列号和清盘选择后授权 |
 | POST `/api/jobs/{id}/cancel` | 取消尚未开始的任务 |
 | POST `/api/jobs/{id}/close` | 操作员确认客户端已停止安装后，将进行中记录结为失败 |
@@ -60,10 +62,10 @@ MAC 和磁盘序列号是防误操作检查，不是抵御主动伪造客户端�
 
 1. Rocky 9.8 同机部署和单台客户端真实 PXE 安装验收。
 2. iVentoy 专业版适配：在确定版本上验证读取、变更、读回、回滚与单机规则撤销，才实现网页直接下发。
-3. fyhocsys 中心侧身份关联、连接文件自动登记与新心跳确认；保持原授权边界。
-4. Windows fyhocsys 节点实现、监控与压测工具的平台适配。
-5. 安装中断后的自动超时诊断；批量选择、批量授权和安装并发限制。人工结单已实现，需操作员确认客户端停止安装。
-6. Windows WinPE 构建自动化、WinRE 分区、驱动仓库；不同 Linux 版本的完整安装测试。
-7. RPM / DEB 原生安装包、更多架构与更完整的审计/多用户能力。
+3. 各 Linux profile 的完整安装测试；安装中断后的超时诊断、批量选择、批量授权和并发限制。人工结单已实现，需操作员确认客户端停止安装。
+4. Windows WinPE 构建自动化、WinRE 分区和驱动仓库（次要优先级）。
+5. RPM / DEB 原生安装包、更多架构与更完整的审计/多用户能力。
+
+系统安装完成后，再规划 fyhocsys 身份关联、心跳确认和 Windows 节点能力，不在当前阶段修改这些系统。
 
 这些是尚未实现的能力，不能用模拟回调或配置文件生成结果代替现场完成证明。

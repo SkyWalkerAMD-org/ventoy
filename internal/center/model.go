@@ -24,6 +24,7 @@ type Machine struct {
 
 type JobRequest struct {
 	MachineID    string          `json:"machine_id"`
+	Profile      string          `json:"profile"`
 	OS           string          `json:"os"`
 	ISO          string          `json:"iso"`
 	Username     string          `json:"username"`
@@ -46,6 +47,7 @@ type Job struct {
 	ID            string    `json:"id"`
 	Machine       Machine   `json:"machine"`
 	OS            string    `json:"os"`
+	Profile       string    `json:"profile"`
 	ISO           string    `json:"iso"`
 	State         string    `json:"state"`
 	Created       time.Time `json:"created"`
@@ -102,8 +104,8 @@ func validateMachine(m *Machine) error {
 }
 
 func validateJob(r JobRequest) error {
-	if r.OS != "windows" && r.OS != "rocky" && r.OS != "ubuntu" {
-		return errors.New("系统类型须为 windows、rocky 或 ubuntu")
+	if _, err := resolveProfile(r.Profile, r.OS); err != nil {
+		return err
 	}
 	if !userRE.MatchString(r.Username) || r.Username == "root" {
 		return errors.New("请设置有效的普通管理员用户名（不可为 root）")

@@ -4,6 +4,7 @@ Machine: {{.Machine.Name}} / {{.Machine.MAC}}
 Target disk serial: {{.Machine.DiskSerial}}
 Firmware: {{.Machine.Firmware}}
 ISO: {{.ISO}}
+Profile: {{.Target.ID}} / {{.Target.Label}}
 Expires: {{.Expires}}
 
 This bundle authorizes erasure of ONLY the recorded disk on the recorded machine.
@@ -20,8 +21,15 @@ Keep it in a restricted administrator directory, never a public repository.
    components. A stock Windows ISO normally lacks these components. The guard
    deliberately blocks installation when they are absent. Include NIC/storage
    drivers for the target hardware. Windows 11 requires supported UEFI hardware.
-{{else if eq .OS "ubuntu"}}   user-data (Ubuntu Server autoinstall).
-{{else}}   kickstart.cfg (Rocky Linux 9 DVD ISO; use a matching local repository for boot ISO).
+{{else if eq .OS "ubuntu"}}   user-data (matching Ubuntu Server live-server ISO, not Desktop or legacy-server).
+{{else if eq .OS "debian"}}   preseed.cfg (matching Debian amd64 netinst or DVD-1, not Live ISO).
+   The installer requires access to the selected Debian suite's package mirror,
+   including wget-udeb and its dependencies. If using a LAN mirror, edit the
+   mirror/http/hostname and mirror/http/directory fields before binding.
+   The configured controller CA is embedded; TLS verification is mandatory.
+   On guard failure, the installer stays blocked. Inspect tty4 or
+   /var/log/ventoy-center-guard.log; fix the cause and create a new task if claimed.
+{{else}}   kickstart.cfg (matching full DVD / Everything ISO; boot/minimal-network ISO is not supported by this template).
 {{end}}4. Select that script as the default, with a nonzero script-selection timeout.
 5. In iVentoy Pro Matrix Boot, map exactly {{.Machine.MAC}} to this task's ISO.
    Use a non-destructive default menu for unknown machines; do not set a global
@@ -36,7 +44,7 @@ No iVentoy configuration, DHCP service, or BMC power setting is changed by downl
 provided connection file. State "enrolled" means import and local service checks
 passed. Verify a NEW heartbeat in fyhocsys before accepting central connectivity.
 The original sckocp installation and license must be prepared separately.
-{{else if eq .OS "windows"}}The current fyhocsys distribution has no Windows node. Windows installation
-status is tracked here; it is NOT reported as enrolled in fyhocsys.
+{{else}}This task installs the operating system and reports installation status only.
+It does not install, activate or modify fyhocsys / sckocstp.
 {{end}}
 Read the repository deployment guide before use on physical machines.

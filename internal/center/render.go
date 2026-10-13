@@ -19,11 +19,14 @@ var templates embed.FS
 
 type renderData struct {
 	PrivateJob
-	Base      string
-	CA        string
-	Guard     string
-	Bootstrap string
-	Partition int
+	Target       Profile
+	Base         string
+	CA           string
+	Guard        string
+	Bootstrap    string
+	VersionCheck string
+	DebianLate   string
+	Partition    int
 }
 
 func render(name string, data renderData) (string, error) {
@@ -48,12 +51,15 @@ func render(name string, data renderData) (string, error) {
 }
 
 func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
-	d := renderData{PrivateJob: j, Base: s.config.PublicURL + "/bootstrap/" + j.ID, CA: string(s.ca), Partition: 3}
+	p, err := resolveProfile(j.Profile, j.OS)
+	if err != nil {
+		return nil, err
+	}
+	d := renderData{PrivateJob: j, Target: p, Base: s.config.PublicURL + "/bootstrap/" + j.ID, CA: string(s.ca), Partition: 3}
 	if j.Machine.Firmware == "bios" {
 		d.Partition = 2
 	}
 	files := map[string]string{}
-	var err error
 	if j.OS == "windows" {
 		for _, pair := range [][2]string{{"windows.xml", "autounattend.xml"}, {"guard.ps1", "injection/ventoy-center/guard.ps1"}, {"postinstall.ps1", "injection/ventoy-center/postinstall.ps1"}, {"preinstall.cmd", "injection/ventoy-center/preinstall.cmd"}, {"make-injection.ps1", "Make-Injection.ps1"}} {
 			files[pair[1]], err = render(pair[0], d)
@@ -63,7 +69,15 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 		}
 		files["injection/ventoy-center/ca.crt"] = d.CA
 	} else {
-		d.Guard, err = render("guard.sh", d)
+		d.VersionCheck, err = render("version-check.sh", d)
+		if err != nil {
+			return nil, err
+		}
+		guardName := "guard.sh"
+		if p.OS == "debian" {
+			guardName = "debian-guard.sh"
+		}
+		d.Guard, err = render(guardName, d)
 		if err != nil {
 			return nil, err
 		}
@@ -74,6 +88,13 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 		name := "kickstart.cfg"
 		if j.OS == "ubuntu" {
 			name = "user-data"
+		}
+		if j.OS == "debian" {
+			name = "preseed.cfg"
+			d.DebianLate, err = render("debian-late.sh", d)
+			if err != nil {
+				return nil, err
+			}
 		}
 		files[name], err = render(name, d)
 		if err != nil {

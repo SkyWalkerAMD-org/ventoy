@@ -11,6 +11,7 @@ request() {
 event() { request -H 'Content-Type: application/json' --data "{\"state\":\"$1\"}" {{sh (printf "%s/event" .Base)}}; }
 trap 'event failed >/dev/null 2>&1 || true' ERR
 [ "$(hostname | tr '[:lower:]' '[:upper:]')" = {{sh .Machine.Name}} ]
+{{.VersionCheck}}
 {{if .Enroll}}event enrolling
 request {{sh (printf "%s/package" .Base)}} -o "$work/node.{{if eq .OS "ubuntu"}}deb{{else}}rpm{{end}}"
 printf '%s  %s\n' {{sh .PackageSHA256}} "$work/node.{{if eq .OS "ubuntu"}}deb{{else}}rpm{{end}}" | sha256sum -c -

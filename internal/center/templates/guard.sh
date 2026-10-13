@@ -1,5 +1,7 @@
 set -eu
 umask 077
+{{.VersionCheck}}
+udevadm settle
 test -d /sys/class/net
 matched=0
 for nic in /sys/class/net/*/address; do
@@ -10,7 +12,12 @@ disk=$(lsblk -dn -o NAME,SERIAL | awk -v serial={{sh .Machine.DiskSerial}} '$2 =
 [ "$(printf '%s\n' "$disk" | wc -l)" -eq 1 ] && [ -n "$disk" ] || { echo 'Target disk not uniquely identified' >&2; exit 1; }
 case "$disk" in *[!a-zA-Z0-9_-]*) echo 'Invalid disk name' >&2; exit 1;; esac
 [ -b "/dev/$disk" ] || exit 1
+[ "$(lsblk -dn -o TYPE "/dev/$disk" | tr -d ' ')" = disk ] || { echo 'Whole physical disk required' >&2; exit 1; }
 [ "$(lsblk -dn -o TRAN "/dev/$disk" | tr -d ' ')" != usb ] || { echo 'USB disk rejected' >&2; exit 1; }
+# Existing multi-device storage needs an explicit storage plan, not this template.
+if lsblk -n -o FSTYPE "/dev/$disk" | grep -Eq 'LVM2_member|linux_raid_member'; then
+    echo 'Existing LVM/RAID members require manual storage preparation' >&2; exit 1
+fi
 {{if eq .Machine.Firmware "uefi"}}[ -d /sys/firmware/efi ] || { echo 'UEFI boot required' >&2; exit 1; }
 {{else}}[ ! -d /sys/firmware/efi ] || { echo 'Legacy BIOS boot required' >&2; exit 1; }
 {{end}}

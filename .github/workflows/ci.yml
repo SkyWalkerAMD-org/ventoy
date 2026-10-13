@@ -20,6 +20,14 @@ jobs:
           cache: false
       - run: go vet ./...
       - run: go test ./...
+        env:
+          VENTOY_TEST_OUTPUT: ${{ runner.temp }}/ventoy-template-fixtures
+      - name: Parse Linux installer templates
+        if: runner.os == 'Linux'
+        run: |
+          python3 -m venv "$RUNNER_TEMP/template-validator"
+          "$RUNNER_TEMP/template-validator/bin/pip" install --disable-pip-version-check pykickstart==3.78 PyYAML==6.0.3
+          "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_templates.py "$RUNNER_TEMP/ventoy-template-fixtures"
       - if: runner.os == 'Linux'
         run: go test -race ./...
       - run: node --check internal/center/web/app.js

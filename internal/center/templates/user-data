@@ -8,13 +8,21 @@ autoinstall:
   locale: en_US.UTF-8
   keyboard:
     layout: us
+  network:
+    version: 2
+    ethernets:
+      deployment:
+        match:
+          macaddress: {{yaml .Machine.MAC}}
+        dhcp4: true
+        dhcp-identifier: mac
   identity:
     hostname: {{yaml .Machine.Name}}
     username: {{yaml .Request.Username}}
     password: {{yaml .Request.PasswordHash}}
   ssh:
     install-server: true
-    allow-pw: false
+    allow-pw: {{if .Request.SSHKey}}false{{else}}true{{end}}
     authorized-keys: [{{if .Request.SSHKey}}{{yaml .Request.SSHKey}}{{end}}]
   storage:
     layout:

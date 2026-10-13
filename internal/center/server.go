@@ -33,8 +33,9 @@ type Server struct {
 	ca     []byte
 }
 type Media struct {
-	Path string `json:"path"`
-	Size int64  `json:"size"`
+	Path             string `json:"path"`
+	Size             int64  `json:"size"`
+	SuggestedProfile string `json:"suggested_profile,omitempty"`
 }
 
 func NewServer(c Config) (*Server, error) {
@@ -184,7 +185,7 @@ func media(dir string, extensions ...string) ([]Media, error) {
 				if e != nil {
 					return e
 				}
-				items = append(items, Media{Path: filepath.ToSlash(rel), Size: info.Size()})
+				items = append(items, Media{Path: filepath.ToSlash(rel), Size: info.Size(), SuggestedProfile: suggestedProfile(rel)})
 				break
 			}
 		}
@@ -239,7 +240,7 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 	if pe != nil {
 		warnings = append(warnings, "节点包目录无法读取，请检查服务配置和权限")
 	}
-	respond(w, 200, map[string]any{"version": Version, "machines": state.Machines, "jobs": jobs, "images": isos, "packages": packages, "warnings": warnings, "iventoy_url": s.config.IVentoyURL, "fyhocsys_url": s.config.FYHOCSYSURL, "public_url": s.config.PublicURL})
+	respond(w, 200, map[string]any{"version": Version, "machines": state.Machines, "jobs": jobs, "images": isos, "packages": packages, "warnings": warnings, "profiles": profiles, "iventoy_url": s.config.IVentoyURL, "fyhocsys_url": s.config.FYHOCSYSURL, "public_url": s.config.PublicURL})
 }
 
 func (s *Server) createMachine(w http.ResponseWriter, r *http.Request) {
@@ -271,6 +272,24 @@ func (s *Server) createMachine(w http.ResponseWriter, r *http.Request) {
 func (s *Server) createJob(w http.ResponseWriter, r *http.Request) {
 	var req JobRequest
 	if !decode(w, r, &req) {
+		return
+	}
+	if req.Enroll {
+		fail(w, 400, "当前阶段仅提供系统安装，fyhocsys 接入后续开放")
+		return
+	}
+	p, profileErr := resolveProfile(req.Profile, req.OS)
+	if profileErr != nil {
+		fail(w, 400, profileErr.Error())
+		return
+	}
+	req.Profile, req.OS = p.ID, p.OS
+	if err := validateMediaProfile(p, req.ISO); err != nil {
+		fail(w, 400, err.Error())
+		return
+	}
+	if p.OS == "debian" && len(s.ca) == 0 {
+		fail(w, 400, "Debian 安装环境需要显式 CA；请先配置 bootstrap_ca_file 后重启服务")
 		return
 	}
 	if err := validateJob(req); err != nil {
@@ -311,7 +330,7 @@ func (s *Server) createJob(w http.ResponseWriter, r *http.Request) {
 		}
 		digest = hex.EncodeToString(h.Sum(nil))
 	}
-	j := PrivateJob{Job: Job{ID: randomID(12), OS: req.OS, ISO: req.ISO, State: "draft", Created: time.Now().UTC(), Enroll: req.Enroll, Package: req.Package, PackageSHA256: digest, Events: []Event{}}, Request: req}
+	j := PrivateJob{Job: Job{ID: randomID(12), OS: req.OS, Profile: req.Profile, ISO: req.ISO, State: "draft", Created: time.Now().UTC(), Enroll: req.Enroll, Package: req.Package, PackageSHA256: digest, Events: []Event{}}, Request: req}
 	err = s.store.update(func(state *State) error {
 		found := false
 		for _, m := range state.Machines {
@@ -323,6 +342,9 @@ func (s *Server) createJob(w http.ResponseWriter, r *http.Request) {
 		}
 		if !found {
 			return errors.New("节点不存在")
+		}
+		if p.ID == "windows-11" && j.Machine.Firmware != "uefi" {
+			return errors.New("Windows 11 安装任务需要 UEFI 启动模式")
 		}
 		for _, old := range state.Jobs {
 			if old.Machine.ID == req.MachineID && !terminal(old.State) {

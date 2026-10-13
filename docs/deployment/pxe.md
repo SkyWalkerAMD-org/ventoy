@@ -2,6 +2,8 @@
 
 客户端路径：BIOS / UEFI → Boot 菜单中的网卡 → iVentoy → 对应系统安装器。
 
+当前先做 Linux 系统安装，版本与镜像要求见 [Linux 安装范围](linux-targets.md)。Windows 为次要支持；sckocstp / fyhocsys 接入不属于本阶段。
+
 ## 与已有 DHCP 配合
 
 本项目不提供 DHCP 服务，也不修改 DHCP 配置。已有服务器负责分配地址。按 iVentoy 的[第三方 DHCP 官方说明](https://www.iventoy.com/cn/doc_ext_dhcp.html)选择与网段拓扑相符的模式：同网段外部 DHCP、跨网段中继与 Proxy 场景不能混用配置。
@@ -13,7 +15,7 @@ iVentoy 的当前[端口说明](https://www.iventoy.com/cn/doc_portnum.html)包�
 ## 每台机器的安装包
 
 1. 在本项目登记机器。Linux 可通过 `ip link`、`lsblk -dn -o NAME,SERIAL,TRAN` 核对信息；Windows PE 通过 `Get-CimInstance Win32_NetworkAdapter` 和 `Get-Disk` 核对。
-2. 创建任务并选择源 ISO。安装目标限定为单块、序列号可识别的非 USB 磁盘；多盘 RAID / LVM 保留策略需进一步适配，先不要使用这些模板。
+2. 创建任务并选择系统版本与源 ISO。安装目标限定为单块、序列号可识别的非 USB 磁盘；已有 RAID / LVM 成员会被拒绝，需先人工准备存储。
 3. 授权后下载 ZIP。ZIP 里有任务清单、自动安装配置、所需注入文件和校验清单。
 4. 解压到 iVentoy 的 `user/managed/任务号`。为此任务建立独立 ISO 路径，可使用同文件系统硬链接。
 5. 在 iVentoy 镜像管理页把此 ISO 关联到该任务的自动脚本。设置脚本默认编号与非零超时，详见[全自动安装说明](https://www.iventoy.com/cn/doc_unattend_install.html)。

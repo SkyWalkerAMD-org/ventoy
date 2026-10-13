@@ -30,7 +30,7 @@ sudo sh deploy/install-linux.sh ./ventoy-center
   "tls_key_file": "/var/lib/ventoy-center/tls/server.key",
   "bootstrap_ca_file": "/var/lib/ventoy-center/tls/ca.crt",
   "iventoy_url": "http://deploy.example.internal:26000",
-  "fyhocsys_url": "https://center.example.internal"
+  "fyhocsys_url": ""
 }
 ```
 
@@ -53,26 +53,18 @@ sudo journalctl -u ventoy-center -n 50 --no-pager
 3. 在 iVentoy 的 `iso` 目录建立到镜像的链接，或把管理端的 `iso_dir` 指向 iVentoy 的实际镜像目录。确保两项服务有对应读取权限。当前管理端扫描不递归进入符号链接目录，宜直接配置真实目录。
 4. 继续按 [PXE 配置](pxe.md) 配合已有 DHCP，先使用正常手工安装镜像验证网卡能引导。
 
-## 4. fyhocsys 自动接入准备
+## 4. 准备安装目标
 
-每台客户端先在 fyhocsys 中登记一次。用户名、资产号、BMC 配置继续由 fyhocsys 管理。也可在这台中心本机使用已安装的 CLI：
+按 [Linux 安装版本](linux-targets.md)选择实际镜像和系统 profile。新任务只安装操作系统，不需要在 fyhocsys 登记节点、准备节点包、导入连接文件或修改其现有配置。`package_dir` / `fyhocsys_url` 保留为旧配置兼容字段，当前部署流程不使用。
 
-```sh
-sudo fyhocsys-center node-add --node BUILD-001 --serial ASSET-EXAMPLE-001 --keep-on --output /root/BUILD-001.fyhocsys.json
-```
-
-如果已经登记，使用首次生成的连接文件，不重复登记。新系统 hostname 必须与该节点名一致。将对应发行版的 `fyhocsys-node` RPM / DEB 放进 `package_dir`；从管理界面创建 Linux 安装任务时选中“安装后自动配置 fyhocsys 接入”，选择节点包并导入专属连接文件。
-
-连接文件只保存在管理端私有状态中。安装保护获得单次授权后，Linux 首次启动进入 `enrolling`，才允许用该任务凭据下载对应连接文件和包。下载的包与创建任务时计算的 SHA-256 不一致会失败。包管理器仍需要可用的依赖源；无互联网环境应先提供内网软件仓库或完整依赖。
-
-导入后运行 `fyhocsys-node check` 和本地服务检查，成功状态为“接入已配置”。最后到 fyhocsys 确认新的心跳。原 sckocp 的安装、激活和压测授权需沿用已有流程；导入连接文件不意味着工具已经激活或可以立即压测。
+Debian 模板需要显式配置 `bootstrap_ca_file`，并保证客户端可访问 Debian 镜像源。使用 CentOS/Rocky 完整 DVD ISO，Ubuntu 使用对应版本的 live-server ISO。
 
 ## 5. 验收顺序
 
 1. 先验证管理端登录与镜像列表，再验证单台客户端 PXE 进入镜像菜单。
 2. 用已备份且允许清空的测试机，核对 MAC、磁盘序列号与固件模式。
 3. 新建并授权任务，导入安装包与按 MAC 启动规则，从客户端 Boot 菜单选择网卡。
-4. 检查只清空指定盘、安装成功、节点连接文件正确导入、fyhocsys 收到新心跳。
+4. 检查只清空指定盘、安装成功、首次磁盘启动、账号登录、网络连接及管理端 `installed` 回报。
 5. 删除本次 MAC 启动规则和 ISO 别名；再验证旧安装包重放被拒绝。
 6. 通过后再扩大机器数量并记录带宽、磁盘和 DHCP 压力。单元测试不代替这些硬件测试。
 
