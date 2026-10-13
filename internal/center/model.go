@@ -200,11 +200,12 @@ func (s *Store) update(fn func(*State) error) error {
 	if closeErr != nil {
 		return closeErr
 	}
-	if err = os.Rename(tmp, s.path); err != nil {
-		return err
+	replaced, err := replaceSnapshot(tmp, s.path)
+	if replaced {
+		// Even if the directory sync fails, never roll a consumed claim back in memory.
+		s.state = next
 	}
-	s.state = next
-	return nil
+	return err
 }
 func (s *Store) snapshot() State {
 	s.mu.Lock()
