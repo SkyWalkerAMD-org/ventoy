@@ -30,6 +30,11 @@ Keep it in a restricted administrator directory, never a public repository.
    On guard failure, the installer stays blocked. Inspect tty4 or
    /var/log/ventoy-center-guard.log; fix the cause and create a new task if claimed.
 {{else}}   kickstart.cfg (matching full DVD / Everything ISO; boot/minimal-network ISO is not supported by this template).
+{{if eq .Target.ID "centos-7.9"}}   Also set this task image's boot injection file to centos7-iventoy.tar.gz.
+   It supplies the Kickstart entry through CentOS 7 dracut's cmdline.d, fixing
+   the observed iVentoy 1.0.44 script-loading issue. Bind BOTH files to this
+   task image. The archive does not replace the Kickstart or its disk guard.
+{{end}}
 {{end}}4. Select that script as the default, with a nonzero script-selection timeout.
 5. In iVentoy Pro Matrix Boot, map exactly {{.Machine.MAC}} to this task's ISO.
    Use a non-destructive default menu for unknown machines; do not set a global

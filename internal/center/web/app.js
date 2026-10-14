@@ -115,9 +115,11 @@ async function openPreparation(job) {
   root.append(el('p',plan.prepared?'任务文件已准备。请在 iVentoy 中完成以下关联。':'在同机 iVentoy 目录生成安装脚本和独立 ISO 硬链接。'));
   const dl=el('dl',null,'detail-grid');
   for(const [label,value] of [['目标机器',job.machine.name],['启动 MAC',plan.mac],['镜像路径',plan.image_selection||'—'],['自动安装脚本',plan.script_selection||'—']])dl.append(el('dt',label),el('dd',value));
+  if(plan.injection_selection)dl.append(el('dt','启动注入文件'),el('dd',plan.injection_selection));
   root.append(dl);
   if(plan.reason)root.append(el('p',plan.reason,'warning'));
   const steps=el('ol',null,'preparation-steps');
+  if(plan.injection_selection)steps.append(el('li','为上述任务镜像同时设置“启动注入文件”，选择显示的 CentOS 7 兼容包；自动安装脚本仍需单独关联。'));
   for(const text of ['准备文件后，在 iVentoy 镜像管理刷新并选择上述镜像，关联自动安装脚本。','将脚本设为默认，设置非零选择超时；在专业版分机独启中把上述 MAC 绑定到此镜像。','客户端从网卡启动。任务结束后，先移除 iVentoy 中的关联，再清理任务文件。'])steps.append(el('li',text));
   root.append(steps);
   const actions=el('div',null,'dialog-actions');

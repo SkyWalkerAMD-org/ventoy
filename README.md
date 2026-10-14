@@ -2,9 +2,9 @@
 
 局域网批量装机管理端。客户端在 BIOS / UEFI 的 Boot 菜单选择网卡，由 **iVentoy / PXE** 加载镜像和自动安装配置；本项目负责目标机器、安装任务、授权、安装包和进度回传。
 
-**当前：0.3.0-alpha.2，Linux 装机优先。** 本阶段只做直推装机，不修改 sckocstp / fyhocsys，也不创建新的自动接入任务。Windows 保留为次要支持，接入工作待装机流程完成后再考虑。
+**当前：0.3.0-alpha.3，Linux 装机优先。** 本阶段只做直推装机，不修改 sckocstp / fyhocsys，也不创建新的自动接入任务。Windows 保留为次要支持，接入工作待装机流程完成后再考虑。
 
-服务端和安装包生成已实现；iVentoy 规则仍通过其原生界面配置。CentOS 7.9 已通过 UEFI 虚拟机完整安装、磁盘启动、SSH / sudo 登录和完成回报验证，详见 [验收记录](docs/deployment/centos7.md)。真实硬件的完整 PXE 自动安装仍待验收。
+服务端和安装包生成已实现；iVentoy 规则仍通过其原生界面配置。CentOS 7.9 已通过 UEFI 虚拟机和真实硬件的完整安装、磁盘启动、SSH / sudo 登录和完成回报验证；实机使用 iVentoy 1.0.44 从 Intel X710 网卡启动，详见 [验收记录](docs/deployment/centos7.md)。其他镜像、硬件和启动模式仍需分别验收。
 
 ## 已实现
 
@@ -29,7 +29,7 @@
 
 | 平台 | 交付方式 | 当前验证范围 |
 | --- | --- | --- |
-| Rocky Linux 9（首要目标，包含用户的 9.8 环境） | 静态 Linux x86-64 二进制 + systemd | 9.8 同机服务、TLS 与管理接口已验证；UEFI 实机网启已到 Rocky 9.7 安装器，完整实机安装待验收 |
+| Rocky Linux 9（首要目标，包含用户的 9.8 环境） | 静态 Linux x86-64 二进制 + systemd | 9.8 同机服务、TLS 与管理接口已验证；CentOS 7.9 UEFI PXE 实装通过，Rocky 9.7 仅验证到安装器 |
 | Rocky Linux 8 / 10 | 同一 Linux 二进制 | CI 启动检查，不等于 systemd / PXE 实机验收 |
 | Debian 12 / 13 | 同一 Linux 二进制 + systemd | 同上 |
 | Ubuntu 24.04 / 26.04 | 同一 Linux 二进制 + systemd | 同上；其他 24–26 间的短周期版本未单独验证 |
