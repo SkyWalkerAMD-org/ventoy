@@ -44,7 +44,7 @@ CentOS 7.9 安装包现在额外生成 `centos7-iventoy.tar.gz`。它通过 [iVe
 - 自动安装脚本：`kickstart.cfg`，默认编号与非零超时按原流程设置。
 - 启动注入文件：`centos7-iventoy.tar.gz`，管理端“iVentoy 文件”弹窗会显示完整路径。
 
-兼容包仅为 CentOS 7.9 任务生成，仍需通过 MAC、磁盘序列号、现有 RAID/LVM 和一次性授权检查。旧任务的文件清单不会被自动覆盖；缺少兼容包时取消并清理旧任务，重新生成。兼容入口的真实硬件验证正在进行，尚不能视作完成安装验收。
+兼容包仅为 CentOS 7.9 任务生成，仍需通过 MAC、磁盘序列号、现有 RAID/LVM 和一次性授权检查。旧任务的文件清单不会被自动覆盖；缺少兼容包时取消并清理旧任务，重新生成。此兼容入口已在下述实机环境完成安装验收。
 
 ## 验证边界
 
@@ -63,12 +63,27 @@ CentOS 7.9 安装包现在额外生成 `centos7-iventoy.tar.gz`。它通过 [iVe
 
 单元测试、安装配置解析、虚拟机安装和真实硬件 PXE 是不同层次。虚拟机验证使用独立控制器数据、新建 qcow2、用户态 NAT；不挂载宿主机物理盘，也不修改 fyhocsys / sckocstp。
 
-同日，真实硬件已通过 Intel X710 的 LAN1 / UEFI PXE，经 iVentoy 1.0.44 加载上述 DVD 并进入 CentOS 7 安装欢迎 / 语言页。服务器日志确认客户端正在读取该 CentOS ISO。测试机使用 Xeon w7-2495X、64 GiB 内存和两块 HFS480G3H2X069N SATA 磁盘；安装环境启动时出现既有 LVM 的扫描错误，正式安装前需单独核对旧存储。
+### 真实硬件 PXE 完整安装
 
-2026-10-14，已在用户授权后按序列号准备一块测试盘，另一块盘保留。专属任务镜像与 Kickstart 已绑定，客户端也显示并选择了对应脚本；但本轮 iVentoy 1.0.44 的 `Standard` 模式启动仍进入交互式欢迎页，安装器命令行没有 `inst.ks`，管理端未收到写盘前的授权领取。脚本文件经 iVentoy HTTP 服务读取后与原文件一致，不能把“绑定成功”当作“安装器已加载脚本”。此为现场观察，尚未证实由安全启动支持模式导致。
+2026-10-14，`0.3.0-alpha.3` 使用同一份官方 DVD，在 Xeon w7-2495X、64 GiB 内存、Intel X710 LAN1 和两块 HFS480G3H2X069N SATA 磁盘上完成实装。服务端为 Rocky Linux 9.8，iVentoy 为 1.0.44，使用 `ProxyNet` 和 `Standard` 模式，客户端 Secure Boot 关闭。
 
-后续重新核对时，两盘已被另一轮 Debian 安装配置为软件 RAID，原先“目标盘已准备”的状态不再成立。本轮重新进入 CentOS 安装器后确认，两盘均未挂载，阵列未组装，但 RAID 成员标记仍在；本轮尚未清除标记。临时切换 `Not Supported` 后问题仍复现，已恢复 `Standard`。客户端日志中的 `sed: /etc/vtoycmdline: No such file or directory` 和已上传的完整 Kickstart 指向上述启动参数兼容问题，专属镜像已绑定兼容包等待复验。
+| 项目 | 结果 |
+| --- | --- |
+| 网启与脚本 | 从 LAN1 的 UEFI PXE 进入专属任务镜像；Kickstart 与兼容注入包生效，自动通过安装前检查 |
+| 完整安装 | 自动分区并安装 305 个软件包，写入 UEFI 引导程序，自动重启；安装器内无需人工应答 |
+| 目标盘 | 按序列号选择尾号 Q0Q 的 SATA 盘；EFI、`/boot`、LVM 根目录、swap 与 `/home` 均位于此盘 |
+| 其他磁盘 | 尾号 Q0R 的盘保留原有 953 MiB vfat 与 446.2 GiB RAID 成员分区，未挂载；未对其执行清除操作 |
+| 硬盘启动 | `BootCurrent: 0000` 对应目标盘的 `EFI/CENTOS/SHIMX64.EFI`；根目录为本地 LVM / XFS，无网络 ISO 挂载 |
+| 系统版本 | CentOS Linux 7.9.2009，内核 `3.10.0-1160.el7.x86_64` |
+| 管理账户 | `deployadmin`，UID 1000、wheel；控制台密码登录、SSH 公钥登录与 sudo 密码验证均通过 |
+| 网络与安全设置 | LAN1 在已安装系统中为 `eno2`，DHCP 与默认路由正常；sshd active、SELinux Enforcing、root 密码锁定，无 failed systemd 单元 |
+| 首次启动回报 | `ready → installing → installed`；回报服务 Result=success / ExecMainStatus=0，服务自动禁用、临时凭据脚本已移除 |
+| 凭据重放 | 用已完成任务原凭据重新请求安装授权，HTTP 401 拒绝；未为测试重放再次启动安装器 |
 
-兼容包首次实机复验在 `Standard` 模式下已读取 Kickstart，`/tmp/ks.cfg` 和 `/run/install/ks.cfg` 均为 10310 字节；随后约 247 秒报告 initqueue 超时。客户端回传的报告显示 `80-kickstart.conf` 含 `ip=eth1:dhcp: bootdev=eth1`，实际联网设备已是 `eno2` 且已取得局域网地址，ISO 也已只读挂载。任务仍为待启动，未领取写盘授权。已据此修正网络配置并通过原始解析器对照实验；修正后的物理网启、完整安装仍需验收，不能标记为实装通过。
+本轮服务端于 `04:12:17 UTC` 收到写盘前领取，`04:16:39 UTC` 收到首次启动完成回报。KVM 画面、服务端状态和 SSH 检查相互核对；测试凭据及原始日志留在现场私有验收目录，不入仓库。
 
-真实硬件的网启到安装器已验证；原生脚本注入、完整安装、硬盘启动和登录仍需完成验收。UEFI 下的结果也不代表 Legacy BIOS 或 Secure Boot 已通过。
+**旧存储准备是独立步骤。** 测试机此前的两块盘组成 Debian RAID1，安装前保护按预期报告 `Existing LVM/RAID members require manual storage preparation`。在用户已授权清盘的前提下，核对两块整盘序列号、无挂载 / swap、阵列仅含预期成员后，停止离线阵列，仅清除目标盘的分区与 RAID 标记，再重新网启。这里验证的是已准备目标盘的单盘安装，没有增加自动拆除现有 RAID / LVM 的功能。
+
+排障中遇到的两项启动兼容问题已分别解决：`cmdline.d` 注入使 dracut 读取 Kickstart；网络指令顺序避免等待 udev 重命名前的 `eth1`。旧 RAID 保护触发时，CentOS 7 的错误处理还可能显示 `ImportError: No module named updates_disk_hook`；应先检查 `/tmp/ventoy-center-pre.log`，本轮实际原因是旧阵列，未通过修改 Python 模块绕过保护。
+
+验收结束时复核 iVentoy 仍为运行状态，保持 `Standard` / `ProxyNet`，无全局默认镜像。上述结果仅覆盖此 DVD、硬件和 UEFI 配置，不代表 Everything、Legacy BIOS、Secure Boot 或其他发行版已完成实装验收。
