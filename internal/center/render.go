@@ -100,6 +100,12 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 		if err != nil {
 			return nil, err
 		}
+		if p.ID == "centos-7.9" {
+			files[centosInjectionName], err = centosInjection()
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 	files["README.txt"], err = render("bundle.txt", d)
 	if err != nil {

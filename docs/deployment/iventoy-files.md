@@ -32,6 +32,7 @@ Windows 使用运行管理端的专用账户，为两个专用目录授予修改
 1. 创建任务，核对机器与磁盘后授权。
 2. 打开任务的“iVentoy 文件”，点击“准备安装文件”。创建 `iso/ventoy-center/任务号/image.iso` 和 `user/scripts/ventoy-center/任务号/` 内的脚本、清单。
 3. 按弹窗中的路径关联 iVentoy 镜像与脚本，设置默认脚本及非零超时，再在专业版分机独启绑定准确 MAC。
+   CentOS 7.9 还需为同一镜像设置弹窗显示的“启动注入文件” `centos7-iventoy.tar.gz`，用于补上 iVentoy 1.0.44 的 dracut Kickstart 入口；它不能代替自动安装脚本。
 4. 客户端从网卡启动。文件已准备不代表 PXE 已启动或安装成功。
 5. 任务结束后先移除 iVentoy 的关联，再点击“清理任务文件”。只清理清单中的文件与硬链接，原始 ISO 保留。
 
