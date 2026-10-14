@@ -26,6 +26,7 @@ type renderData struct {
 	Bootstrap     string
 	VersionCheck  string
 	DebianLate    string
+	UbuntuStorage string
 	Partition     int
 	InjectionName string
 }
@@ -76,6 +77,12 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 			return nil, err
 		}
 		guardName := "guard.sh"
+		if p.OS == "ubuntu" {
+			d.UbuntuStorage, err = render("ubuntu-storage.py", d)
+			if err != nil {
+				return nil, err
+			}
+		}
 		if p.OS == "debian" {
 			guardName = "debian-guard.sh"
 		}

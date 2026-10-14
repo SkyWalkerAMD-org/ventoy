@@ -60,11 +60,11 @@ func TestBootstrapRequiresHumanLogin(t *testing.T) {
 
 // CentOS 7.9 util-linux 2.23 omits virtio SERIAL, although the kernel exposes it.
 // Run the real hook against fixture devices, without touching disks or networking.
-func TestCentOSGuardDiskIdentity(t *testing.T) {
+func TestLinuxGuardDiskIdentity(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("requires Linux /bin/bash")
 	}
-	for _, mode := range []string{"legacy-virtio", "modern-virtio", "sata", "missing-serial", "wrong-serial", "conflicting-serial", "duplicate-mixed", "duplicate-virtio", "wrong-mac", "wrong-version", "wrong-firmware", "usb", "raid", "claim-rejected"} {
+	for _, mode := range []string{"legacy-virtio", "modern-virtio", "sata", "missing-serial", "wrong-serial", "conflicting-serial", "duplicate-mixed", "duplicate-virtio", "wrong-mac", "wrong-version", "wrong-firmware", "usb", "raid", "claim-rejected", "ubuntu-sata", "ubuntu-binding-failed", "ubuntu-duplicate", "ubuntu-raid"} {
 		t.Run(mode, func(t *testing.T) {
 			root := t.TempDir()
 			write := func(name, content string, perm os.FileMode) {
@@ -88,7 +88,7 @@ func TestCentOSGuardDiskIdentity(t *testing.T) {
 				}
 			}
 			serial := "DISK-001"
-			if mode == "wrong-serial" || mode == "sata" {
+			if mode == "wrong-serial" || mode == "sata" || strings.HasPrefix(mode, "ubuntu-") && mode != "ubuntu-duplicate" {
 				serial = "OTHER-DISK"
 			}
 			if mode != "missing-serial" {
@@ -111,23 +111,30 @@ func TestCentOSGuardDiskIdentity(t *testing.T) {
 			}
 			write("bin/udevadm", "#!/bin/sh\nexit 0\n", 0700)
 			write("bin/base64", "#!/bin/sh\necho 'base64 unavailable in CentOS 7 installer' >&2\nexit 127\n", 0700)
+			// Exercise the shell's binder/claim ordering; the validator executes
+			// the real embedded Python against temporary autoinstall documents.
+			write("bin/python3", "#!/bin/sh\nprintf 'BIND %s\\n' \"$2\" >> \"$GUARD_TEST_LOG\"\n[ \"$GUARD_TEST_MODE\" != ubuntu-binding-failed ]\n", 0700)
 			write("bin/lsblk", `#!/bin/sh
 case "$3" in
  NAME,TYPE) printf 'sda disk\nvda disk\nvdb disk\nsda1 part\nsr0 rom\n' ;;
  SERIAL)
   case "${4##*/}" in
-   sda) case "$GUARD_TEST_MODE" in sata|duplicate-mixed) echo DISK-001;; *) echo OTHER-DISK;; esac ;;
+   sda) case "$GUARD_TEST_MODE" in sata|duplicate-mixed|ubuntu-*) echo DISK-001;; *) echo OTHER-DISK;; esac ;;
    vda) case "$GUARD_TEST_MODE" in modern-virtio) echo DISK-001;; conflicting-serial) echo DIFFERENT;; esac ;;
   esac ;;
  TYPE) echo disk ;;
  TRAN) if [ "$GUARD_TEST_MODE" = usb ]; then echo usb; fi ;;
- FSTYPE) if [ "$GUARD_TEST_MODE" = raid ]; then echo linux_raid_member; fi ;;
+ FSTYPE) case "$GUARD_TEST_MODE" in raid|ubuntu-raid) echo linux_raid_member;; esac ;;
  *) exit 2 ;;
 esac
 exit 0
 `, 0700)
 			write("bin/curl", "#!/bin/sh\necho CLAIM >> \"$GUARD_TEST_LOG\"\n[ \"$GUARD_TEST_MODE\" != claim-rejected ]\n", 0700)
 			p, _ := findProfile("centos-7.9")
+			if strings.HasPrefix(mode, "ubuntu-") {
+				p, _ = findProfile("ubuntu-22.04")
+				write("etc/os-release", "ID=ubuntu\nVERSION_ID=22.04\n", 0600)
+			}
 			d := renderData{Target: p, CA: "fixture CA\nquoted 'value'\n", Base: "https://controller.invalid/bootstrap/test", PrivateJob: PrivateJob{Job: Job{Machine: Machine{MAC: "02:00:00:00:01:01", DiskSerial: "DISK-001", Firmware: "uefi"}}, Token: "fixture-token"}}
 			var err error
 			d.VersionCheck, err = render("version-check.sh", d)
@@ -146,13 +153,17 @@ exit 0
 			cmd.Env = append(os.Environ(), "PATH="+filepath.Join(root, "bin")+":/usr/bin:/bin", "GUARD_TEST_LOG="+logPath, "GUARD_TEST_MODE="+mode)
 			output, err := cmd.CombinedOutput()
 			log, _ := os.ReadFile(logPath)
-			allowed := mode == "legacy-virtio" || mode == "modern-virtio" || mode == "sata"
+			allowed := mode == "legacy-virtio" || mode == "modern-virtio" || mode == "sata" || mode == "ubuntu-sata"
 			if allowed {
 				want := "vda"
-				if mode == "sata" {
+				if mode == "sata" || mode == "ubuntu-sata" {
 					want = "sda"
 				}
-				if err != nil || string(log) != "CLAIM\nSELECTED "+want+"\n" {
+				operations := "CLAIM\nSELECTED " + want + "\n"
+				if mode == "ubuntu-sata" {
+					operations = "BIND sda\n" + operations
+				}
+				if err != nil || string(log) != operations {
 					t.Fatalf("identity check: %v, %s, %s", err, log, output)
 				}
 				ca, err := os.ReadFile(filepath.Join(root, "tmp/ventoy-center-ca.crt"))

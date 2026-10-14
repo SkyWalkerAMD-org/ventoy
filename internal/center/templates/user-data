@@ -3,6 +3,15 @@ autoinstall:
   version: 1
   refresh-installer:
     update: false
+  apt:
+    preserve_sources_list: false
+    geoip: false
+    primary:
+      - arches: [default]
+        uri: https://archive.ubuntu.com/ubuntu
+    security:
+      - arches: [default]
+        uri: https://security.ubuntu.com/ubuntu
   packages:
     - curl
   locale: en_US.UTF-8
@@ -28,7 +37,8 @@ autoinstall:
     layout:
       name: direct
       match:
-        serial: {{yaml .Machine.DiskSerial}}
+        # early-commands replaces this only after unique serial verification.
+        path: /dev/ventoy-center-unverified
   early-commands:
     - |
 {{indent 6 .Guard}}

@@ -12,6 +12,8 @@ from pykickstart.parser import KickstartParser
 from pykickstart.version import makeVersion
 import yaml
 
+from validate_ubuntu_storage import check_storage_binding
+
 
 def shell_check(source):
     # Native Windows may provide Git Bash via an explicit executable path.
@@ -54,7 +56,8 @@ for release in ("20.04", "22.04", "24.04", "26.04"):
         path = root / ("ubuntu-" + release) / firmware / "user-data"
         config = yaml.safe_load(path.read_text(encoding="utf-8"))["autoinstall"]
         assert config["version"] == 1
-        assert config["storage"]["layout"]["match"]["serial"]
+        assert config["storage"]["layout"]["match"] == {"path": "/dev/ventoy-center-unverified"}
+        check_storage_binding(config)
         for phase in ("early-commands", "late-commands"):
             for script in config[phase]:
                 shell_check(script)
