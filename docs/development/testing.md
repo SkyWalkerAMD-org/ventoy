@@ -15,6 +15,8 @@ node --check internal/center/web/app.js
 
 CentOS 7 guard 另有 14 个隔离用例：覆盖旧版 `lsblk` 的空序列号、内核 sysfs 回退、新版 VirtIO / SATA、跨设备重复序列号、错误 MAC / 版本 / 固件、USB / RAID 和授权失败。测试还模拟 `base64` 不可用，核对控制器 CA 完整保留，所有身份检查通过后才领取授权。
 
+共用的 Linux guard 另覆盖 Ubuntu SATA、重复序列号、RAID 和绑定失败，验证目标校验、写入绑定、单次领取的顺序。Ubuntu 模板验证还执行内嵌 Python 绑定器，检查展开 / 包裹的 autoinstall 配置、SATA / NVMe / VirtIO 路径、非法设备名、异常存储配置及原子替换失败，确保其他配置与失败前文件内容保留。
+
 首次启动脚本另执行 4 个隔离用例，确保系统账户 UID、缺失用户及 `nologin` shell 回传失败，只有普通可登录账户能回传 `installed`。
 
 Linux CI 另用 Pykickstart 3.78 的 RHEL7/8/9/10 解析器检查 Kickstart，使用 PyYAML 6.0.3 解析 Ubuntu 配置，并对 22 份 Linux 模板及内嵌脚本运行 `bash -n`。这能发现语法错误，不等于安装器运行验证或所有 Subiquity 版本的 schema 验证。本地可在安装上述两个 Python 依赖后运行 `python scripts/validate_templates.py 导出目录`。
