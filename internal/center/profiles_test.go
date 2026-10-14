@@ -151,6 +151,9 @@ func TestEveryProfileProducesInstallationBundle(t *testing.T) {
 				if (files[centosInjectionName] != "") != (p.ID == "centos-7.9") {
 					t.Fatal("CentOS 7 compatibility archive must be limited to that profile")
 				}
+				if (files[rockyInjectionName] != "") != (p.ID == "rocky-8") {
+					t.Fatal("Rocky compatibility archive must be limited to verified profiles")
+				}
 				if p.OS == "centos" && (!strings.Contains(files[main], "\n@^minimal\n@core\n") || strings.Contains(files[main], "@^minimal-environment")) {
 					t.Fatal("package environment does not exist in the CentOS 7.9 DVD comps metadata")
 				}

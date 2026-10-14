@@ -7,13 +7,26 @@ import (
 )
 
 const centosInjectionName = "centos7-iventoy.tar.gz"
+const rockyInjectionName = "rocky-iventoy.tar.gz"
+
+func kickstartInjectionName(profile string) string {
+	switch profile {
+	case "centos-7.9":
+		return centosInjectionName
+	case "rocky-8":
+		return rockyInjectionName
+	default:
+		return ""
+	}
+}
 
 // iVentoy 1.0.44's CentOS hook appends inst.ks to /etc/vtoycmdline,
-// which the original CentOS 7 dracut does not read. Its supported injection
+// which the original CentOS 7 dracut does not read. Rocky 8.10 also reaches
+// Anaconda without the selected Kickstart. Its supported injection
 // mechanism lets us supply the argument through dracut's own cmdline.d.
 // The archive is bound only to the task image, together with its Kickstart;
 // identity, existing RAID/LVM and one-use authorization checks remain in %pre.
-func centosInjection() (string, error) {
+func kickstartInjection() (string, error) {
 	const content = "inst.ks=file:/ventoy/autoinstall\n"
 	var out bytes.Buffer
 	gz := gzip.NewWriter(&out)

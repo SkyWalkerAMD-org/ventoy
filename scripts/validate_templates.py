@@ -34,8 +34,8 @@ for profile, version in [("centos-7.9", "RHEL7"), ("rocky-8", "RHEL8"), ("rocky-
         handler = makeVersion(version)
         parser = KickstartParser(handler, followIncludes=False)
         parser.readKickstart(str(path))
-        if profile == "centos-7.9":
-            # CentOS 7's initrd turns only the first network directive into
+        if profile in ("centos-7.9", "rocky-8"):
+            # These initrds turn only the first network directive into
             # dracut ip=/bootdev=. iVentoy loads the NIC before udev renames it,
             # so an early ethN binding leaves dracut waiting on a vanished NIC.
             networks = handler.network.network

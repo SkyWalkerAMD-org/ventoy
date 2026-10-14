@@ -32,11 +32,13 @@ Windows 使用运行管理端的专用账户，为两个专用目录授予修改
 1. 创建任务，核对机器与磁盘后授权。
 2. 打开任务的“iVentoy 文件”，点击“准备安装文件”。创建 `iso/ventoy-center/任务号/image.iso` 和 `user/scripts/ventoy-center/任务号/` 内的脚本、清单。
 3. 按弹窗中的路径关联 iVentoy 镜像与脚本，设置默认脚本及非零超时，再在专业版分机独启绑定准确 MAC。
-   CentOS 7.9 还需为同一镜像设置弹窗显示的“启动注入文件” `centos7-iventoy.tar.gz`，用于补上 iVentoy 1.0.44 的 dracut Kickstart 入口；它不能代替自动安装脚本。
+   CentOS 7.9 和 Rocky 8 还需为同一镜像设置弹窗显示的“启动注入文件”：分别为 `centos7-iventoy.tar.gz` 和 `rocky-iventoy.tar.gz`，用于补上 iVentoy 1.0.44 的 dracut Kickstart 入口；它不能代替自动安装脚本。Rocky 9 / 10 不使用这两个注入包。
 4. 客户端从网卡启动。文件已准备不代表 PXE 已启动或安装成功。
 5. 任务结束后先移除 iVentoy 的关联，再点击“清理任务文件”。只清理清单中的文件与硬链接，原始 ISO 保留。
 
 专用 `ventoy-center` 子目录不会作为新任务的原始镜像来源。Windows 仍使用 ZIP 安装包。
+
+升级前已准备的任务不会原地改写。若旧任务缺少新版本要求的注入包，应在客户端停止使用镜像后取消任务、移除 iVentoy 绑定、清理任务文件，再创建并绑定新任务。
 
 ## 中断与冲突
 

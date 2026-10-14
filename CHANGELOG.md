@@ -1,5 +1,16 @@
 # 开发记录
 
+## 0.3.0-alpha.5 — 2026-10-14（待实机复测）
+
+- 将 CentOS 7 已验证的分离 hostname / MAC 绑定网络配置扩展到 Rocky 8，避免 initramfs 等待 udev 改名前的 `ethN`。
+- Rocky 8.10 原始安装器解析器的隔离复现通过：旧配置生成 `ip=eth1:dhcp:` / `bootdev=eth1` 和网络等待标记；新配置不生成这些条件，保留 MAC、DHCP 和自动连接。此修复尚未完成物理机回归。
+
+## 0.3.0-alpha.4 — 2026-10-14
+
+- Rocky 8 任务增加 `rocky-iventoy.tar.gz` 启动注入包，补齐 iVentoy 1.0.44 的 Kickstart 入口，并纳入准备、校验和清理清单。
+- Rocky 8.10 DVD 已完成 Intel X710 / UEFI 实机自动安装、硬盘启动、控制台 / SSH / sudo 登录和首次启动回报；保留盘分区信息一致，完成任务重放返回 HTTP 401。
+- 本次安装存在约 10 分钟 initramfs 网络等待，日志定位到已改名的 `eth1`；功能验收通过，启动等待问题待 alpha.5 实机复测。
+
 ## 0.3.0-alpha.3 — 2026-10-14
 
 - CentOS 7.9 任务额外生成受清单管理的 iVentoy 注入包，通过 dracut 的 `cmdline.d` 传入 Kickstart 路径；管理页面显示两份文件的绑定路径。

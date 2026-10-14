@@ -19,14 +19,15 @@ var templates embed.FS
 
 type renderData struct {
 	PrivateJob
-	Target       Profile
-	Base         string
-	CA           string
-	Guard        string
-	Bootstrap    string
-	VersionCheck string
-	DebianLate   string
-	Partition    int
+	Target        Profile
+	Base          string
+	CA            string
+	Guard         string
+	Bootstrap     string
+	VersionCheck  string
+	DebianLate    string
+	Partition     int
+	InjectionName string
 }
 
 func render(name string, data renderData) (string, error) {
@@ -56,6 +57,7 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 		return nil, err
 	}
 	d := renderData{PrivateJob: j, Target: p, Base: s.config.PublicURL + "/bootstrap/" + j.ID, CA: string(s.ca), Partition: 3}
+	d.InjectionName = kickstartInjectionName(p.ID)
 	if j.Machine.Firmware == "bios" {
 		d.Partition = 2
 	}
@@ -100,8 +102,8 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		if p.ID == "centos-7.9" {
-			files[centosInjectionName], err = centosInjection()
+		if d.InjectionName != "" {
+			files[d.InjectionName], err = kickstartInjection()
 			if err != nil {
 				return nil, err
 			}
