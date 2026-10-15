@@ -22,9 +22,11 @@
 
 Windows 11 / Server 2022 保留安装模板，开发优先级低于 Linux。Windows 11 限 UEFI，准备要求见 [PXE 文档](pxe.md)。Ubuntu 的短周期版本不列入当前范围。
 
-## 当前优先清单（2026-10-15）
+## 当前优先清单（2026-10-16）
 
 清单共 18 个具体版本；Ubuntu 仅使用 Server / live-server 镜像。CentOS 7.9、Rocky 8.10、Ubuntu 22.04.3 已有完整实装证据，剩余限制见各自记录和[当前进度](../development/progress.md)。现有其他模板继续保留，列入计划不代表已完成安装验收。
+
+这 18 个版本的 ISO 已全部入库，见[现场镜像路径与校验记录](image-catalog.md)。CentOS Linux 8.5 与 Stream 9 / 10 仍待自动安装模板适配，其余未验收镜像仍需逐项实装。
 
 | 系统 | 计划准备和验收的版本 | 当前实现基础 |
 | --- | --- | --- |

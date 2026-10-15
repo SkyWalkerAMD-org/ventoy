@@ -4,11 +4,13 @@
 
 **当前代码与现场管理端：0.3.0-alpha.8，Linux 装机优先。** 本阶段只做直推装机，不修改 sckocstp / fyhocsys，也不创建新的自动接入任务。Windows 保留为次要支持，接入工作待装机流程完成后再考虑。
 
-服务端和安装包生成已实现；iVentoy 规则仍通过其原生界面配置。CentOS 7.9 已通过完整实机验收；Rocky 8.10 已完成实装与登录验证，启动网络等待修复也已通过回归。Ubuntu Server 22.04.3 已通过无人值守实装、自动硬盘启动、控制台 / SSH / sudo、完成回报和第二次重启验收。现场使用 iVentoy 1.0.44、Intel X710 网卡和 UEFI，其他镜像、硬件和启动模式仍需分别验收，见 [当前进度](docs/development/progress.md)。
+服务端和安装包生成已实现；iVentoy 规则仍通过其原生界面配置。CentOS 7.9 已通过完整实机验收；Rocky 8.10 已完成实装与登录验证，启动网络等待修复也已通过回归。Ubuntu Server 22.04.3 已通过无人值守实装、自动硬盘启动、控制台 / SSH / sudo、完成回报和第二次重启验收。上述实装使用 iVentoy 1.0.44、Intel X710 网卡和 UEFI，其他镜像、硬件和启动模式仍需分别验收，见 [当前进度](docs/development/progress.md)。
 
 alpha.8 为 Ubuntu 22.04 任务生成独立启动兼容包，并配置安装后的 EFI 启动顺序。2026-10-15 的 22.04.3 实机验收中，从选择专属任务镜像到安装完成、重启及回报，无需输入 `yes` 或手动调整启动顺序；保留盘分区表与签名保持一致。
 
 现场 iVentoy 随后已升级并注册为 **1.0.45 专业版**，服务、授权、配置、镜像与任务绑定检查通过。上述完整实装仍是 1.0.44 的验收记录，1.0.45 尚未重新进行清盘安装，见[升级与回退记录](docs/deployment/iventoy-upgrade.md)。
+
+2026-10-16，现场运行目录已统一为 `/home/ventoy-center/iventoy`，用户规划的 **18 个版本 ISO 已全部入库**。iVentoy 当前有 65 个入口，其中 59 个原始镜像、6 个已有任务镜像。此次补齐的 6 个 Debian / Ubuntu Server ISO 均核对官方 SHA-256 与内部版本；入库不代表完整实装验收，见[现场镜像清单](docs/deployment/image-catalog.md)。
 
 ## 已实现
 
@@ -62,6 +64,7 @@ go build -o ventoy-center ./cmd/ventoy-center
 - [同机准备 iVentoy 文件和权限配置](docs/deployment/iventoy-files.md)
 - [iVentoy 1.0.45 现场升级与回退记录](docs/deployment/iventoy-upgrade.md)
 - [Linux 安装版本、镜像和验收矩阵](docs/deployment/linux-targets.md)
+- [现场镜像清单与新增 ISO 校验记录](docs/deployment/image-catalog.md)
 - [CentOS 7.9 镜像、兼容处理与安装验证](docs/deployment/centos7.md)
 - [Rocky 8.10 实机验收与启动回归](docs/deployment/rocky8.md)
 - [Ubuntu 22.04.3 无人值守实机验收](docs/deployment/ubuntu22.md)

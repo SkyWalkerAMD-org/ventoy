@@ -4,14 +4,14 @@
 
 ## 配置
 
-管理端配置增加 `iventoy_root`，例如 `/opt/iventoy-1.0.44`，并把 `iso_dir` 设为 `/opt/iventoy-1.0.44/iso`。使用没有空格的真实目录、普通 ISO 文件；本功能不接受符号链接镜像。文件系统需支持硬链接（XFS/ext4/NTFS；exFAT/FAT 不支持）。管理端验证标准目录和 `data/iventoy.dat` 是否存在。
+管理端配置增加 `iventoy_root`，例如 `/opt/iventoy`，并把 `iso_dir` 设为 `/opt/iventoy/iso`。使用不含版本号、没有空格的真实目录，方便后续升级；镜像须为普通 ISO 文件，本功能不接受符号链接镜像。文件系统需支持硬链接（XFS/ext4/NTFS；exFAT/FAT 不支持）。管理端验证标准目录和 `data/iventoy.dat` 是否存在。
 
 Linux 下创建两个专用目录（替换示例路径）：
 
 ```sh
 sudo install -d -o ventoy-center -g ventoy-center -m 0700 \
-  /opt/iventoy-1.0.44/iso/ventoy-center \
-  /opt/iventoy-1.0.44/user/scripts/ventoy-center
+  /opt/iventoy/iso/ventoy-center \
+  /opt/iventoy/user/scripts/ventoy-center
 ```
 
 源 ISO 应属于 `ventoy-center` 且可读，以符合 Linux 硬链接保护规则。导入新镜像可用 `install -o ventoy-center -g ventoy-center -m 0440 源ISO 目标ISO`，不要覆盖正在使用的镜像。父目录须允许该用户遍历；iVentoy 以 root 运行，可读取受限脚本。不要关闭 `fs.protected_hardlinks`。
@@ -20,7 +20,7 @@ sudo install -d -o ventoy-center -g ventoy-center -m 0700 \
 
 ```ini
 [Service]
-ReadWritePaths=/opt/iventoy-1.0.44/iso /opt/iventoy-1.0.44/user/scripts/ventoy-center
+ReadWritePaths=/opt/iventoy/iso /opt/iventoy/user/scripts/ventoy-center
 ```
 
 把整个 `iso` 置于同一可写挂载内，避免源文件和硬链接跨挂载失败；通过 Unix 权限限制服务只能在专用目录新建文件。iVentoy 位于 `/home` 时，另设 `ProtectHome=read-only` 并替换路径。执行 `systemctl daemon-reload` 后重启管理端。
