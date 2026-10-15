@@ -4,9 +4,9 @@
 
 **当前代码与现场管理端：0.3.0-alpha.8，Linux 装机优先。** 本阶段只做直推装机，不修改 sckocstp / fyhocsys，也不创建新的自动接入任务。Windows 保留为次要支持，接入工作待装机流程完成后再考虑。
 
-服务端和安装包生成已实现；iVentoy 规则仍通过其原生界面配置。CentOS 7.9 已通过完整实机验收；Rocky 8.10 已完成实装与登录验证，启动网络等待修复也已通过回归。Ubuntu Server 22.04.3 已完成实装、硬盘启动、登录及完成回报，仍需一次安装确认和现场启动顺序调整。现场使用 iVentoy 1.0.44、Intel X710 网卡和 UEFI，其他镜像、硬件和启动模式仍需分别验收，见 [当前进度](docs/development/progress.md)。
+服务端和安装包生成已实现；iVentoy 规则仍通过其原生界面配置。CentOS 7.9 已通过完整实机验收；Rocky 8.10 已完成实装与登录验证，启动网络等待修复也已通过回归。Ubuntu Server 22.04.3 已通过无人值守实装、自动硬盘启动、控制台 / SSH / sudo、完成回报和第二次重启验收。现场使用 iVentoy 1.0.44、Intel X710 网卡和 UEFI，其他镜像、硬件和启动模式仍需分别验收，见 [当前进度](docs/development/progress.md)。
 
-alpha.8 为 Ubuntu 22.04 任务生成独立启动兼容包，并配置安装后的 EFI 启动顺序。脚本摘要、目标 MAC 和系统版本检查已通过自动化验证；完整无人值守实机验收仍待完成。
+alpha.8 为 Ubuntu 22.04 任务生成独立启动兼容包，并配置安装后的 EFI 启动顺序。2026-10-15 的 22.04.3 实机验收中，从选择专属任务镜像到安装完成、重启及回报，无需输入 `yes` 或手动调整启动顺序；保留盘分区表与签名保持一致。
 
 ## 已实现
 
@@ -61,7 +61,7 @@ go build -o ventoy-center ./cmd/ventoy-center
 - [Linux 安装版本、镜像和验收矩阵](docs/deployment/linux-targets.md)
 - [CentOS 7.9 镜像、兼容处理与安装验证](docs/deployment/centos7.md)
 - [Rocky 8.10 实机验收与启动回归](docs/deployment/rocky8.md)
-- [Ubuntu 22.04.3 实机验收与无人值守限制](docs/deployment/ubuntu22.md)
+- [Ubuntu 22.04.3 无人值守实机验收](docs/deployment/ubuntu22.md)
 - [当前进度、客户端矩阵与后续工作](docs/development/progress.md)
 - [Windows 与其他 Linux 服务端](docs/deployment/platforms.md)
 - [架构、任务状态与尚未完成的能力](docs/development/architecture.md)
