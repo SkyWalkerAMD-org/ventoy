@@ -48,11 +48,13 @@
 
 ### alpha.8 无人值守候选改动（待实机验证）
 
-`ubuntu-22.04` 的新任务会同时生成 `user-data` 和 `ubuntu-iventoy.tar.gz`，两者需绑定到同一专属任务镜像。兼容包使用 [iVentoy Live Injection 入口](https://www.iventoy.com/en/doc_live_injection.html)，在 live root 启动前核对该任务 user-data 的 SHA-256、目标 MAC 和 Ubuntu 22.04 系统标识，再为 live 环境中的 Subiquity 服务添加启动参数。原始 ISO 与 snap 文件保持原样，磁盘、固件和单次授权检查仍在 early-commands 中执行。
+`ubuntu-22.04` 的新任务会同时生成 `user-data` 和 `ubuntu-iventoy.tar.gz`，两者需绑定到同一专属任务镜像。兼容包使用 [iVentoy Live Injection 入口](https://www.iventoy.com/en/doc_live_injection.html)，在 live root 启动前核对该任务 user-data 的 SHA-512、目标 MAC 和 Ubuntu 22.04 系统标识，再为 live 环境中的 Subiquity 服务添加启动参数。22.04.3 原始 initramfs 提供 `sha512sum`，未提供 `sha256sum`，因此这里采用 SHA-512。原始 ISO 与 snap 文件保持原样，磁盘、固件和单次授权检查仍在 early-commands 中执行。
 
-安装配置还设置 Curtin `grub.reorder_uefi: false`，避免把当前 PXE 入口重新移到首位；`remove_duplicate_entries: false` 保留现有 EFI 入口，参见 [Curtin GRUB 配置](https://curtin.readthedocs.io/en/latest/topics/config.html#grub)。旧任务的安装包不会自动改写；应创建新任务进行回归。
+2026-10-15 的候选实测仍停在安装确认提示，目标盘未写入。使用该任务实际启动的 iVentoy BusyBox、注入包和 Ubuntu 原始 initramfs，在独立临时目录中复现了原因：早期注入时 `/dev` 尚不存在，摘要校验的 `>/dev/null` 重定向失败，兼容入口未启用。已移除这一依赖，并补充缺失 `/dev` 的 Linux 正反向回归；修复后的实际启动组件隔离执行也已通过。失败任务保存日志后结单，新任务重新生成授权，仍需继续完整实装验收。
 
-已通过模板解析和 Linux 下的脚本正反向检查；是否全程无需人工确认、装完是否直接从硬盘启动，仍需实机测试。暂不把这一兼容包用于 Ubuntu 20.04 / 24.04 / 26.04，也不把对 22.04 profile 的支持视为每个小版本已验收。
+安装配置还设置 Curtin `grub.reorder_uefi: false`，避免把当前 PXE 入口重新移到首位；`remove_duplicate_entries: false` 保留现有 EFI 入口，参见 [Curtin GRUB 配置](https://curtin.readthedocs.io/en/latest/topics/config.html#grub)。原始 Subiquity 23.08.1 在 guided layout 分支会忽略 `storage.grub`，因此 22.04 模板在身份和存储检查通过后，将占位布局改为仅包含已核实磁盘的显式 GPT 分区配置：UEFI 使用 1 GiB EFI 分区和 ext4 根分区，BIOS 使用 1 MiB BIOS 引导分区和 ext4 根分区。配置改写不写磁盘，安装仍需随后成功领取单次授权。旧任务的安装包不会自动改写；应创建新任务进行回归。
+
+已通过模板解析、Linux 下的脚本正反向检查，以及原始 Subiquity 23.08.1 文件系统模型的 UEFI / BIOS 配置检查：目标盘、分区大小、启动配置及传给 Curtin 的 GRUB 选项符合预期，保留盘不在写入配置中。是否全程无需人工确认、装完是否直接从硬盘启动，仍需实机测试。暂不把这一兼容包用于 Ubuntu 20.04 / 24.04 / 26.04，也不把对 22.04 profile 的支持视为每个小版本已验收。
 
 ### alpha.7 实机记录的限制
 

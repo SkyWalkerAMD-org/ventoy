@@ -2,9 +2,9 @@
 
 局域网批量装机管理端。客户端在 BIOS / UEFI 的 Boot 菜单选择网卡，由 **iVentoy / PXE** 加载镜像和自动安装配置；本项目负责目标机器、安装任务、授权、安装包和进度回传。
 
-**当前代码：0.3.0-alpha.8，现场已部署版本：alpha.7，Linux 装机优先。** 本阶段只做直推装机，不修改 sckocstp / fyhocsys，也不创建新的自动接入任务。Windows 保留为次要支持，接入工作待装机流程完成后再考虑。
+**当前代码与现场管理端：0.3.0-alpha.8，Linux 装机优先。** 本阶段只做直推装机，不修改 sckocstp / fyhocsys，也不创建新的自动接入任务。Windows 保留为次要支持，接入工作待装机流程完成后再考虑。
 
-服务端和安装包生成已实现；iVentoy 规则仍通过其原生界面配置。CentOS 7.9 已通过完整实机验收；Rocky 8.10 已完成实装与登录验证，启动网络等待修复仍待回归。Ubuntu Server 22.04.3 已完成实装、硬盘启动、登录及完成回报，仍需一次安装确认和现场启动顺序调整。现场使用 iVentoy 1.0.44、Intel X710 网卡和 UEFI，其他镜像、硬件和启动模式仍需分别验收，见 [当前进度](docs/development/progress.md)。
+服务端和安装包生成已实现；iVentoy 规则仍通过其原生界面配置。CentOS 7.9 已通过完整实机验收；Rocky 8.10 已完成实装与登录验证，启动网络等待修复也已通过回归。Ubuntu Server 22.04.3 已完成实装、硬盘启动、登录及完成回报，仍需一次安装确认和现场启动顺序调整。现场使用 iVentoy 1.0.44、Intel X710 网卡和 UEFI，其他镜像、硬件和启动模式仍需分别验收，见 [当前进度](docs/development/progress.md)。
 
 alpha.8 为 Ubuntu 22.04 任务生成独立启动兼容包，并配置安装后的 EFI 启动顺序。脚本摘要、目标 MAC 和系统版本检查已通过自动化验证；完整无人值守实机验收仍待完成。
 
@@ -60,7 +60,7 @@ go build -o ventoy-center ./cmd/ventoy-center
 - [同机准备 iVentoy 文件和权限配置](docs/deployment/iventoy-files.md)
 - [Linux 安装版本、镜像和验收矩阵](docs/deployment/linux-targets.md)
 - [CentOS 7.9 镜像、兼容处理与安装验证](docs/deployment/centos7.md)
-- [Rocky 8.10 实机验收与待回归事项](docs/deployment/rocky8.md)
+- [Rocky 8.10 实机验收与启动回归](docs/deployment/rocky8.md)
 - [Ubuntu 22.04.3 实机验收与无人值守限制](docs/deployment/ubuntu22.md)
 - [当前进度、客户端矩阵与后续工作](docs/development/progress.md)
 - [Windows 与其他 Linux 服务端](docs/deployment/platforms.md)

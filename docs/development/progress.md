@@ -1,6 +1,6 @@
 # Ventoy Center 当前进度
 
-更新日期：2026-10-15。现场管理端为 `0.3.0-alpha.7`，部署在现有 Rocky Linux 9.8 服务器上；alpha.8 无人值守候选代码已完成本地验证，尚未部署验收。本阶段只做直推装机，未修改 sckocstp / fyhocsys，也未开启装机后接入。
+更新日期：2026-10-15。现场管理端为 `0.3.0-alpha.8`，部署在现有 Rocky Linux 9.8 服务器上；Ubuntu 无人值守流程正在实机验收。本阶段只做直推装机，未修改 sckocstp / fyhocsys，也未开启装机后接入。
 
 ## 已交付的流程
 
@@ -17,7 +17,7 @@
 | CentOS 7.9 | 官方 DVD、UEFI 实机自动安装、硬盘启动、控制台 / SSH / sudo、完成回报及旧授权重放拒绝均通过 | 其他硬件、Legacy BIOS、批量并发 |
 | CentOS Linux 8.5 | 已纳入计划 | 独立 profile、版本保护、安装模板与完整实装 |
 | CentOS Stream 9、10 | 已纳入计划 | 独立 profile、版本保护、安装模板与完整实装 |
-| Rocky 8.10 | UEFI 实机自动安装、硬盘启动、登录及完成回报通过 | 启动网络等待修复已过原始解析器测试，仍需实机回归 |
+| Rocky 8.10 | UEFI 实机自动安装、硬盘启动、登录及完成回报通过；网络等待修复回归通过，initrd 阶段降到 12.733 秒 | 其他硬件、Legacy BIOS、批量并发 |
 | Rocky 9.2、9.6、9.8 | 共用 Rocky 9 模板 | 每个 ISO 完整实装 |
 | Rocky 9.7 | 已通过 PXE 到达安装器；当时因旧磁盘 UUID 重复停止 | 完整实装和首次启动验收 |
 | Debian 12.8、12.15、13.0 | 对应大版本的 preseed 模板已实现 | 每个 ISO 完整实装 |
@@ -25,7 +25,7 @@
 | Ubuntu Server 22.04.4 | ISO 已核对并准备 | 完整实装 |
 | Ubuntu Server 22.04.5、24.04.3、24.04.4、24.04.5 | 对应 LTS 模板已实现 | 逐 ISO 核对和完整实装 |
 
-18 个具体版本中，目前 3 个镜像有完整实装与登录证据；不等于 3 个版本的所有兼容性问题已经关闭。CentOS 7.9 的验收版本为 alpha.3，Rocky 8.10 为 alpha.4，Ubuntu 22.04.3 为 alpha.7。更新管理端不自动等于旧版本已重测。详细证据见 [CentOS 7.9](../deployment/centos7.md)、[Rocky 8.10](../deployment/rocky8.md)和 [Ubuntu 22.04.3](../deployment/ubuntu22.md)。
+18 个具体版本中，目前 3 个镜像有完整实装与登录证据；不等于 3 个版本的所有兼容性问题已经关闭。CentOS 7.9 的验收版本为 alpha.3，Rocky 8.10 最新回归为 alpha.7，Ubuntu 22.04.3 为 alpha.7。更新管理端不自动等于旧版本已重测。详细证据见 [CentOS 7.9](../deployment/centos7.md)、[Rocky 8.10](../deployment/rocky8.md)和 [Ubuntu 22.04.3](../deployment/ubuntu22.md)。
 
 ## 服务端平台
 
@@ -38,7 +38,7 @@
 ## 当前限制和下一步
 
 1. Ubuntu 22.04.3 的 alpha.7 安装与首次启动验收已完成。alpha.8 增加按任务绑定的 iVentoy 启动兼容包，使用 Subiquity 的 autoinstall 启动选项，并禁止 Curtin 把当前 PXE 入口重新排到硬盘前。代码检查已通过，仍需实机验证不出现 `yes` 确认且安装后自动从硬盘启动。
-2. Rocky 8.10 的约 10 分钟早期网络等待已经定位并修复模板。2026-10-15 已再次进入原始安装器，介质校验通过；目标盘的单盘 LVM 已离线准备，保留盘分区表和签名比对一致，新回归任务已准备并绑定，尚未完成本轮自动安装。
+2. Rocky 8.10 的约 10 分钟早期网络等待修复已通过 2026-10-15 的完整实机回归，initrd 阶段为 12.733 秒。SSH、sudo、完成回报和旧授权拒绝检查通过，保留盘分区表及四项设备签名与基线一致。
 3. 当前存储模板只处理按序列号指定的一块普通非 USB 磁盘；已有 LVM / RAID 需要独立的离线准备，不自动拆除跨盘存储。
 4. 尚未实现经过验收的 iVentoy 自动配置适配器、批量授权与并发限制、安装失联超时诊断和更细的实时进度。
 5. Windows 客户端安装为次要优先级；WinPE 组件与驱动流程尚待完整验证。fyhocsys 接入留到装机阶段完成后另行安排。
@@ -49,6 +49,6 @@
 
 Ubuntu 修复对应 `ea44e29`，CI [38536199711](https://github.com/SkyWalkerAMD-org/ventoy/actions/runs/38536199711) 的 10 个任务全部通过：Linux / Windows 测试、Linux race、安装模板解析、二进制构建和七种 Linux 用户空间启动检查。Ubuntu 还使用原始 Subiquity 5004 与真实 udev 数据验证了磁盘匹配。
 
-alpha.8 候选代码的 Go 测试、Go vet、22 组 Linux 安装模板解析和 JavaScript 语法检查已通过。Ubuntu 注入脚本在 Linux 临时目录中执行验证：缺失或不匹配的 user-data、异常 init 标记、错误系统版本或 MAC 均不会启用无人值守入口；匹配输入会生成预期的 live systemd 配置。该测试不启动安装器、不写物理磁盘，不替代实机验收。
+alpha.8 候选代码的 Go 测试、Go vet、22 组 Linux 安装模板解析和 JavaScript 语法检查已通过。Ubuntu 注入脚本在 Linux 临时目录中执行验证：缺失或不匹配的 user-data、异常 init 标记、错误系统版本或 MAC 均不会启用无人值守入口；匹配输入会生成预期的 live systemd 配置。实机排查还修复了早期 `/dev/null` 不存在导致的注入失败，加入对应回归，并用实际 iVentoy BusyBox 与原始 initramfs 在隔离目录执行验证。原始 Subiquity 23.08.1 的 UEFI / BIOS 存储模型检查通过。这些检查不替代完整无人值守实装。
 
-代码在 `codex/linux-install-verification` 分支，[PR #2](https://github.com/SkyWalkerAMD-org/ventoy/pull/2) 保持草稿，叠加在 CentOS 工作 [PR #1](https://github.com/SkyWalkerAMD-org/ventoy/pull/1) 上，尚未合并到 main。下一步优先收口 Rocky 8.10 网络等待回归、Ubuntu 无人值守入口，再按 18 版清单逐 ISO 验收。
+代码在 `codex/linux-install-verification` 分支，[PR #2](https://github.com/SkyWalkerAMD-org/ventoy/pull/2) 保持草稿，叠加在 CentOS 工作 [PR #1](https://github.com/SkyWalkerAMD-org/ventoy/pull/1) 上，尚未合并到 main。Rocky 8.10 网络等待回归已完成；下一步收口 Ubuntu 无人值守实装与自动硬盘启动，再按 18 版清单逐 ISO 验收。

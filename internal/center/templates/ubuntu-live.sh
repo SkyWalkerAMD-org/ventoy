@@ -4,7 +4,7 @@ newroot=${1:?Missing live root}
 [ -f "$newroot/etc/os-release" ] || exit 1
 . "$newroot/etc/os-release"
 [ "$ID" = ubuntu ] && [ "$VERSION_ID" = 22.04 ] || exit 1
-printf '%s\n' '{{.UserDataSHA}}  /ventoy/autoinstall' | sha256sum -c - >/dev/null || exit 1
+printf '%s\n' '{{.UserDataSHA512}}  /ventoy/autoinstall' | sha512sum -c - || exit 1
 grep -qx {{sh .Machine.MAC}} /sys/class/net/*/address || exit 1
 [ -f "$newroot/etc/systemd/system/snap.subiquity.subiquity-server.service" ] || exit 1
 mkdir -p "$newroot/usr/local/sbin" "$newroot/etc/systemd/system/snap.subiquity.subiquity-server.service.d"

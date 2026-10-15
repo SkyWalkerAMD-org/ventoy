@@ -35,7 +35,37 @@ def check_storage_binding(config):
                 target["storage"]["layout"]["match"] = {"path": "/dev/" + disk}
                 write(document)
                 bind(path, disk)
-                assert yaml.safe_load(path.read_text(encoding="utf-8")) == expected
+                result = yaml.safe_load(path.read_text(encoding="utf-8"))
+                actual = result["autoinstall"] if wrapped else result
+                if "config" in actual["storage"]:
+                    # Validate the resulting disk and partition graph, including
+                    # boot mode, without opening a block device.
+                    actions = actual["storage"]["config"]
+                    ids = {a["id"]: a for a in actions}
+                    assert len(ids) == len(actions)
+                    disks = [a for a in actions if a["type"] == "disk"]
+                    assert len(disks) == 1 and disks[0]["path"] == "/dev/" + disk
+                    assert disks[0]["ptable"] == "gpt"
+                    assert ids["vc-root"]["device"] == disks[0]["id"]
+                    assert ids["vc-root"]["size"] == -1
+                    assert ids["vc-root-format"]["fstype"] == "ext4"
+                    assert ids["vc-root-mount"]["path"] == "/"
+                    uefi = "UEFI boot required" in early
+                    assert disks[0]["grub_device"] == (not uefi)
+                    assert ids["vc-boot"]["flag"] == ("boot" if uefi else "bios_grub")
+                    assert ids["vc-boot"]["grub_device"] == uefi
+                    if uefi:
+                        assert ids["vc-boot-format"]["fstype"] == "fat32"
+                        assert ids["vc-boot-mount"]["path"] == "/boot/efi"
+                    else:
+                        assert "vc-boot-format" not in ids and "vc-boot-mount" not in ids
+                    for action in actions:
+                        for reference in ("device", "volume"):
+                            if reference in action:
+                                assert action[reference] in ids
+                    target["storage"].pop("layout")
+                    target["storage"]["config"] = actions
+                assert result == expected
                 if os.name == "posix":
                     assert path.stat().st_mode & 0o777 == 0o600
 

@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"crypto/sha256"
+	"crypto/sha512"
 	"embed"
 	"encoding/base64"
 	"encoding/json"
@@ -19,17 +20,17 @@ var templates embed.FS
 
 type renderData struct {
 	PrivateJob
-	Target        Profile
-	Base          string
-	CA            string
-	Guard         string
-	Bootstrap     string
-	VersionCheck  string
-	DebianLate    string
-	UbuntuStorage string
-	Partition     int
-	InjectionName string
-	UserDataSHA   string
+	Target         Profile
+	Base           string
+	CA             string
+	Guard          string
+	Bootstrap      string
+	VersionCheck   string
+	DebianLate     string
+	UbuntuStorage  string
+	Partition      int
+	InjectionName  string
+	UserDataSHA512 string
 }
 
 func render(name string, data renderData) (string, error) {
@@ -112,7 +113,8 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 		}
 		if d.InjectionName != "" {
 			if p.OS == "ubuntu" {
-				d.UserDataSHA = fmt.Sprintf("%x", sha256.Sum256([]byte(files[name])))
+				// Ubuntu 22.04.3's initramfs includes sha512sum, not sha256sum.
+				d.UserDataSHA512 = fmt.Sprintf("%x", sha512.Sum512([]byte(files[name])))
 				files[d.InjectionName], err = ubuntuInjection(d)
 			} else {
 				files[d.InjectionName], err = kickstartInjection()

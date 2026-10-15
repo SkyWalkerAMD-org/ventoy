@@ -71,7 +71,7 @@ for release in ("20.04", "22.04", "24.04", "26.04"):
                     source = archive.extractfile(member).read().decode("utf-8")
                     shell_check(source)
                     if member.name.endswith(("hook.sh", "ubuntu-live.sh")):
-                        assert hashlib.sha256(path.read_bytes()).hexdigest() in source
+                        assert hashlib.sha512(path.read_bytes()).hexdigest() in source
                 check_injection(archive, path.read_bytes())
         for phase in ("early-commands", "late-commands"):
             for script in config[phase]:

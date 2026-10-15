@@ -13,7 +13,7 @@ def check_injection(archive, user_data):
     prefix = "live_injection_7ed136ec_7a61_4b54_adc3_ae494d5106ea/"
     hook = archive.extractfile(prefix + "hook.sh").read().decode()
     live = archive.extractfile("ventoy-center/ubuntu-live.sh").read().decode()
-    assert hashlib.sha256(user_data).hexdigest() in hook
+    assert hashlib.sha512(user_data).hexdigest() in hook
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         for name in ("ventoy", "scripts", "ventoy-center", "sys/class/net/eth0"):
@@ -25,7 +25,10 @@ def check_injection(archive, user_data):
 
         def run(source, *args):
             # Only rewrite absolute fixture paths, including quoted shell paths.
-            for path in ("/ventoy/", "/ventoy-center/", "/scripts/", "/sys/class/net/", "/init"):
+            # iVentoy removes /dev before calling the injection entry. A host
+            # /dev/null must not hide an invalid early-boot dependency.
+            assert not (root / "dev").exists()
+            for path in ("/dev/null", "/ventoy/", "/ventoy-center/", "/scripts/", "/sys/class/net/", "/init"):
                 source = source.replace(path, str(root) + path)
             return subprocess.run(["sh", "-s", "--", *args], input=source, text=True,
                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
