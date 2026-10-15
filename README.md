@@ -8,6 +8,8 @@
 
 alpha.8 为 Ubuntu 22.04 任务生成独立启动兼容包，并配置安装后的 EFI 启动顺序。2026-10-15 的 22.04.3 实机验收中，从选择专属任务镜像到安装完成、重启及回报，无需输入 `yes` 或手动调整启动顺序；保留盘分区表与签名保持一致。
 
+现场 iVentoy 随后已升级到 **1.0.45**，服务、配置、镜像与任务绑定检查通过。上述完整实装仍是 1.0.44 的验收记录，1.0.45 尚未重新进行清盘安装，见[升级与回退记录](docs/deployment/iventoy-upgrade.md)。
+
 ## 已实现
 
 - 中文管理页面、管理口令认证、机器登记、按 MAC 搜索和最近启动任务。
@@ -58,6 +60,7 @@ go build -o ventoy-center ./cmd/ventoy-center
 - [Rocky 9 与 fyhocsys 同机部署](docs/deployment/rocky9.md)
 - [外部 DHCP、iVentoy 和安装包配置](docs/deployment/pxe.md)
 - [同机准备 iVentoy 文件和权限配置](docs/deployment/iventoy-files.md)
+- [iVentoy 1.0.45 现场升级与回退记录](docs/deployment/iventoy-upgrade.md)
 - [Linux 安装版本、镜像和验收矩阵](docs/deployment/linux-targets.md)
 - [CentOS 7.9 镜像、兼容处理与安装验证](docs/deployment/centos7.md)
 - [Rocky 8.10 实机验收与启动回归](docs/deployment/rocky8.md)
