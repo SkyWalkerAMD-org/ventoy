@@ -34,6 +34,11 @@ autoinstall:
     allow-pw: {{if .Request.SSHKey}}false{{else}}true{{end}}
     authorized-keys: [{{if .Request.SSHKey}}{{yaml .Request.SSHKey}}{{end}}]
   storage:
+    grub:
+      # Keep the new disk entry first; Curtin otherwise restores BootCurrent
+      # (the PXE adapter) ahead of it on a network-booted installation.
+      reorder_uefi: false
+      remove_duplicate_entries: false
     layout:
       name: direct
       match:

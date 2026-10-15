@@ -29,6 +29,7 @@ type renderData struct {
 	UbuntuStorage string
 	Partition     int
 	InjectionName string
+	UserDataSHA   string
 }
 
 func render(name string, data renderData) (string, error) {
@@ -58,7 +59,7 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 		return nil, err
 	}
 	d := renderData{PrivateJob: j, Target: p, Base: s.config.PublicURL + "/bootstrap/" + j.ID, CA: string(s.ca), Partition: 3}
-	d.InjectionName = kickstartInjectionName(p.ID)
+	d.InjectionName = bootInjectionName(p.ID)
 	if j.Machine.Firmware == "bios" {
 		d.Partition = 2
 	}
@@ -110,7 +111,12 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 			return nil, err
 		}
 		if d.InjectionName != "" {
-			files[d.InjectionName], err = kickstartInjection()
+			if p.OS == "ubuntu" {
+				d.UserDataSHA = fmt.Sprintf("%x", sha256.Sum256([]byte(files[name])))
+				files[d.InjectionName], err = ubuntuInjection(d)
+			} else {
+				files[d.InjectionName], err = kickstartInjection()
+			}
 			if err != nil {
 				return nil, err
 			}

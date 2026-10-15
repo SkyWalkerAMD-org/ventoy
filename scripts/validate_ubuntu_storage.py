@@ -55,6 +55,7 @@ def check_storage_binding(config):
             {"version": 1, "storage": {"config": [{"type": "disk"}]}},
             {"version": 1, "storage": {"layout": {"name": "direct"}}},
             {"version": 1, "storage": {"layout": {"name": "lvm", "match": {"size": "largest"}}}},
+            {**config, "storage": {**config["storage"], "grub": {"reorder_uefi": True}}},
         ):
             before = write(document)
             try:

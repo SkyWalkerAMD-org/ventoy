@@ -7,12 +7,15 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
+import hashlib
 
 from pykickstart.parser import KickstartParser
 from pykickstart.version import makeVersion
 import yaml
 
 from validate_ubuntu_storage import check_storage_binding
+from validate_ubuntu_injection import check_injection
 
 
 def shell_check(source):
@@ -57,7 +60,19 @@ for release in ("20.04", "22.04", "24.04", "26.04"):
         config = yaml.safe_load(path.read_text(encoding="utf-8"))["autoinstall"]
         assert config["version"] == 1
         assert config["storage"]["layout"]["match"] == {"path": "/dev/ventoy-center-unverified"}
+        assert config["storage"]["grub"] == {"reorder_uefi": False, "remove_duplicate_entries": False}
         check_storage_binding(config)
+        if release == "22.04":
+            with tarfile.open(path.parent / "ubuntu-iventoy.tar.gz", "r:gz") as archive:
+                members = archive.getmembers()
+                assert len(members) == 3
+                for member in members:
+                    assert member.isfile() and member.mode == 0o755
+                    source = archive.extractfile(member).read().decode("utf-8")
+                    shell_check(source)
+                    if member.name.endswith(("hook.sh", "ubuntu-live.sh")):
+                        assert hashlib.sha256(path.read_bytes()).hexdigest() in source
+                check_injection(archive, path.read_bytes())
         for phase in ("early-commands", "late-commands"):
             for script in config[phase]:
                 shell_check(script)

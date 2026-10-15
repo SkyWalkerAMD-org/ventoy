@@ -8,13 +8,16 @@ import (
 
 const centosInjectionName = "centos7-iventoy.tar.gz"
 const rockyInjectionName = "rocky-iventoy.tar.gz"
+const ubuntuInjectionName = "ubuntu-iventoy.tar.gz"
 
-func kickstartInjectionName(profile string) string {
+func bootInjectionName(profile string) string {
 	switch profile {
 	case "centos-7.9":
 		return centosInjectionName
 	case "rocky-8":
 		return rockyInjectionName
+	case "ubuntu-22.04":
+		return ubuntuInjectionName
 	default:
 		return ""
 	}

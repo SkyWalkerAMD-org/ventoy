@@ -1,6 +1,6 @@
 # Ventoy Center 当前进度
 
-更新日期：2026-10-14。现场管理端为 `0.3.0-alpha.7`，部署在现有 Rocky Linux 9.8 服务器上。本阶段只做直推装机，未修改 sckocstp / fyhocsys，也未开启装机后接入。
+更新日期：2026-10-15。现场管理端为 `0.3.0-alpha.7`，部署在现有 Rocky Linux 9.8 服务器上；alpha.8 无人值守候选代码已完成本地验证，尚未部署验收。本阶段只做直推装机，未修改 sckocstp / fyhocsys，也未开启装机后接入。
 
 ## 已交付的流程
 
@@ -37,8 +37,8 @@
 
 ## 当前限制和下一步
 
-1. Ubuntu 22.04.3 本轮已完成安装与首次启动验收，按要求停在进度梳理，不同时启动其他 ISO。当前启动链尚需一次 `yes` 确认，测试机启动顺序也由现场调整，不能宣称全程无人值守。
-2. Rocky 8.10 的约 10 分钟早期网络等待已经定位并修复模板，需重新实装核实耗时与网络。
+1. Ubuntu 22.04.3 的 alpha.7 安装与首次启动验收已完成。alpha.8 增加按任务绑定的 iVentoy 启动兼容包，使用 Subiquity 的 autoinstall 启动选项，并禁止 Curtin 把当前 PXE 入口重新排到硬盘前。代码检查已通过，仍需实机验证不出现 `yes` 确认且安装后自动从硬盘启动。
+2. Rocky 8.10 的约 10 分钟早期网络等待已经定位并修复模板。2026-10-15 已再次进入原始安装器，介质校验通过；目标盘的单盘 LVM 已离线准备，保留盘分区表和签名比对一致，新回归任务已准备并绑定，尚未完成本轮自动安装。
 3. 当前存储模板只处理按序列号指定的一块普通非 USB 磁盘；已有 LVM / RAID 需要独立的离线准备，不自动拆除跨盘存储。
 4. 尚未实现经过验收的 iVentoy 自动配置适配器、批量授权与并发限制、安装失联超时诊断和更细的实时进度。
 5. Windows 客户端安装为次要优先级；WinPE 组件与驱动流程尚待完整验证。fyhocsys 接入留到装机阶段完成后另行安排。
@@ -48,5 +48,7 @@
 ## 代码与验证
 
 Ubuntu 修复对应 `ea44e29`，CI [38536199711](https://github.com/SkyWalkerAMD-org/ventoy/actions/runs/38536199711) 的 10 个任务全部通过：Linux / Windows 测试、Linux race、安装模板解析、二进制构建和七种 Linux 用户空间启动检查。Ubuntu 还使用原始 Subiquity 5004 与真实 udev 数据验证了磁盘匹配。
+
+alpha.8 候选代码的 Go 测试、Go vet、22 组 Linux 安装模板解析和 JavaScript 语法检查已通过。Ubuntu 注入脚本在 Linux 临时目录中执行验证：缺失或不匹配的 user-data、异常 init 标记、错误系统版本或 MAC 均不会启用无人值守入口；匹配输入会生成预期的 live systemd 配置。该测试不启动安装器、不写物理磁盘，不替代实机验收。
 
 代码在 `codex/linux-install-verification` 分支，[PR #2](https://github.com/SkyWalkerAMD-org/ventoy/pull/2) 保持草稿，叠加在 CentOS 工作 [PR #1](https://github.com/SkyWalkerAMD-org/ventoy/pull/1) 上，尚未合并到 main。下一步优先收口 Rocky 8.10 网络等待回归、Ubuntu 无人值守入口，再按 18 版清单逐 ISO 验收。

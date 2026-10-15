@@ -22,6 +22,11 @@ Keep it in a restricted administrator directory, never a public repository.
    deliberately blocks installation when they are absent. Include NIC/storage
    drivers for the target hardware. Windows 11 requires supported UEFI hardware.
 {{else if eq .OS "ubuntu"}}   user-data (matching Ubuntu Server live-server ISO, not Desktop or legacy-server).
+{{if .InjectionName}}   Also bind {{.InjectionName}} to this task image to enable unattended
+   confirmation on Ubuntu 22.04. The compatibility hook verifies the exact
+   user-data before starting Subiquity with its autoinstall option. All disk
+   identity and one-use authorization checks still run in early-commands.
+{{end}}
 {{else if eq .OS "debian"}}   preseed.cfg (matching Debian amd64 netinst or DVD-1, not Live ISO).
    The installer requires access to the selected Debian suite's package mirror,
    including wget-udeb and its dependencies. If using a LAN mirror, edit the

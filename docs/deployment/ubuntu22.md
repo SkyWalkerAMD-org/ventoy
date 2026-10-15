@@ -46,6 +46,16 @@
 
 ## 验收边界
 
+### alpha.8 无人值守候选改动（待实机验证）
+
+`ubuntu-22.04` 的新任务会同时生成 `user-data` 和 `ubuntu-iventoy.tar.gz`，两者需绑定到同一专属任务镜像。兼容包使用 [iVentoy Live Injection 入口](https://www.iventoy.com/en/doc_live_injection.html)，在 live root 启动前核对该任务 user-data 的 SHA-256、目标 MAC 和 Ubuntu 22.04 系统标识，再为 live 环境中的 Subiquity 服务添加启动参数。原始 ISO 与 snap 文件保持原样，磁盘、固件和单次授权检查仍在 early-commands 中执行。
+
+安装配置还设置 Curtin `grub.reorder_uefi: false`，避免把当前 PXE 入口重新移到首位；`remove_duplicate_entries: false` 保留现有 EFI 入口，参见 [Curtin GRUB 配置](https://curtin.readthedocs.io/en/latest/topics/config.html#grub)。旧任务的安装包不会自动改写；应创建新任务进行回归。
+
+已通过模板解析和 Linux 下的脚本正反向检查；是否全程无需人工确认、装完是否直接从硬盘启动，仍需实机测试。暂不把这一兼容包用于 Ubuntu 20.04 / 24.04 / 26.04，也不把对 22.04 profile 的支持视为每个小版本已验收。
+
+### alpha.7 实机记录的限制
+
 - 当前 iVentoy 启动链未传入 `autoinstall` 内核参数，安装器要求一次 `yes` 确认。本次使用已授权的清盘范围确认；不能将结果标为全程无人值守。
 - 当前 Ubuntu 模板需要能访问配置的软件仓库。此次系统仍标识为 22.04.3，但已安装在线安全更新；不属于完全离线或原始软件包版本固定的验收。
 - 目标盘之前的 LVM 已在获授权后离线准备；模板仍拦截已有 LVM / RAID，不自动拆解跨盘存储。

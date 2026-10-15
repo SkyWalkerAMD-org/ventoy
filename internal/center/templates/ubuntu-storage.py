@@ -18,8 +18,10 @@ def bind_install_disk(config_path, disk):
     if not isinstance(config, dict) or config.get("version") != 1:
         raise ValueError("Unsupported autoinstall configuration")
     storage = config.get("storage", {})
-    if not isinstance(storage, dict) or set(storage) != {"layout"}:
+    if not isinstance(storage, dict) or set(storage) != {"layout", "grub"}:
         raise ValueError("Unexpected storage configuration")
+    if storage["grub"] != {"reorder_uefi": False, "remove_duplicate_entries": False}:
+        raise ValueError("Unexpected boot order configuration")
     layout = storage["layout"]
     if layout != {"name": "direct", "match": {"path": "/dev/ventoy-center-unverified"}}:
         raise ValueError("Unexpected storage layout; refusing to select a disk")

@@ -154,6 +154,9 @@ func TestEveryProfileProducesInstallationBundle(t *testing.T) {
 				if (files[rockyInjectionName] != "") != (p.ID == "rocky-8") {
 					t.Fatal("Rocky compatibility archive must be limited to verified profiles")
 				}
+				if (files[ubuntuInjectionName] != "") != (p.ID == "ubuntu-22.04") {
+					t.Fatal("Ubuntu compatibility archive must be limited to 22.04")
+				}
 				if p.OS == "centos" && (!strings.Contains(files[main], "\n@^minimal\n@core\n") || strings.Contains(files[main], "@^minimal-environment")) {
 					t.Fatal("package environment does not exist in the CentOS 7.9 DVD comps metadata")
 				}

@@ -34,7 +34,7 @@ func injectionFixtureJob(t *testing.T, s *Server, profile string) PrivateJob {
 func TestKickstartInjectionBundle(t *testing.T) {
 	for _, profile := range []string{"centos-7.9", "rocky-8"} {
 		t.Run(profile, func(t *testing.T) {
-			injectionName := kickstartInjectionName(profile)
+			injectionName := bootInjectionName(profile)
 			s := fixture(t)
 			j := arm(t, s, injectionFixtureJob(t, s, profile))
 			files, err := s.renderFiles(j)
@@ -90,9 +90,9 @@ func TestKickstartInjectionBundle(t *testing.T) {
 }
 
 func TestKickstartInjectionPreparation(t *testing.T) {
-	for _, profile := range []string{"centos-7.9", "rocky-8"} {
+	for _, profile := range []string{"centos-7.9", "rocky-8", "ubuntu-22.04"} {
 		t.Run(profile, func(t *testing.T) {
-			injectionName := kickstartInjectionName(profile)
+			injectionName := bootInjectionName(profile)
 			s := stagingFixture(t)
 			j := arm(t, s, injectionFixtureJob(t, s, profile))
 			url := "/api/jobs/" + j.ID

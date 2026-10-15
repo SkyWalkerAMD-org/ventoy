@@ -124,7 +124,7 @@ func (s *Server) plan(j PrivateJob) PreparationPlan {
 	p.ScriptPath = path.Join(d, script)
 	p.ImageSelection = strings.TrimPrefix(p.ISOPath, "iso/")
 	p.ScriptSelection = filepath.Join(s.config.IVentoyRoot, filepath.FromSlash(p.ScriptPath))
-	injectionName := kickstartInjectionName(j.Profile)
+	injectionName := bootInjectionName(j.Profile)
 	if injectionName != "" {
 		p.InjectionSelection = filepath.Join(s.config.IVentoyRoot, filepath.FromSlash(d), injectionName)
 	}
