@@ -18,7 +18,7 @@ else
     mkdir -p "$testdir"/BUILD "$testdir"/BUILDROOT "$testdir"/RPMS "$testdir"/SOURCES "$testdir"/SPECS "$testdir"/SRPMS
     cat > "$testdir/SPECS/kernel.spec" <<'SPEC'
 Name: kernel
-Version: 1.0
+Version: 99.0
 Release: 1
 Summary: Empty kernel metadata fixture
 License: MIT

@@ -13,7 +13,7 @@ func TestBootstrapRequiresHumanLogin(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("requires Linux /bin/bash")
 	}
-	for _, mode := range []string{"valid", "system-uid", "missing-user", "nologin"} {
+	for _, mode := range []string{"valid", "system-uid", "missing-user", "nologin", "missing-policy", "policy-failed"} {
 		t.Run(mode, func(t *testing.T) {
 			root := t.TempDir()
 			bin := filepath.Join(root, "bin")
@@ -29,6 +29,15 @@ func TestBootstrapRequiresHumanLogin(t *testing.T) {
 			}
 			for name, body := range commands {
 				if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\n"+body+"\n"), 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if mode != "missing-policy" {
+				policy := filepath.Join(root, "usr/local/sbin/ventoy-center-update-policy")
+				if err := os.MkdirAll(filepath.Dir(policy), 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(policy, []byte("#!/bin/sh\n[ \"$1\" = --check ] && [ \"$BOOT_TEST_MODE\" != policy-failed ]\n"), 0700); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -64,7 +73,7 @@ func TestLinuxGuardDiskIdentity(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("requires Linux /bin/bash")
 	}
-	for _, mode := range []string{"legacy-virtio", "modern-virtio", "sata", "missing-serial", "wrong-serial", "conflicting-serial", "duplicate-mixed", "duplicate-virtio", "wrong-mac", "wrong-version", "wrong-firmware", "usb", "raid", "claim-rejected", "ubuntu-sata", "ubuntu-binding-failed", "ubuntu-duplicate", "ubuntu-raid"} {
+	for _, mode := range []string{"legacy-virtio", "modern-virtio", "sata", "missing-serial", "wrong-serial", "conflicting-serial", "duplicate-mixed", "duplicate-virtio", "wrong-mac", "wrong-version", "wrong-firmware", "usb", "raid", "claim-rejected", "ubuntu-sata", "ubuntu-binding-failed", "ubuntu-kernel-failed", "ubuntu-duplicate", "ubuntu-raid"} {
 		t.Run(mode, func(t *testing.T) {
 			root := t.TempDir()
 			write := func(name, content string, perm os.FileMode) {
@@ -113,7 +122,7 @@ func TestLinuxGuardDiskIdentity(t *testing.T) {
 			write("bin/base64", "#!/bin/sh\necho 'base64 unavailable in CentOS 7 installer' >&2\nexit 127\n", 0700)
 			// Exercise the shell's binder/claim ordering; the validator executes
 			// the real embedded Python against temporary autoinstall documents.
-			write("bin/python3", "#!/bin/sh\nprintf 'BIND %s\\n' \"$2\" >> \"$GUARD_TEST_LOG\"\n[ \"$GUARD_TEST_MODE\" != ubuntu-binding-failed ]\n", 0700)
+			write("bin/python3", "#!/bin/sh\nif [ \"$#\" -eq 1 ]; then\n echo KERNEL >> \"$GUARD_TEST_LOG\"\n [ \"$GUARD_TEST_MODE\" != ubuntu-kernel-failed ]\nelse\n printf 'BIND %s\\n' \"$2\" >> \"$GUARD_TEST_LOG\"\n [ \"$GUARD_TEST_MODE\" != ubuntu-binding-failed ]\nfi\n", 0700)
 			write("bin/lsblk", `#!/bin/sh
 case "$3" in
  NAME,TYPE) printf 'sda disk\nvda disk\nvdb disk\nsda1 part\nsr0 rom\n' ;;
@@ -161,7 +170,7 @@ exit 0
 				}
 				operations := "CLAIM\nSELECTED " + want + "\n"
 				if mode == "ubuntu-sata" {
-					operations = "BIND sda\n" + operations
+					operations = "KERNEL\nBIND sda\n" + operations
 				}
 				if err != nil || string(log) != operations {
 					t.Fatalf("identity check: %v, %s, %s", err, log, output)
