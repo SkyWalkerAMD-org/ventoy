@@ -3,6 +3,17 @@ Task: {{.ID}}
 Machine: {{.Machine.Name}} / {{.Machine.MAC}}
 Target disk serial: {{.Machine.DiskSerial}}
 Firmware: {{.Machine.Firmware}}
+{{if ne .OS "windows"}}
+Linux defaults: keep installed kernel package versions, disable automatic
+repository refresh and unattended system upgrades. Linux postinstall applies
+linux-update-policy.sh inside the target and stops installation on failure.
+Ubuntu also pins the live media kernel before Curtin installs packages.
+Debian netinst obtains its initial kernel from the configured mirror, then locks it.
+Manual ISO installation: copy linux-update-policy.sh to the installed machine,
+then run `sudo sh linux-update-policy.sh --apply` followed by `--check`.
+This script does not retroactively change the kernel chosen during manual setup.
+Recovery notes: docs/deployment/linux-update-policy.md in the repository.
+{{end}}
 ISO: {{.ISO}}
 Profile: {{.Target.ID}} / {{.Target.Label}}
 Expires: {{.Expires}}

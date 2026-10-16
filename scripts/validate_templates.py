@@ -12,6 +12,7 @@ import hashlib
 
 from pykickstart.parser import KickstartParser
 from pykickstart.version import makeVersion
+from validate_ubuntu_kernel import check_kernel_binding
 import yaml
 
 from validate_ubuntu_storage import check_storage_binding
@@ -65,6 +66,7 @@ for release in ("20.04", "22.04", "24.04", "26.04"):
         assert config["storage"]["layout"]["match"] == {"path": "/dev/ventoy-center-unverified"}
         assert config["storage"]["grub"] == {"reorder_uefi": False, "remove_duplicate_entries": False}
         check_storage_binding(config)
+        check_kernel_binding(config)
         if release == "22.04":
             with tarfile.open(path.parent / "ubuntu-iventoy.tar.gz", "r:gz") as archive:
                 members = archive.getmembers()

@@ -32,6 +32,9 @@ type renderData struct {
 	Partition       int
 	InjectionName   string
 	UserDataSHA512  string
+	KernelPackages  string
+	UpdatePolicy    string
+	UbuntuKernel    string
 }
 
 func render(name string, data renderData) (string, error) {
@@ -75,12 +78,22 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 		}
 		files["injection/ventoy-center/ca.crt"] = d.CA
 	} else {
+		d.KernelPackages = kernelPackagePatterns()
+		d.UpdatePolicy, err = render("linux-update-policy.sh", d)
+		if err != nil {
+			return nil, err
+		}
+		files["linux-update-policy.sh"] = d.UpdatePolicy
 		d.VersionCheck, err = render("version-check.sh", d)
 		if err != nil {
 			return nil, err
 		}
 		guardName := "guard.sh"
 		if p.OS == "ubuntu" {
+			d.UbuntuKernel, err = render("ubuntu-kernel.py", d)
+			if err != nil {
+				return nil, err
+			}
 			d.UbuntuStorage, err = render("ubuntu-storage.py", d)
 			if err != nil {
 				return nil, err
@@ -148,6 +161,11 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 	}
 	files["SHA256SUMS"] = sums.String()
 	return files, nil
+}
+
+func kernelPackagePatterns() string {
+	b, _ := templates.ReadFile("templates/kernel-packages.txt")
+	return strings.TrimSpace(string(b))
 }
 
 func (s *Server) renderBundle(j PrivateJob) ([]byte, error) {

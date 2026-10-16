@@ -102,6 +102,7 @@ func (s *Server) Handler() http.Handler {
 		respond(w, 200, map[string]string{"status": "ok", "version": Version})
 	})
 	m.HandleFunc("GET /api/overview", s.auth(s.overview))
+	m.HandleFunc("GET /api/linux-update-policy", s.auth(s.linuxUpdatePolicy))
 	m.HandleFunc("POST /api/machines", s.auth(s.createMachine))
 	m.HandleFunc("DELETE /api/machines/{id}", s.auth(s.deleteMachine))
 	m.HandleFunc("POST /api/jobs", s.auth(s.createJob))

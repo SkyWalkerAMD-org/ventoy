@@ -58,6 +58,39 @@ jobs:
             dist/ventoy-center-linux-amd64.tar.gz
             dist/ventoy-center-windows-amd64.zip
             dist/SHA256SUMS
+  linux-update-policy:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [ubuntu:22.04, debian:12, rockylinux/rockylinux:8]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.25.x'
+          cache: false
+      - run: go test ./internal/center -run TestEveryProfileProducesInstallationBundle
+        env:
+          VENTOY_TEST_OUTPUT: ${{ runner.temp }}/policy-fixtures
+      - name: Exercise real package managers in disposable containers
+        env:
+          TARGET_IMAGE: ${{ matrix.image }}
+        run: |
+          docker run --rm -v "$PWD/scripts:/tests:ro" \
+            -v "$RUNNER_TEMP/policy-fixtures/ubuntu-22.04/uefi/linux-update-policy.sh:/policy.sh:ro" \
+            "$TARGET_IMAGE" sh -ec '
+              if command -v apt-get >/dev/null; then
+                apt-get update -qq
+                DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 systemd
+              else
+                dnf -y install python3 rpm-build
+              fi
+              mkdir -p /run
+              touch /run/ventoy-policy-disposable-root
+              sh /tests/seed_policy_test_kernel.sh
+              python3 /tests/validate_update_policy.py /policy.sh
+            '
   linux-startup:
     needs: test
     runs-on: ubuntu-24.04

@@ -51,6 +51,12 @@ autoinstall:
     - |
       set -eu
       umask 077
+      # Check the installed kernel against the installer BEFORE reporting success.
+      test -f "/target/boot/vmlinuz-$(uname -r)"
+      printf '%s' {{sh (b64 .UpdatePolicy)}} | base64 -d > /target/usr/local/sbin/ventoy-center-update-policy
+      chmod 0700 /target/usr/local/sbin/ventoy-center-update-policy
+      curtin in-target --target=/target -- /bin/sh /usr/local/sbin/ventoy-center-update-policy --apply --offline
+      uname -r > /target/var/lib/ventoy-center/kernel-policy/expected-release
       printf '%s' {{sh (b64 .Bootstrap)}} | base64 -d > /target/usr/local/sbin/ventoy-center-bootstrap
       chmod 0700 /target/usr/local/sbin/ventoy-center-bootstrap
       cat > /target/etc/systemd/system/ventoy-center-bootstrap.service <<'VCUNIT'

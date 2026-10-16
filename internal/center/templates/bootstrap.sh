@@ -12,6 +12,10 @@ event() { request -H 'Content-Type: application/json' --data "{\"state\":\"$1\"}
 trap 'event failed >/dev/null 2>&1 || true' ERR
 [ "$(hostname | tr '[:lower:]' '[:upper:]')" = {{sh .Machine.Name}} ]
 {{.VersionCheck}}
+# A completed task must have the update policy in effect on first boot.
+/bin/sh /usr/local/sbin/ventoy-center-update-policy --check
+{{if eq .OS "ubuntu"}}[ "$(uname -r)" = "$(cat /var/lib/ventoy-center/kernel-policy/expected-release)" ]
+{{end}}
 # A successful installer exit must also leave the requested human login account.
 [ "$(id -u {{sh .Request.Username}})" -ge 1000 ]
 case "$(getent passwd {{sh .Request.Username}} | cut -d: -f7)" in

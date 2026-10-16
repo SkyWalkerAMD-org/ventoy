@@ -46,7 +46,7 @@ func TestPreparationLifecycle(t *testing.T) {
 	if !os.SameFile(source, alias) {
 		t.Fatal("expected a hard link")
 	}
-	if len(j.Preparation.Files) != 5 || j.Preparation.Files[rockyInjectionName] == "" {
+	if len(j.Preparation.Files) != 6 || j.Preparation.Files[rockyInjectionName] == "" {
 		t.Fatalf("incomplete inventory: %v", j.Preparation.Files)
 	}
 	mustCode(t, request(s, "POST", url+"/prepare", s.admin, nil), 200)

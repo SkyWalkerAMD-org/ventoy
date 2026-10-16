@@ -32,7 +32,11 @@ fi
 {{if eq .Machine.Firmware "uefi"}}[ -d /sys/firmware/efi ] || { echo 'UEFI boot required' >&2; exit 1; }
 {{else}}[ ! -d /sys/firmware/efi ] || { echo 'Legacy BIOS boot required' >&2; exit 1; }
 {{end}}
-{{if eq .Target.OS "ubuntu"}}# Subiquity's serial matcher uses udev ID_SERIAL (often MODEL_SERIAL),
+{{if eq .Target.OS "ubuntu"}}# Refuse a kernel substitution before claiming the destructive task.
+python3 - <<'VC_UBUNTU_KERNEL'
+{{.UbuntuKernel}}
+VC_UBUNTU_KERNEL
+# Subiquity's serial matcher uses udev ID_SERIAL (often MODEL_SERIAL),
 # not lsblk's short SERIAL. Bind the path resolved by the checks above.
 python3 - "$disk" <<'VC_UBUNTU_STORAGE'
 {{.UbuntuStorage}}
