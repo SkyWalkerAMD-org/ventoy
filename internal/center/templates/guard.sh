@@ -32,6 +32,16 @@ fi
 {{if eq .Machine.Firmware "uefi"}}[ -d /sys/firmware/efi ] || { echo 'UEFI boot required' >&2; exit 1; }
 {{else}}[ ! -d /sys/firmware/efi ] || { echo 'Legacy BIOS boot required' >&2; exit 1; }
 {{end}}
+{{if eq .Target.OS "ubuntu"}}# Refuse a kernel substitution before claiming the destructive task.
+python3 - <<'VC_UBUNTU_KERNEL'
+{{.UbuntuKernel}}
+VC_UBUNTU_KERNEL
+# Subiquity's serial matcher uses udev ID_SERIAL (often MODEL_SERIAL),
+# not lsblk's short SERIAL. Bind the path resolved by the checks above.
+python3 - "$disk" <<'VC_UBUNTU_STORAGE'
+{{.UbuntuStorage}}
+VC_UBUNTU_STORAGE
+{{end}}
 # CentOS 7's installer omits base64; PEM is safe as a quoted shell literal.
 printf '%s' {{sh .CA}} > /tmp/ventoy-center-ca.crt
 {{if .CA}}curl --cacert /tmp/ventoy-center-ca.crt{{else}}curl{{end}} --fail --silent --show-error --connect-timeout 10 --max-time 30 \

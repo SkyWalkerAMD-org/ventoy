@@ -24,6 +24,9 @@ var profiles = []Profile{
 	{ID: "rocky-8", OS: "rocky", Label: "Rocky Linux 8.x（至 8.10）", Version: "8", Installer: "kickstart", Media: "x86_64 DVD ISO", Notes: "模板已实现；具体小版本与驱动需实机验收。"},
 	{ID: "rocky-10", OS: "rocky", Label: "Rocky Linux 10.x（含 10.2）", Version: "10", Installer: "kickstart", Media: "x86_64 DVD ISO", Notes: "需要符合 x86-64-v3 的 CPU；模板已实现，实机待验收。"},
 	{ID: "centos-7.9", OS: "centos", Label: "CentOS Linux 7.9", Version: "7.9", Installer: "kickstart", Media: "x86_64 DVD / Everything 2009 ISO", Notes: "旧环境兼容；已停止上游维护。使用完整安装镜像，软件源需另行准备。"},
+	{ID: "centos-8.5", OS: "centos", Label: "CentOS Linux 8.5.2111", Version: "8.5", Installer: "kickstart", Media: "x86_64 完整 DVD ISO", Notes: "旧环境兼容；已停止上游维护。独立版本保护，实机安装待验收。"},
+	{ID: "centos-stream-9", OS: "centos", Label: "CentOS Stream 9", Version: "9", Installer: "kickstart", Media: "x86_64 完整 DVD ISO", Notes: "核对 Stream 发行版身份；具体镜像与硬件需实机验收。"},
+	{ID: "centos-stream-10", OS: "centos", Label: "CentOS Stream 10", Version: "10", Installer: "kickstart", Media: "x86_64 完整 DVD ISO", Notes: "需要符合 x86-64-v3 的 CPU；具体镜像与硬件需实机验收。"},
 	{ID: "ubuntu-20.04", OS: "ubuntu", Label: "Ubuntu Server 20.04 LTS", Version: "20.04", Installer: "autoinstall", Media: "amd64 live-server ISO", Notes: "使用 20.04.6 live-server；不适用于旧版 legacy-server 或 Desktop ISO。"},
 	{ID: "ubuntu-22.04", OS: "ubuntu", Label: "Ubuntu Server 22.04 LTS", Version: "22.04", Installer: "autoinstall", Media: "amd64 live-server ISO", Notes: "模板已实现；安装器及网卡驱动需实机验收。"},
 	{ID: "ubuntu-24.04", OS: "ubuntu", Label: "Ubuntu Server 24.04 LTS", Version: "24.04", Installer: "autoinstall", Media: "amd64 live-server ISO", Notes: "模板已实现；安装器及网卡驱动需实机验收。"},
@@ -63,6 +66,9 @@ var mediaPatterns = []struct {
 	{regexp.MustCompile(`(?i)^centos[-_]7\.9([._-]|$)`), "centos-7.9"},
 	// The official 7.9 release uses 7 + build 2009 in its ISO filenames.
 	{regexp.MustCompile(`(?i)^centos[-_]7[-_]x86_64[-_](dvd|everything|minimal|netinstall)[-_]2009([._-]|$)`), "centos-7.9"},
+	{regexp.MustCompile(`(?i)^centos[-_]8\.5([._-]|$)`), "centos-8.5"},
+	{regexp.MustCompile(`(?i)^centos[-_]stream[-_]9([._-]|$)`), "centos-stream-9"},
+	{regexp.MustCompile(`(?i)^centos[-_]stream[-_]10([._-]|$)`), "centos-stream-10"},
 	{regexp.MustCompile(`(?i)^rocky[-_]8[._-]`), "rocky-8"},
 	{regexp.MustCompile(`(?i)^rocky[-_]9[._-]`), "rocky-9"},
 	{regexp.MustCompile(`(?i)^rocky[-_]10[._-]`), "rocky-10"},
@@ -97,8 +103,8 @@ func validateMediaProfile(p Profile, path string) error {
 	if p.OS == "ubuntu" && (strings.Contains(name, "desktop") || strings.Contains(name, "legacy-server")) {
 		return errors.New("Ubuntu 模板需要 live-server 安装镜像")
 	}
-	if p.OS == "centos" && (strings.Contains(name, "netinstall") || strings.Contains(name, "minimal") || strings.Contains(name, "live")) {
-		return errors.New("CentOS 7.9 模板需要完整 DVD / Everything 2009 镜像")
+	if p.OS == "centos" && (strings.Contains(name, "netinstall") || strings.Contains(name, "minimal") || strings.Contains(name, "live") || strings.Contains(name, "-boot")) {
+		return errors.New("CentOS 模板需要完整 DVD 镜像；CentOS 7.9 也可使用 Everything 2009")
 	}
 	if p.OS == "debian" && strings.Contains(name, "live") {
 		return errors.New("Debian 模板需要 netinst 或 DVD-1，不能使用 Live 镜像")

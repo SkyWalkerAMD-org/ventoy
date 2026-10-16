@@ -39,6 +39,7 @@
       <section id="images" class="page" hidden>
         <div class="page-heading"><div><div class="eyebrow">IMAGE LIBRARY</div><h1>镜像管理</h1><p>按目录管理服务器上的 ISO，选择镜像后创建安装任务。</p></div><a id="iventoy-link" class="button" target="_blank" rel="noopener noreferrer" hidden>打开 iVentoy ↗</a></div>
         <label class="search-label">查找镜像<input id="image-search" type="search" placeholder="文件名、目录或版本"></label>
+        <div class="note"><span>↳</span><div><p>Linux 自动安装默认锁定内核，关闭自动刷新软件包索引和无人值守升级。普通 ISO 手动安装后，请在新装系统中执行配置脚本；它会锁定执行时已安装的内核。</p><button id="download-linux-policy">下载手动安装后的配置脚本</button><p><code>sudo sh linux-update-policy.sh --apply</code> · 检查：<code>sudo sh linux-update-policy.sh --check</code></p></div></div>
         <div class="media-browser panel"><div class="media-list"><div class="section-heading"><h2>镜像文件</h2><span id="image-count" class="muted"></span></div><div id="image-tree"></div></div><div id="image-detail" class="media-detail"></div></div>
         <div class="note"><span>↳</span><p>将镜像放入 iso_dir 的 CentOS、Rocky、Ubuntu、Debian 等目录后刷新。DHCP、TFTP 和 MAC 启动过滤规则在 iVentoy 中配置。</p></div>
       </section>
@@ -63,6 +64,7 @@
     <label>系统与版本<select name="profile" required></select></label>
     <label class="span-2">ISO 镜像<select name="iso" required></select></label>
     <p id="profile-hint" class="span-2"></p>
+    <p class="span-2" data-linux>默认锁定内核并关闭自动更新。Ubuntu 在安装阶段固定镜像内核；Debian 首次从所选安装源取得内核后锁定。</p>
     <label>本地管理员用户名<input name="username" value="deployadmin" required></label>
     <label data-windows hidden>Windows 镜像索引<input name="windows_image" type="number" min="1" max="100" value="1"></label>
     <label data-windows hidden>Windows 镜像语言<select name="locale"><option value="zh-CN">简体中文 (zh-CN)</option><option value="en-US">English (en-US)</option></select></label>

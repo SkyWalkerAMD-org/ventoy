@@ -119,7 +119,7 @@ async function openPreparation(job) {
   root.append(dl);
   if(plan.reason)root.append(el('p',plan.reason,'warning'));
   const steps=el('ol',null,'preparation-steps');
-  if(plan.injection_selection)steps.append(el('li','为上述任务镜像同时设置“启动注入文件”，选择显示的 CentOS 7 兼容包；自动安装脚本仍需单独关联。'));
+  if(plan.injection_selection)steps.append(el('li','为上述任务镜像同时设置“启动注入文件”，选择显示的启动兼容包；自动安装脚本仍需单独关联。'));
   for(const text of ['准备文件后，在 iVentoy 镜像管理刷新并选择上述镜像，关联自动安装脚本。','将脚本设为默认，设置非零选择超时；在专业版分机独启中把上述 MAC 绑定到此镜像。','客户端从网卡启动。任务结束后，先移除 iVentoy 中的关联，再清理任务文件。'])steps.append(el('li',text));
   root.append(steps);
   const actions=el('div',null,'dialog-actions');
@@ -133,6 +133,7 @@ $('#job-form').addEventListener('submit',event=>{event.preventDefault();const f=
 function openArm(job){armId=job.id;$('#arm-form').reset();$('#arm-target').textContent=`${job.machine.name} · ${job.machine.mac} · 磁盘 ${job.machine.disk_serial}`;$('#arm-dialog').showModal();}
 $('#arm-form').addEventListener('submit',event=>{event.preventDefault();const f=event.target;submit(f,async()=>{await post(`/api/jobs/${armId}/arm`,{name:f.elements.name.value,disk_serial:f.elements.disk_serial.value,erase:f.elements.erase.checked});notify('已授权；下载并配置安装包后，从目标机器网卡启动');});});
 async function downloadBundle(job){const response=await api(`/api/jobs/${job.id}/bundle`);const url=URL.createObjectURL(await response.blob());const a=el('a');a.href=url;a.download=`ventoy-${job.machine.name}-${job.id}.zip`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);notify('安装包已下载，请按包内 README 配置 iVentoy');}
+$('#download-linux-policy').addEventListener('click',async event=>{const b=event.currentTarget;b.disabled=true;try{const response=await api('/api/linux-update-policy');const url=URL.createObjectURL(await response.blob());const a=el('a');a.href=url;a.download='linux-update-policy.sh';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);notify('脚本已下载，请在手动安装完成的新系统中执行');}catch(error){notify(error.message);}finally{b.disabled=false;}});
 function details(job){const root=$('#job-detail');const dl=el('dl',null,'detail-grid');for(const [key,value] of [['任务编号',job.id],['节点',job.machine.name],['系统版本',jobSystem(job)],['目标磁盘',job.machine.disk_serial],['状态',states[job.state]],['到期时间',job.state==='draft'?'尚未授权':stamp(job.expires)]]){dl.append(el('dt',key),el('dd',value));}const timeline=el('ol',null,'timeline');job.events.forEach(e=>{const li=el('li');li.append(el('strong',states[e.state]),el('small',` · ${stamp(e.time)}`));if(e.message)li.append(el('p',e.message));timeline.append(li);});root.replaceChildren(dl,timeline);if(job.state==='enrolled')root.append(el('p','历史接入任务：此状态代表本地检查成功，中心连接需另行核对。','warning'));$('#detail-dialog').showModal();}
 $('#login-form').addEventListener('submit',async event=>{event.preventDefault();token=event.target.elements.token.value.trim();try{await refresh();sessionStorage.setItem('ventoy-token',token);$('#login-dialog').close();$('#login-error').textContent='';event.target.reset();}catch(error){$('#login-error').textContent=error.message;}});
 $('#logout').addEventListener('click',()=>{token='';sessionStorage.removeItem('ventoy-token');location.reload();});$('#refresh').addEventListener('click',()=>refresh().catch(e=>notify(e.message)));

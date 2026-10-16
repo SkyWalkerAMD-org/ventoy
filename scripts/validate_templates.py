@@ -7,10 +7,17 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
+import hashlib
 
 from pykickstart.parser import KickstartParser
 from pykickstart.version import makeVersion
+from validate_ubuntu_kernel import check_kernel_binding
 import yaml
+
+from validate_ubuntu_storage import check_storage_binding
+from validate_ubuntu_injection import check_injection
+from validate_network_keyfiles import check_network_keyfiles
 
 
 def shell_check(source):
@@ -28,14 +35,16 @@ def shell_check(source):
 
 root = Path(sys.argv[1])
 count = 0
-for profile, version in [("centos-7.9", "RHEL7"), ("rocky-8", "RHEL8"), ("rocky-9", "RHEL9"), ("rocky-10", "RHEL10")]:
+for profile, version in [("centos-7.9", "RHEL7"), ("centos-8.5", "RHEL8"), ("centos-stream-9", "RHEL9"), ("centos-stream-10", "RHEL10"), ("rocky-8", "RHEL8"), ("rocky-9", "RHEL9"), ("rocky-10", "RHEL10")]:
     for firmware in ("bios", "uefi"):
         path = root / profile / firmware / "kickstart.cfg"
         handler = makeVersion(version)
         parser = KickstartParser(handler, followIncludes=False)
         parser.readKickstart(str(path))
-        if profile == "centos-7.9":
-            # CentOS 7's initrd turns only the first network directive into
+        if profile == "rocky-9":
+            check_network_keyfiles(path.read_text(encoding="utf-8"))
+        if profile in ("centos-7.9", "centos-8.5", "rocky-8", "rocky-9"):
+            # These initrds turn only the first network directive into
             # dracut ip=/bootdev=. iVentoy loads the NIC before udev renames it,
             # so an early ethN binding leaves dracut waiting on a vanished NIC.
             networks = handler.network.network
@@ -54,7 +63,21 @@ for release in ("20.04", "22.04", "24.04", "26.04"):
         path = root / ("ubuntu-" + release) / firmware / "user-data"
         config = yaml.safe_load(path.read_text(encoding="utf-8"))["autoinstall"]
         assert config["version"] == 1
-        assert config["storage"]["layout"]["match"]["serial"]
+        assert config["storage"]["layout"]["match"] == {"path": "/dev/ventoy-center-unverified"}
+        assert config["storage"]["grub"] == {"reorder_uefi": False, "remove_duplicate_entries": False}
+        check_storage_binding(config)
+        check_kernel_binding(config)
+        if release == "22.04":
+            with tarfile.open(path.parent / "ubuntu-iventoy.tar.gz", "r:gz") as archive:
+                members = archive.getmembers()
+                assert len(members) == 3
+                for member in members:
+                    assert member.isfile() and member.mode == 0o755
+                    source = archive.extractfile(member).read().decode("utf-8")
+                    shell_check(source)
+                    if member.name.endswith(("hook.sh", "ubuntu-live.sh")):
+                        assert hashlib.sha512(path.read_bytes()).hexdigest() in source
+                check_injection(archive, path.read_bytes())
         for phase in ("early-commands", "late-commands"):
             for script in config[phase]:
                 shell_check(script)

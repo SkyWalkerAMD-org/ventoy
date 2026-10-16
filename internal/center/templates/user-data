@@ -3,6 +3,15 @@ autoinstall:
   version: 1
   refresh-installer:
     update: false
+  apt:
+    preserve_sources_list: false
+    geoip: false
+    primary:
+      - arches: [default]
+        uri: https://archive.ubuntu.com/ubuntu
+    security:
+      - arches: [default]
+        uri: https://security.ubuntu.com/ubuntu
   packages:
     - curl
   locale: en_US.UTF-8
@@ -25,10 +34,16 @@ autoinstall:
     allow-pw: {{if .Request.SSHKey}}false{{else}}true{{end}}
     authorized-keys: [{{if .Request.SSHKey}}{{yaml .Request.SSHKey}}{{end}}]
   storage:
+    grub:
+      # Keep the new disk entry first; Curtin otherwise restores BootCurrent
+      # (the PXE adapter) ahead of it on a network-booted installation.
+      reorder_uefi: false
+      remove_duplicate_entries: false
     layout:
       name: direct
       match:
-        serial: {{yaml .Machine.DiskSerial}}
+        # early-commands replaces this only after unique serial verification.
+        path: /dev/ventoy-center-unverified
   early-commands:
     - |
 {{indent 6 .Guard}}
@@ -36,6 +51,12 @@ autoinstall:
     - |
       set -eu
       umask 077
+      # Check the installed kernel against the installer BEFORE reporting success.
+      test -f "/target/boot/vmlinuz-$(uname -r)"
+      printf '%s' {{sh (b64 .UpdatePolicy)}} | base64 -d > /target/usr/local/sbin/ventoy-center-update-policy
+      chmod 0700 /target/usr/local/sbin/ventoy-center-update-policy
+      curtin in-target --target=/target -- /bin/sh /usr/local/sbin/ventoy-center-update-policy --apply --offline
+      uname -r > /target/var/lib/ventoy-center/kernel-policy/expected-release
       printf '%s' {{sh (b64 .Bootstrap)}} | base64 -d > /target/usr/local/sbin/ventoy-center-bootstrap
       chmod 0700 /target/usr/local/sbin/ventoy-center-bootstrap
       cat > /target/etc/systemd/system/ventoy-center-bootstrap.service <<'VCUNIT'

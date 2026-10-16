@@ -37,8 +37,11 @@ func TestProfileSelectionAndCompatibility(t *testing.T) {
 		{"CentOS/CentOS-7-x86_64-Everything-2009.iso", "centos-7.9"},
 		{"CentOS/CentOS-7-x86_64-DVD-1810.iso", ""},
 		{"CentOS/CentOS-7.90-x86_64-DVD.iso", ""},
-		{"CentOS/CentOS-8.5.2111-x86_64-dvd1.iso", ""},
-		{"CentOS/CentOS-Stream-9-latest-x86_64-dvd1.iso", ""},
+		{"CentOS/CentOS-8.5.2111-x86_64-dvd1.iso", "centos-8.5"},
+		{"CentOS/CentOS-Stream-9-latest-x86_64-dvd1.iso", "centos-stream-9"},
+		{"CentOS/CentOS-Stream-10-latest-x86_64-dvd1.iso", "centos-stream-10"},
+		{"CentOS/CentOS-Stream-100-x86_64-dvd1.iso", ""},
+		{"CentOS/CentOS-8.50-x86_64-dvd1.iso", ""},
 		{"Ubuntu/ubuntu-20.04.6-live-server-amd64.iso", "ubuntu-20.04"},
 		{"Debian/debian-13.1.0-amd64-netinst.iso", "debian-13"},
 		{"custom-linux.iso", ""}, {"rocky-100-x86_64.iso", ""},
@@ -47,7 +50,7 @@ func TestProfileSelectionAndCompatibility(t *testing.T) {
 			t.Errorf("%s: got %s", test.path, got)
 		}
 	}
-	for _, test := range [][2]string{{"rocky-9", "Rocky-8.10-x86_64-dvd1.iso"}, {"ubuntu-24.04", "ubuntu-24.04-desktop-amd64.iso"}, {"debian-13", "debian-live-13-amd64.iso"}, {"rocky-10", "Rocky-10.2-aarch64-dvd1.iso"}} {
+	for _, test := range [][2]string{{"rocky-9", "Rocky-8.10-x86_64-dvd1.iso"}, {"ubuntu-24.04", "ubuntu-24.04-desktop-amd64.iso"}, {"debian-13", "debian-live-13-amd64.iso"}, {"rocky-10", "Rocky-10.2-aarch64-dvd1.iso"}, {"centos-7.9", "CentOS-8.5.2111-x86_64-dvd1.iso"}, {"centos-stream-9", "CentOS-Stream-10-latest-x86_64-dvd1.iso"}, {"centos-8.5", "CentOS-8.5.2111-x86_64-boot.iso"}, {"centos-stream-10", "CentOS-Stream-10-latest-aarch64-dvd1.iso"}} {
 		p, _ := findProfile(test[0])
 		if validateMediaProfile(p, test[1]) == nil {
 			t.Fatal("incompatible ISO accepted", test)
@@ -151,7 +154,13 @@ func TestEveryProfileProducesInstallationBundle(t *testing.T) {
 				if (files[centosInjectionName] != "") != (p.ID == "centos-7.9") {
 					t.Fatal("CentOS 7 compatibility archive must be limited to that profile")
 				}
-				if p.OS == "centos" && (!strings.Contains(files[main], "\n@^minimal\n@core\n") || strings.Contains(files[main], "@^minimal-environment")) {
+				if (files[rockyInjectionName] != "") != (p.ID == "rocky-8" || p.ID == "rocky-9") {
+					t.Fatal("Rocky compatibility archive must be limited to verified profiles")
+				}
+				if (files[ubuntuInjectionName] != "") != (p.ID == "ubuntu-22.04") {
+					t.Fatal("Ubuntu compatibility archive must be limited to 22.04")
+				}
+				if p.ID == "centos-7.9" && (!strings.Contains(files[main], "\n@^minimal\n@core\n") || strings.Contains(files[main], "@^minimal-environment")) {
 					t.Fatal("package environment does not exist in the CentOS 7.9 DVD comps metadata")
 				}
 				for name, content := range files {

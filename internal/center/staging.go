@@ -124,8 +124,9 @@ func (s *Server) plan(j PrivateJob) PreparationPlan {
 	p.ScriptPath = path.Join(d, script)
 	p.ImageSelection = strings.TrimPrefix(p.ISOPath, "iso/")
 	p.ScriptSelection = filepath.Join(s.config.IVentoyRoot, filepath.FromSlash(p.ScriptPath))
-	if j.Profile == "centos-7.9" {
-		p.InjectionSelection = filepath.Join(s.config.IVentoyRoot, filepath.FromSlash(d), centosInjectionName)
+	injectionName := bootInjectionName(j.Profile)
+	if injectionName != "" {
+		p.InjectionSelection = filepath.Join(s.config.IVentoyRoot, filepath.FromSlash(d), injectionName)
 	}
 	r, err := s.openIVentoyRoot()
 	if err != nil {
@@ -139,10 +140,10 @@ func (s *Server) plan(j PrivateJob) PreparationPlan {
 	}
 	p.CanCleanup = j.Preparation != nil && terminal(j.State)
 	p.CanPrepare = j.State == "ready" && time.Now().Before(j.Expires)
-	if j.Preparation != nil && p.InjectionSelection != "" && j.Preparation.Files[centosInjectionName] == "" {
+	if j.Preparation != nil && p.InjectionSelection != "" && j.Preparation.Files[injectionName] == "" {
 		p.InjectionSelection = ""
 		p.CanPrepare = false
-		p.Reason = "此旧任务未包含 CentOS 7 兼容注入包；请取消并清理旧任务后重新创建"
+		p.Reason = "此旧任务未包含所需的启动兼容注入包；请取消并清理旧任务后重新创建"
 		return p
 	}
 	if !p.CanPrepare && !p.CanCleanup {

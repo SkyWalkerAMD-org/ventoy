@@ -1,0 +1,66 @@
+# Ubuntu Server 22.04.3 无人值守实机验收
+
+2026-10-15，使用 alpha.8 的 `ubuntu-22.04` 模板、iVentoy 1.0.44 / Standard / ProxyNet，在 Intel X710 / UEFI 物理机上完成无人值守安装、自动硬盘启动、控制台 / SSH / sudo 登录、完成回报及第二次重启验收。从选择专属任务镜像后，没有输入 `yes`、手动设置分区或调整安装后的启动顺序。本记录不扩展到其他 Ubuntu 小版本、Desktop 或 Legacy BIOS。
+
+## 镜像与目标
+
+- `ubuntu-22.04.3-live-server-amd64.iso`，2,133,391,360 字节，内部日期 `20230810`。
+- SHA-256：`a4acfda10b18da50e2ec50ccaf860d7f20b389df8765611142305c0e911d16fd`，与 [Ubuntu 官方历史镜像校验文件](https://old-releases.ubuntu.com/releases/22.04.3/SHA256SUMS)一致。
+- Xeon w7-2495X、64 GiB 内存，目标为按唯一序列号登记的一块 447.1 GiB SATA SSD；另一块同型号 SSD 保留。
+- 管理端 `0.3.0-alpha.8`，验收代码 `1bbaa20`。每次失败后先保留日志、停止客户端、人工结单，再生成新的一次性任务，未重复使用已领取授权。
+
+## 已定位并修复的问题
+
+### 磁盘序列号匹配
+
+此机器的 `lsblk SERIAL` 是磁盘短序列号，但 Subiquity 5004 的 `match.serial` 使用包含型号前缀的 udev `ID_SERIAL`。直接写入短序列号找不到磁盘，安装器随后报 `NoneType ... id`。
+
+初始配置现在使用不存在的路径。安装前的 MAC、唯一短序列号、设备类型、存储和固件检查通过后，将确认的 `/dev/<disk>` 原子写入 `/autoinstall.yaml`，然后才领取单次授权。原始安装器与实际 udev 数据回归验证已通过，实机也已通过分区配置并写入目标盘。
+
+此方式依据 [Subiquity 的 early-commands 与磁盘匹配规则](https://canonical-subiquity.readthedocs-hosted.com/en/latest/reference/autoinstall-reference.html)：安装器会在 early-commands 结束后重新读取配置。
+
+### EFI 软件包下载
+
+首次通过分区后，GeoIP 自动选择的镜像站返回 HTTP 403，`grub-efi-amd64`、`shim-signed` 等引导包无法下载，Curtin 以退出码 3 停止。客户端实测官方主仓库和安全仓库 HTTPS 均返回 200。
+
+模板现在关闭 GeoIP 镜像替换，显式使用 `https://archive.ubuntu.com/ubuntu` 与 `https://security.ubuntu.com/ubuntu`；不关闭 TLS 或 APT 签名检查。修复后的实机已完成 EFI 包、系统与安全更新安装，并成功从硬盘启动。配置格式参照 [Curtin APT 配置](https://curtin.readthedocs.io/en/latest/topics/apt_source.html)。
+
+## 实机结果
+
+| 检查 | 结果 |
+| --- | --- |
+| 无人值守入口 | 任务专属 ISO 绑定 user-data 与注入包，默认脚本 1 / 超时 5 秒；自动开始安装，没有输入 `yes` |
+| 安装介质 / 系统标识 | 安装记录为 `Ubuntu-Server 22.04.3 ... (20230810)`；`/etc/os-release` 为 Ubuntu 22.04.3 LTS |
+| 内核 | 安全更新后的 `5.15.0-198-generic`，不等于 ISO 最初的软件包版本 |
+| 安装目标 | 已登记 SSD 的 `sda1` 为 EFI 分区，`sda2` 为 ext4 根分区；从 UEFI `ubuntu` / `SHIMX64.EFI` 启动 |
+| 自动硬盘启动 | 安装器自动重启后进入 Ubuntu；BootCurrent 为 `0000 ubuntu`，BootOrder 的 Ubuntu 位于 PXE 前，未手动干预 |
+| 再次重启 | 正常重启再次直接进入 Ubuntu；boot ID 已改变，根分区、内核、SSH、sudo 与 cloud-init 再次核对通过，未再次执行安装回报服务 |
+| 登录 | `deployadmin` 控制台密码登录、SSH 公钥登录、sudo 执行验收脚本均通过；root 密码锁定，SSH 密码认证关闭 |
+| 网络 | LAN1 / Intel X710 按目标 MAC 配置，DHCP 和到管理端的路由正常 |
+| 系统状态 | 无失败 systemd 服务；cloud-init 为 done 且无错误；`dpkg --audit` 无输出 |
+| 首次启动回报 | 任务 `bca977d05cda09d2e66b7d33` 于 `2026-10-15T09:06:50Z` 自动领取授权，`09:28:43Z` 回报 `installed`；服务退出码 0，随后禁用并删除凭据脚本 |
+| 重放保护 | 对已完成任务重放旧授权返回 HTTP 401 |
+| 保留盘 | 首次和第二次硬盘启动后，`sfdisk -d /dev/sdb` 与 `wipefs -n /dev/sdb /dev/sdb1 /dev/sdb2 /dev/sdb3` 均与基线逐字一致；保留原有 VFAT / XFS / LVM 签名，未挂载为根目录 |
+| 启动耗时 | 首次 kernel + userspace 为 13.665 秒；第二次为 8.105 秒，含固件和引导器的第二次总启动时间为 58.972 秒 |
+
+之前的 alpha.7 实装于 2026-10-14 完成，但需要一次 `yes` 和安装后手动调整 BootOrder。此次使用新任务重新实装，验证了这两个问题的修复；没有沿用此前已安装系统作为无人值守证明。安装期间曾切换到 live shell 读取更新日志并启动仅在内存中的诊断 SSH，未输入安装答案、修改安装配置或代替安装器执行写盘。正常安装重启后，该临时 SSH 不再存在。
+
+原始安装日志、验收 JSON、磁盘基线及旧授权拒绝结果保存在现场服务器的受限 QA 目录；不将口令、任务凭据或原始 user-data 提交到仓库。
+
+## alpha.8 无人值守实现与回归
+
+`ubuntu-22.04` 的新任务会同时生成 `user-data` 和 `ubuntu-iventoy.tar.gz`，两者需绑定到同一专属任务镜像。兼容包使用 [iVentoy Live Injection 入口](https://www.iventoy.com/en/doc_live_injection.html)，在 live root 启动前核对该任务 user-data 的 SHA-512、目标 MAC 和 Ubuntu 22.04 系统标识，再为 live 环境中的 Subiquity 服务添加启动参数。22.04.3 原始 initramfs 提供 `sha512sum`，未提供 `sha256sum`，因此这里采用 SHA-512。原始 ISO 与 snap 文件保持原样，磁盘、固件和单次授权检查仍在 early-commands 中执行。
+
+2026-10-15 的早期候选实测停在安装确认提示，目标盘未写入。使用该任务实际启动的 iVentoy BusyBox、注入包和 Ubuntu 原始 initramfs，在独立临时目录中复现了原因：早期注入时 `/dev` 尚不存在，摘要校验的 `>/dev/null` 重定向失败，兼容入口未启用。已移除这一依赖，并补充缺失 `/dev` 的 Linux 正反向回归；修复后的实际启动组件隔离执行和新任务完整实装均通过。失败任务保存日志后结单，未重用其已领取授权。
+
+安装配置还设置 Curtin `grub.reorder_uefi: false`，避免把当前 PXE 入口重新移到首位；`remove_duplicate_entries: false` 保留现有 EFI 入口，参见 [Curtin GRUB 配置](https://curtin.readthedocs.io/en/latest/topics/config.html#grub)。原始 Subiquity 23.08.1 在 guided layout 分支会忽略 `storage.grub`，因此 22.04 模板在身份和存储检查通过后，将占位布局改为仅包含已核实磁盘的显式 GPT 分区配置：UEFI 使用 1 GiB EFI 分区和 ext4 根分区，BIOS 使用 1 MiB BIOS 引导分区和 ext4 根分区。配置改写不写磁盘，安装仍需随后成功领取单次授权。旧任务的安装包不会自动改写；应创建新任务进行回归。
+
+已通过模板解析、Linux 下的脚本正反向检查，以及原始 Subiquity 23.08.1 文件系统模型的 UEFI / BIOS 配置检查：目标盘、分区大小、启动配置及传给 Curtin 的 GRUB 选项符合预期，保留盘不在写入配置中。随后 UEFI 实机验证了无需安装确认、装完自动硬盘启动和第二次正常重启。验收代码的 [CI 38709558965](https://github.com/SkyWalkerAMD-org/ventoy/actions/runs/38709558965) 全部 10 项通过。
+
+## 验收边界
+
+- 需要为新任务在 iVentoy 原生页面绑定对应 user-data 与注入包，并选择正确任务镜像。管理端尚未提供经过验收的一键配置 iVentoy 适配器。
+- 这次仅验收 22.04.3 live-server / Intel X710 / UEFI。兼容包暂不用于 Ubuntu 20.04 / 24.04 / 26.04；22.04.4 / 22.04.5 仍需各自完整实装，BIOS 目前只有配置模型和脚本检查。
+- 当前 Ubuntu 模板需要能访问配置的软件仓库。此次系统仍标识为 22.04.3，但已安装在线安全更新；不属于完全离线或原始软件包版本固定的验收。安全更新阶段约用时 15 分钟并正常结束；`ubuntu-pro-client` 的配置文件冲突使相关 `ubuntu-advantage-tools` 更新被保留，未阻塞安装，`dpkg --audit` 无异常，不宣称所有可更新包均已升级。
+- 目标盘之前的 LVM 已在获授权后离线准备；模板仍拦截已有 LVM / RAID，不自动拆解跨盘存储。
+- 保留盘验收核对分区表与文件系统 / RAID 签名，未进行整盘逐字节数据校验。

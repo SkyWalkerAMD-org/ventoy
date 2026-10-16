@@ -1,5 +1,28 @@
 # 开发记录
 
+## 0.3.0-alpha.7 — 2026-10-14
+
+- Ubuntu 自动安装显式使用官方 HTTPS 主仓库和安全仓库，关闭 GeoIP 自动替换镜像站，修复 22.04.3 实机因镜像站 HTTP 403 无法安装 EFI 引导包的问题。
+- Ubuntu Server 22.04.3 已完成 Intel X710 / UEFI 实装、硬盘启动、控制台 / SSH / sudo 登录、网络与首次启动回报；无失败服务，保留盘分区表及签名一致，旧授权返回 HTTP 401。
+- 此流程仍需一次安装 `yes` 确认；测试机由现场调整为硬盘优先启动，尚未实现完整无人值守。实际系统标识为 22.04.3，在线更新后内核为 `5.15.0-198-generic`。
+
+## 0.3.0-alpha.6 — 2026-10-14
+
+- 修正 Ubuntu 自动安装的磁盘匹配：`lsblk SERIAL` 与 Subiquity 使用的 udev `ID_SERIAL` 不同，旧配置可能没有匹配磁盘并报 `NoneType ... id`。
+- 在 MAC、唯一短序列号、设备类型、存储和固件检查通过后，将确认的磁盘路径原子写入 `/autoinstall.yaml`；初始路径不可安装，写入失败时不领取安装授权。
+- 增加 Ubuntu 绑定及失败顺序回归测试；在 22.04.3 原始 Subiquity 5004 上复现旧匹配失败并验证新路径准确命中目标盘。后续完整安装结果见 alpha.7。
+
+## 0.3.0-alpha.5 — 2026-10-14（待实机复测）
+
+- 将 CentOS 7 已验证的分离 hostname / MAC 绑定网络配置扩展到 Rocky 8，避免 initramfs 等待 udev 改名前的 `ethN`。
+- Rocky 8.10 原始安装器解析器的隔离复现通过：旧配置生成 `ip=eth1:dhcp:` / `bootdev=eth1` 和网络等待标记；新配置不生成这些条件，保留 MAC、DHCP 和自动连接。此修复尚未完成物理机回归。
+
+## 0.3.0-alpha.4 — 2026-10-14
+
+- Rocky 8 任务增加 `rocky-iventoy.tar.gz` 启动注入包，补齐 iVentoy 1.0.44 的 Kickstart 入口，并纳入准备、校验和清理清单。
+- Rocky 8.10 DVD 已完成 Intel X710 / UEFI 实机自动安装、硬盘启动、控制台 / SSH / sudo 登录和首次启动回报；保留盘分区信息一致，完成任务重放返回 HTTP 401。
+- 本次安装存在约 10 分钟 initramfs 网络等待，日志定位到已改名的 `eth1`；功能验收通过，启动等待问题待 alpha.5 实机复测。
+
 ## 0.3.0-alpha.3 — 2026-10-14
 
 - CentOS 7.9 任务额外生成受清单管理的 iVentoy 注入包，通过 dracut 的 `cmdline.d` 传入 Kickstart 路径；管理页面显示两份文件的绑定路径。

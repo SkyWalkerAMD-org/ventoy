@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"crypto/sha256"
+	"crypto/sha512"
 	"embed"
 	"encoding/base64"
 	"encoding/json"
@@ -19,14 +20,21 @@ var templates embed.FS
 
 type renderData struct {
 	PrivateJob
-	Target       Profile
-	Base         string
-	CA           string
-	Guard        string
-	Bootstrap    string
-	VersionCheck string
-	DebianLate   string
-	Partition    int
+	Target          Profile
+	Base            string
+	CA              string
+	Guard           string
+	Bootstrap       string
+	VersionCheck    string
+	DebianLate      string
+	UbuntuStorage   string
+	NetworkKeyfiles string
+	Partition       int
+	InjectionName   string
+	UserDataSHA512  string
+	KernelPackages  string
+	UpdatePolicy    string
+	UbuntuKernel    string
 }
 
 func render(name string, data renderData) (string, error) {
@@ -56,6 +64,7 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 		return nil, err
 	}
 	d := renderData{PrivateJob: j, Target: p, Base: s.config.PublicURL + "/bootstrap/" + j.ID, CA: string(s.ca), Partition: 3}
+	d.InjectionName = bootInjectionName(p.ID)
 	if j.Machine.Firmware == "bios" {
 		d.Partition = 2
 	}
@@ -69,11 +78,27 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 		}
 		files["injection/ventoy-center/ca.crt"] = d.CA
 	} else {
+		d.KernelPackages = kernelPackagePatterns()
+		d.UpdatePolicy, err = render("linux-update-policy.sh", d)
+		if err != nil {
+			return nil, err
+		}
+		files["linux-update-policy.sh"] = d.UpdatePolicy
 		d.VersionCheck, err = render("version-check.sh", d)
 		if err != nil {
 			return nil, err
 		}
 		guardName := "guard.sh"
+		if p.OS == "ubuntu" {
+			d.UbuntuKernel, err = render("ubuntu-kernel.py", d)
+			if err != nil {
+				return nil, err
+			}
+			d.UbuntuStorage, err = render("ubuntu-storage.py", d)
+			if err != nil {
+				return nil, err
+			}
+		}
 		if p.OS == "debian" {
 			guardName = "debian-guard.sh"
 		}
@@ -86,6 +111,12 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 			return nil, err
 		}
 		name := "kickstart.cfg"
+		if p.ID == "rocky-9" {
+			d.NetworkKeyfiles, err = render("network-keyfiles.py", d)
+			if err != nil {
+				return nil, err
+			}
+		}
 		if j.OS == "ubuntu" {
 			name = "user-data"
 		}
@@ -100,8 +131,14 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		if p.ID == "centos-7.9" {
-			files[centosInjectionName], err = centosInjection()
+		if d.InjectionName != "" {
+			if p.OS == "ubuntu" {
+				// Ubuntu 22.04.3's initramfs includes sha512sum, not sha256sum.
+				d.UserDataSHA512 = fmt.Sprintf("%x", sha512.Sum512([]byte(files[name])))
+				files[d.InjectionName], err = ubuntuInjection(d)
+			} else {
+				files[d.InjectionName], err = kickstartInjection()
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -124,6 +161,11 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 	}
 	files["SHA256SUMS"] = sums.String()
 	return files, nil
+}
+
+func kernelPackagePatterns() string {
+	b, _ := templates.ReadFile("templates/kernel-packages.txt")
+	return strings.TrimSpace(string(b))
 }
 
 func (s *Server) renderBundle(j PrivateJob) ([]byte, error) {
