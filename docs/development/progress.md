@@ -1,6 +1,6 @@
 # Ventoy Center 当前进度
 
-更新日期：2026-10-16。现场管理端为 `0.3.0-alpha.10`，部署在现有 Rocky Linux 9.8 服务器上。Rocky 9.2 已完成无人值守实装与登录，首次启动的网络等待问题修复后通过第二次重启，正在补完整新装回归；另外 14 个版本仍待逐项实装。本阶段只做直推装机，未修改 sckocstp / fyhocsys，也未开启装机后接入。
+更新日期：2026-10-16。现场管理端为 `0.3.0-alpha.10`，部署在现有 Rocky Linux 9.8 服务器上。Rocky 9.2 已完成包含网络修复的全新无人值守实装、自动硬盘启动、登录及第二次正常重启；当前共 4 个具体版本通过完整实装，另外 14 个版本仍待逐项实装。本阶段只做直推装机，未修改 sckocstp / fyhocsys，也未开启装机后接入。
 
 ## 已交付的流程
 
@@ -20,7 +20,7 @@
 | CentOS Linux 8.5 | ISO 已准备；独立模板、版本保护及解析检查通过，镜像发行版 RPM 和软件组已核对 | 完整实装 |
 | CentOS Stream 9、10 | ISO 已准备；独立模板、版本保护及解析检查通过，镜像发行版 RPM 和软件组已核对 | 每个 ISO 完整实装 |
 | Rocky 8.10 | UEFI 实机自动安装、硬盘启动、登录及完成回报通过；网络等待修复回归通过，initrd 阶段降到 12.733 秒 | 其他硬件、Legacy BIOS、批量并发 |
-| Rocky 9.2 | 1.0.45 Pro / alpha.9 无人值守实装、自动硬盘启动、控制台 / SSH / sudo、完成回报、旧授权拒绝及保留盘检查通过；安装后修复网络等待，第二次重启通过 | alpha.10 网络修复的完整新装回归 |
+| Rocky 9.2 | 1.0.45 Pro / alpha.10 全新无人值守实装、自动硬盘启动、控制台 / SSH / sudo、完成回报、旧授权拒绝及保留盘检查通过；网络修复自动应用，第二次正常重启通过 | 其他硬件、Legacy BIOS、批量并发 |
 | Rocky 9.6、9.8 | ISO 内部版本、架构及内嵌介质校验通过，共用 Rocky 9 模板 | 每个 ISO 完整实装 |
 | Rocky 9.7 | 已通过 PXE 到达安装器；当时因旧磁盘 UUID 重复停止 | 完整实装和首次启动验收 |
 | Debian 12.8、12.15、13.0 | ISO 校验并入库，对应大版本的 preseed 模板已实现 | 每个 ISO 完整实装 |
@@ -29,7 +29,9 @@
 | Ubuntu Server 24.04.3 | ISO 已准备，对应 LTS 模板已实现 | 完整实装 |
 | Ubuntu Server 22.04.5、24.04.4、24.04.5 | ISO 校验并入库，对应 LTS 模板已实现 | 每个 ISO 完整实装 |
 
-18 个具体版本中，目前 4 个镜像有完整实装与登录证据；Rocky 9.2 的网络修复仍在补新装回归。CentOS 7.9 的验收版本为 alpha.3，Rocky 8.10 最新回归为 alpha.7，Ubuntu 22.04.3 为 alpha.8，Rocky 9.2 首次成功实装为 alpha.9。更新管理端不自动等于旧版本已重测。详细证据见 [CentOS 7.9](../deployment/centos7.md)、[Rocky 8.10](../deployment/rocky8.md)、[Rocky 9 客户端](../deployment/rocky9-client.md)和 [Ubuntu 22.04.3](../deployment/ubuntu22.md)。
+18 个具体版本中，目前 4 个镜像有完整无人值守实装与登录证据。CentOS 7.9 的验收版本为 alpha.3，Rocky 8.10 最新回归为 alpha.7，Ubuntu 22.04.3 为 alpha.8，Rocky 9.2 最新回归为 alpha.10。更新管理端不自动等于旧版本已重测。详细证据见 [CentOS 7.9](../deployment/centos7.md)、[Rocky 8.10](../deployment/rocky8.md)、[Rocky 9 客户端](../deployment/rocky9-client.md)和 [Ubuntu 22.04.3](../deployment/ubuntu22.md)。
+
+这里的“无人值守通过”指预先完成机器登记、目标盘清盘授权、存储准备及专属任务绑定后，从正确网启入口自动执行分区、安装、重启和完成回报，安装器中无需填写答案。已有 LVM / RAID 仍需独立离线准备；管理端尚未提供经过验收的一键配置 iVentoy 功能。
 
 ## 服务端平台
 
@@ -51,7 +53,7 @@
 
 服务器重启后的后台访问故障已修复：补齐指定内网和 VPN 来源的运行时、永久防火墙规则，用户已确认管理端与 iVentoy 页面恢复。现场地址分别为 `https://192.168.1.2:26080` 和 `http://192.168.1.2:26000`。
 
-完成本轮实装后，按用户要求将现场 iVentoy 从 1.0.44 升级到 1.0.45 免费版，再使用用户购买的配套程序包和授权文件注册为 **1.0.45 专业版**。注册页面已确认专业版及原机器码；59 个镜像入口、40 个用户文件、27 项当前页面参数与 Ubuntu 专属任务绑定均核对保留，管理端状态未变，两个服务正常运行且保持开机启动。旧程序与配置可回退。三项完整实装结果仍基于 1.0.44，1.0.45 暂为服务、授权与配置验证，详见[升级记录](../deployment/iventoy-upgrade.md)。
+2026-10-15 完成前三项实装后，按用户要求将现场 iVentoy 从 1.0.44 升级到 1.0.45 免费版，再使用用户购买的配套程序包和授权文件注册为 **1.0.45 专业版**。注册页面已确认专业版及原机器码；59 个镜像入口、40 个用户文件、27 项当前页面参数与 Ubuntu 专属任务绑定均核对保留，管理端状态未变，两个服务正常运行且保持开机启动。旧程序与配置可回退。CentOS 7.9、Rocky 8.10、Ubuntu 22.04.3 的实装结果基于 1.0.44；10 月 16 日的 Rocky 9.2 完整验收基于 1.0.45 Pro，尚不能代替前三项升级后的逐 ISO 重测，详见[升级记录](../deployment/iventoy-upgrade.md)。
 
 2026-10-16，又按用户要求将实际运行目录改为 `/home/ventoy-center/iventoy`，迁移服务配置、六个任务的准备根目录及 11 处脚本 / 注入包绑定。随后补齐六个计划 ISO，当前共 **65 个 iVentoy 入口（59 个原始镜像 + 6 个已有任务镜像）**。专业版授权、原有参数和绑定均保留；任务状态、凭据与领取记录未变，两个服务正常运行且保持开机启动。本次未新增实机安装结果。
 
@@ -59,9 +61,11 @@
 
 ## 代码与验证
 
-alpha.10 的本地 Go 测试、vet、服务器 Linux 测试及 28 组 Linux 安装模板解析通过，另执行 Rocky 9 网络 keyfile 的隔离回归。CentOS Linux / Stream 身份、错误小版本和其他发行版的拒绝行为已有 Linux 执行检查。Rocky 9.2 首次任务 `163cc707353d9f9fb2423f63` 因原生 hook 未加载 Kickstart 而停止；重试任务 `e9885756e98fe74fe3d32f38` 同时绑定 Kickstart 和 dracut 兼容包，已完成实装。alpha.10 新任务 `bba89ab191b5bc79c03e62ef` 正补网络修复的新装回归。
+alpha.10 的本地 Go 测试、vet、服务器 Linux 测试及 28 组 Linux 安装模板解析通过，另执行 Rocky 9 网络 keyfile 的隔离回归。CentOS Linux / Stream 身份、错误小版本和其他发行版的拒绝行为已有 Linux 执行检查。Rocky 9.2 首次任务 `163cc707353d9f9fb2423f63` 因原生 hook 未加载 Kickstart 而停止；重试任务 `e9885756e98fe74fe3d32f38` 同时绑定 Kickstart 和 dracut 兼容包，完成实装后定位了网络等待问题。alpha.10 新任务 `bba89ab191b5bc79c03e62ef` 已通过网络修复的完整新装、首次启动与第二次正常重启，用户空间启动分别为 12.804 秒和 8.470 秒，无失败服务。
 
-本轮验收代码为 `1bbaa20`，CI [38709558965](https://github.com/SkyWalkerAMD-org/ventoy/actions/runs/38709558965) 的 10 个任务全部通过：Linux / Windows 测试、Linux race、安装模板解析、二进制构建和七种 Linux 用户空间启动检查。Ubuntu 还使用原始 Subiquity 5004 与真实 udev 数据验证了磁盘匹配。
+Rocky 9.2 本轮验收代码为 `15f8c66`，CI [38841473820](https://github.com/SkyWalkerAMD-org/ventoy/actions/runs/38841473820) 的 10 项任务全部通过。Rocky 9.6 下一轮任务已经准备，尚未启动安装。
+
+此前 Ubuntu 22.04.3 的验收代码为 `1bbaa20`，CI [38709558965](https://github.com/SkyWalkerAMD-org/ventoy/actions/runs/38709558965) 的 10 个任务全部通过：Linux / Windows 测试、Linux race、安装模板解析、二进制构建和七种 Linux 用户空间启动检查。Ubuntu 还使用原始 Subiquity 5004 与真实 udev 数据验证了磁盘匹配。
 
 alpha.8 的 Go 测试、Go vet、22 组 Linux 安装模板解析和 JavaScript 语法检查已通过。Ubuntu 注入脚本在 Linux 临时目录中执行验证：缺失或不匹配的 user-data、异常 init 标记、错误系统版本或 MAC 均不会启用无人值守入口；匹配输入会生成预期的 live systemd 配置。实机排查还修复了早期 `/dev/null` 不存在导致的注入失败，加入对应回归，并用实际 iVentoy BusyBox 与原始 initramfs 在隔离目录执行验证。原始 Subiquity 23.08.1 的 UEFI / BIOS 存储模型检查通过，UEFI 完整无人值守实装也已通过；BIOS 模型检查不等于 BIOS 实机验收。
 
