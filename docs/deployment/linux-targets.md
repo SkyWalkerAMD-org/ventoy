@@ -7,6 +7,8 @@
 | 系统 | API profile | 安装器 | 镜像要求 |
 | --- | --- | --- | --- |
 | CentOS Linux 7.9 | `centos-7.9` | Kickstart | x86_64 DVD / Everything 2009 |
+| CentOS Linux 8.5.2111 | `centos-8.5` | Kickstart | x86_64 完整 DVD；与 Stream 区分 |
+| CentOS Stream 9 / 10 | `centos-stream-9` / `centos-stream-10` | Kickstart | x86_64 完整 DVD；10 需要 x86-64-v3 |
 | Rocky Linux 8.x（至 8.10） | `rocky-8` | Kickstart | x86_64 完整 DVD |
 | Rocky Linux 9.x（含 9.8，首要适配） | `rocky-9` | Kickstart | x86_64 完整 DVD |
 | Rocky Linux 10.x（含 10.2） | `rocky-10` | Kickstart | x86_64 完整 DVD；CPU 满足 x86-64-v3 |
@@ -26,12 +28,12 @@ Windows 11 / Server 2022 保留安装模板，开发优先级低于 Linux。Wind
 
 清单共 18 个具体版本；Ubuntu 仅使用 Server / live-server 镜像。CentOS 7.9、Rocky 8.10、Ubuntu 22.04.3 已有完整实装证据，剩余限制见各自记录和[当前进度](../development/progress.md)。现有其他模板继续保留，列入计划不代表已完成安装验收。
 
-这 18 个版本的 ISO 已全部入库，见[现场镜像路径与校验记录](image-catalog.md)。CentOS Linux 8.5 与 Stream 9 / 10 仍待自动安装模板适配，其余未验收镜像仍需逐项实装。
+这 18 个版本的 ISO 已全部入库，见[现场镜像路径与校验记录](image-catalog.md)。alpha.9 已补 CentOS Linux 8.5 与 Stream 9 / 10 的独立模板和版本检查，模板解析通过；这些版本和其他未验收镜像仍需逐项实装。
 
 | 系统 | 计划准备和验收的版本 | 当前实现基础 |
 | --- | --- | --- |
-| CentOS Linux | **7.9（第一优先）**、8.5 | 7.9 官方 DVD 已通过 UEFI 虚拟机与真实硬件 PXE 完整安装、硬盘启动及登录验证；8.5 待单独适配 |
-| CentOS Stream | 9、10 | 待单独适配版本校验与 Kickstart |
+| CentOS Linux | **7.9（第一优先）**、8.5 | 7.9 官方 DVD 已通过 UEFI 虚拟机与真实硬件 PXE 完整安装、硬盘启动及登录验证；8.5 独立模板已实现，实装待验收 |
+| CentOS Stream | 9、10 | 独立版本校验与 Kickstart 已实现，实装待验收 |
 | Rocky Linux | 8.10、9.2、9.6、9.7、9.8 | 8.10 已完成 UEFI 实机安装与登录验收，启动等待修复回归通过；9 系列逐 ISO 验收 |
 | Debian | 12.8、12.15、13.0 | 12 / 13 系列共用对应模板，逐 ISO 验收 |
 | Ubuntu Server | 22.04.3、22.04.4、22.04.5、24.04.3、24.04.4、24.04.5 | 22.04.3 已通过无人值守实装、自动硬盘启动与第二次重启验收；其余逐 ISO 验收 |

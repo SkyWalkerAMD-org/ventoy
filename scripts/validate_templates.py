@@ -33,13 +33,13 @@ def shell_check(source):
 
 root = Path(sys.argv[1])
 count = 0
-for profile, version in [("centos-7.9", "RHEL7"), ("rocky-8", "RHEL8"), ("rocky-9", "RHEL9"), ("rocky-10", "RHEL10")]:
+for profile, version in [("centos-7.9", "RHEL7"), ("centos-8.5", "RHEL8"), ("centos-stream-9", "RHEL9"), ("centos-stream-10", "RHEL10"), ("rocky-8", "RHEL8"), ("rocky-9", "RHEL9"), ("rocky-10", "RHEL10")]:
     for firmware in ("bios", "uefi"):
         path = root / profile / firmware / "kickstart.cfg"
         handler = makeVersion(version)
         parser = KickstartParser(handler, followIncludes=False)
         parser.readKickstart(str(path))
-        if profile in ("centos-7.9", "rocky-8"):
+        if profile in ("centos-7.9", "centos-8.5", "rocky-8", "rocky-9"):
             # These initrds turn only the first network directive into
             # dracut ip=/bootdev=. iVentoy loads the NIC before udev renames it,
             # so an early ethN binding leaves dracut waiting on a vanished NIC.

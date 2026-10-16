@@ -31,7 +31,7 @@
 | Ubuntu Server 24.04.4 | `Ubuntu/ubuntu-24.04.4-live-server-amd64.iso` | 新增并校验 |
 | Ubuntu Server 24.04.5 | `Ubuntu/ubuntu-24.04.5-live-server-amd64.iso` | 新增并校验 |
 
-CentOS Linux 8.5、Stream 9 / 10 已有 ISO，但无人值守 profile、版本校验与 Kickstart 仍待单独适配。其他版本的模板基础见 [Linux 客户端范围](linux-targets.md)。
+CentOS Linux 8.5、Stream 9 / 10 的独立无人值守 profile、版本校验与 Kickstart 已在 alpha.9 实现，尚未完成实装。现场已核对这三个 ISO 内的发行版 RPM 和 `minimal-environment` 软件组。其他版本的模板基础见 [Linux 客户端范围](linux-targets.md)。
 
 ## 本次新增镜像的校验
 

@@ -13,7 +13,7 @@ import (
 	"strings"
 )
 
-const Version = "0.3.0-alpha.8"
+const Version = "0.3.0-alpha.9"
 
 type Config struct {
 	Listen         string `json:"listen"`
