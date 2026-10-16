@@ -16,6 +16,7 @@ import yaml
 
 from validate_ubuntu_storage import check_storage_binding
 from validate_ubuntu_injection import check_injection
+from validate_network_keyfiles import check_network_keyfiles
 
 
 def shell_check(source):
@@ -39,6 +40,8 @@ for profile, version in [("centos-7.9", "RHEL7"), ("centos-8.5", "RHEL8"), ("cen
         handler = makeVersion(version)
         parser = KickstartParser(handler, followIncludes=False)
         parser.readKickstart(str(path))
+        if profile == "rocky-9":
+            check_network_keyfiles(path.read_text(encoding="utf-8"))
         if profile in ("centos-7.9", "centos-8.5", "rocky-8", "rocky-9"):
             # These initrds turn only the first network directive into
             # dracut ip=/bootdev=. iVentoy loads the NIC before udev renames it,

@@ -20,17 +20,18 @@ var templates embed.FS
 
 type renderData struct {
 	PrivateJob
-	Target         Profile
-	Base           string
-	CA             string
-	Guard          string
-	Bootstrap      string
-	VersionCheck   string
-	DebianLate     string
-	UbuntuStorage  string
-	Partition      int
-	InjectionName  string
-	UserDataSHA512 string
+	Target          Profile
+	Base            string
+	CA              string
+	Guard           string
+	Bootstrap       string
+	VersionCheck    string
+	DebianLate      string
+	UbuntuStorage   string
+	NetworkKeyfiles string
+	Partition       int
+	InjectionName   string
+	UserDataSHA512  string
 }
 
 func render(name string, data renderData) (string, error) {
@@ -97,6 +98,12 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 			return nil, err
 		}
 		name := "kickstart.cfg"
+		if p.ID == "rocky-9" {
+			d.NetworkKeyfiles, err = render("network-keyfiles.py", d)
+			if err != nil {
+				return nil, err
+			}
+		}
 		if j.OS == "ubuntu" {
 			name = "user-data"
 		}
