@@ -1,0 +1,3 @@
+#!/bin/sh
+set -eu
+exec /bin/sh /usr/local/lib/ventoy-preload/copy-to-target.sh "${TARGET_MOUNT_POINT:-/target}"

@@ -87,3 +87,49 @@ CentOS 7.9 安装包现在额外生成 `centos7-iventoy.tar.gz`。它通过 [iVe
 排障中遇到的两项启动兼容问题已分别解决：`cmdline.d` 注入使 dracut 读取 Kickstart；网络指令顺序避免等待 udev 重命名前的 `eth1`。旧 RAID 保护触发时，CentOS 7 的错误处理还可能显示 `ImportError: No module named updates_disk_hook`；应先检查 `/tmp/ventoy-center-pre.log`，本轮实际原因是旧阵列，未通过修改 Python 模块绕过保护。
 
 验收结束时复核 iVentoy 仍为运行状态，保持 `Standard` / `ProxyNet`，无全局默认镜像。上述结果仅覆盖此 DVD、硬件和 UEFI 配置，不代表 Everything、Legacy BIOS、Secure Boot 或其他发行版已完成实装验收。
+
+### Intel E610 实机适配（2026-10-16）
+
+带外 `192.168.1.39` 的机器使用 Intel E610（PCI `8086:57b0`）和 MR9540-8i RAID 逻辑盘。原版 CentOS 7.9 安装环境缺少该网卡的匹配驱动，虽然固件能进入 iVentoy，进入 Linux 后仍会因无法继续读取网络介质而停在 dracut 等待阶段。
+
+本轮采用用户 [E610 项目的 r2 适配包](https://github.com/SkyWalkerAMD-org/E610/releases/tag/v6.4.5-centos7.9-r2)，保持原版 DVD 的 `3.10.0-1160.el7.x86_64` 内核。安装环境替换为匹配此内核的 ixgbe 6.4.5，并重新生成模块依赖；安装结束时在目标系统中运行适配包的离线安装器，将驱动放入 `updates/` 并重建目标 initramfs。只改安装环境中的驱动不足以保证安装后还能联网。
+
+| 输入 / 产物 | SHA-256 |
+| --- | --- |
+| `E610-CentOS7.9-adaptation-r2.tar.gz` | `43b88ce14c6e6ddd41d99559b6fcd58c043fd6bc389e37113f7cee01eeeb308c` |
+| 1160 内核对应的 `ixgbe.ko` | `4139a6de9813f4b686e980165e4dfb108f36df015dbe855fbaa014a750aaa341` |
+| `CentOS-7.9-x86_64-E610-r2-DVD.iso` | `4ad8b7b4d50900294b79bc7a22e20baefac6e1351456e052a1f8e8bfb406d142` |
+
+基础适配 ISO 保留原内核、软件包、卷标和 BIOS / UEFI 启动结构，加入完整适配包，内嵌介质校验通过。现场自动安装另外构建每台机器独立的 ISO，在启动菜单中直接传入 `inst.ks=cdrom:/ks.cfg`，并嵌入管理端 alpha.11 为该任务生成的 Kickstart。脚本保留发行版、MAC、目标盘、UEFI、旧存储和一次性授权检查，额外加入驱动持久化步骤；没有把清盘脚本设为全局默认配置，也没有切换 iVentoy 的全局安全启动设置。
+
+本次用户明确授权清空 `.39` 的约 960 GB MR9540-8i 逻辑盘。安装前检查按 `ID_SERIAL_SHORT=600062b2176b0100313d5e8b96234c02` 唯一识别该整盘；硬件 RAID 向 Linux 提供单个逻辑块设备，本轮没有修改 RAID 控制器的阵列配置，也没有放开对已有 Linux 软件 RAID / LVM 成员的保护。
+
+| 实机检查 | 结果 |
+| --- | --- |
+| 网启 | iVentoy 1.0.45 Pro，UEFI LAN2，E610 MAC 尾号 `86:b2`；自动加载驱动并读取网络 ISO |
+| 无人值守 | 专属任务镜像启动后自动分区、安装 305 个软件包、部署驱动、应用更新策略并重启；安装器内无需人工应答 |
+| 目标存储 | 授权逻辑盘上创建 200 MiB EFI、1 GiB `/boot`、LVM 根目录 / swap / home；未调整硬件 RAID 配置 |
+| 本地启动 | `BootCurrent: 0003` 对应 `EFI/centos/shimx64.efi`，根目录来自本地逻辑盘 |
+| 系统与驱动 | CentOS Linux 7.9.2009，内核 `3.10.0-1160.el7.x86_64`；ixgbe 6.4.5 的模块摘要与适配包一致，目标 initramfs 包含更新驱动 |
+| E610 网络 | `enp47s0f1`，DHCP `192.168.1.46/23`，1 Gbps 全双工；到装机服务器 3 次 ping 均成功，SSH 公钥登录通过 |
+| 账户与系统状态 | `deployadmin` UID 1000 / wheel，sudo 密码认证通过；SELinux Enforcing、sshd active、root 密码锁定，无失败服务 |
+| 内核与更新策略 | `--check` 通过；真实 yum 配置读出 `kernel*` 排除项，yum-cron / dnf 自动更新单元被 mask |
+| 完成回报 | `06:12:50 UTC` 领取安装，`06:19:16 UTC` 首次硬盘启动后回报 `installed`；完成服务退出 0 并自动禁用 |
+| 旧授权重放 | 对完成任务再次请求安装，HTTP 401 拒绝，任务保持 `installed` |
+| 第二次重启 | 正常重启后 boot ID 改变，仍从同一本地 CentOS 引导项启动；驱动、DHCP、SSH / sudo、更新策略检查再次通过，无失败服务 |
+
+该结果只覆盖本机 E610 / MR9540-8i / UEFI 和 r2 的 1160 内核模块。当前协商速率为 1 Gbps，没有完成 10 Gbps 吞吐、长期压力、Secure Boot 或其他 E610 设备型号的验收。
+
+**复用边界：** `CentOS-7.9-x86_64-E610-r2-DVD.iso` 是带安装环境驱动的基础镜像，本身不会替手动安装执行驱动持久化或更新策略。新机器自动安装仍需创建新的授权任务并构建对应的专属镜像；不要复用 `.39` 的任务 ISO / 凭据。本次完成后已将 `CentOS-7.9-E610-AUTO-BMC39.iso` 从公共启动菜单移除，私有验收副本保留，基础适配 ISO 仍可见。该构建流程目前是现场辅助流程，管理页面尚未提供 E610 镜像自动构建功能。适配包、构建记录和验收日志保存在服务器受限目录 `/home/ventoy-center/qa-centos7-e610-20261016/`，含凭据的 Kickstart 和任务 ISO 不提交仓库。
+
+### 手动重装后的 E610 网络恢复（2026-10-16）
+
+同日用户在 `.39` 手动重装后，系统仍为 `3.10.0-1160.el7.x86_64`，但安装环境的驱动没有自动部署到新系统。现场分别核对了驱动、连接配置和实际收发，不能仅凭 `modinfo` 输出判断网卡已经工作：
+
+- 普通网卡 `ens4003f1` 的 DHCP 配置存在，但 `connection.autoconnect=no`；启用并保存后取得 `192.168.1.49/23`。
+- 用户运行 r2 的 `install.sh` 后，磁盘上的模块及 initramfs 已是 ixgbe 6.4.5，但当前内核尚未加载 ixgbe。确认没有正在使用的 ixgbe 接口后执行 `modprobe ixgbe`，E610 的两个接口出现；接线的 `enp47s0f1`（MAC 尾号 `86:b2`）取得 `192.168.1.46/23`。连接配置按接口和 MAC 保存，启用开机自动连接。
+- 两张网卡同时连接 `192.168.0.0/23`，装机服务器最初将 `.46` 解析成普通网卡的 MAC。仅获得 DHCP 地址仍不足以证明 E610 双向收发正常。对这两个接口分别持久设置 `arp_ignore=1`、`arp_announce=2`、`rp_filter=2`，再通过 E610 通告正确的地址归属，装机服务器解析恢复为 `b0:82:e2:00:86:b2`；指定 E610 接口访问服务器及网关均成功。
+
+双网卡设置位于 `/etc/sysctl.d/90-ventoy-center-dual-nic.conf`，只针对本机两个接口；该调整用于本次同网段双网卡环境，不作为所有装机任务的默认配置。参数含义见 [Linux 内核网络参数说明](https://docs.kernel.org/networking/ip-sysctl.html)。用户此前要求的内核锁定和关闭自动更新策略也已在本次手动安装的系统中应用，实际 yum 排除项包含 `kernel*`。修复前配置与检查记录保存在目标机 `/root/ventoy-center-network-repair-20261016/`。
+
+修复后已执行一次正常重启，boot ID 改变、`BootCurrent=0000` 仍为本地 CentOS，运行内核保持 1160、ixgbe 自动加载 6.4.5。两张网卡均自动取得上述地址，双网卡参数和更新策略检查通过；从 Windows 经 `.46` 的 SSH 密码登录成功，指定 E610 到装机服务器 3 次、到网关 2 次 ping 均无丢包，无失败 systemd 服务。E610 当前为 1 Gbps 全双工；本轮验证的是手动安装后的恢复流程，不新增其他系统版本的自动安装验收结果。

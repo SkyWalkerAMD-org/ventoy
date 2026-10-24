@@ -26,10 +26,11 @@ def bind_install_disk(config_path, disk):
     if layout != {"name": "direct", "match": {"path": "/dev/ventoy-center-unverified"}}:
         raise ValueError("Unexpected storage layout; refusing to select a disk")
     layout["match"] = {"path": "/dev/" + disk}
-{{if eq .Target.ID "ubuntu-22.04"}}
+{{if or (eq .Target.ID "ubuntu-22.04") (eq .Target.ID "ubuntu-24.04")}}
     # Subiquity 23.08.1 ignores storage.grub when using a guided layout.
-    # Use explicit actions for this verified disk so the EFI policy reaches
-    # Curtin. This only changes YAML; the one-use claim still precedes writes.
+    # Use the same explicit actions on 22.04 and 24.04 for this verified disk.
+    # This passes the EFI policy to Curtin and only changes YAML; the one-use
+    # claim still precedes writes.
     uefi = {{if eq .Machine.Firmware "uefi"}}True{{else}}False{{end}}
     actions = [
         {"id": "vc-disk", "type": "disk", "path": "/dev/" + disk,
@@ -69,7 +70,8 @@ def bind_install_disk(config_path, disk):
         ) as stream:
             pending = stream.name
             os.fchmod(stream.fileno(), 0o600)
-            yaml.safe_dump(document, stream, sort_keys=False)
+            # Keep compatibility with the PyYAML bundled in Ubuntu 20.04.3.
+            yaml.safe_dump(document, stream, default_flow_style=False)
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(pending, config_path)

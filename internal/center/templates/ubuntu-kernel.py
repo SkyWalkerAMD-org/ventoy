@@ -8,6 +8,30 @@ import tempfile
 import yaml
 
 
+def media_kernel_metadata(release, media_pool=Path('/cdrom/pool')):
+    """Old Server media keeps its kernel as debs, outside the live dpkg DB."""
+    if not re.fullmatch(r"[0-9][a-zA-Z0-9.+-]*", release):
+        raise ValueError("Invalid installer kernel release")
+    names = {prefix + release for prefix in
+             ('linux-image-', 'linux-modules-', 'linux-modules-extra-', 'linux-headers-')}
+    names.add('linux-headers-' + release.rsplit('-', 1)[0])
+    packages = {}
+    for path in sorted(media_pool.rglob('linux-*.deb')):
+        if path.name.split('_', 1)[0] not in names:
+            continue
+        package, version, arch = [subprocess.check_output(
+            ['dpkg-deb', '-f', str(path), field], universal_newlines=True).strip()
+            for field in ('Package', 'Version', 'Architecture')]
+        if package not in names or arch not in ('amd64', 'all'):
+            raise ValueError('Unexpected kernel package on the installation media')
+        if package in packages and packages[package] != version:
+            raise ValueError('Conflicting kernel versions on the installation media')
+        packages[package] = version
+    if 'linux-image-' + release not in packages or 'linux-modules-' + release not in packages:
+        raise ValueError('Media lacks the exact boot kernel and modules')
+    return ''.join('%s\t%s\tinstalled\n' % item for item in sorted(packages.items()))
+
+
 def lock_installer_kernel(config_path, release, package_output):
     """Pin the live media's kernel BEFORE Curtin installs a kernel or runs UU."""
     if not re.fullmatch(r"[0-9][a-zA-Z0-9.+-]*", release):
@@ -51,7 +75,8 @@ def lock_installer_kernel(config_path, release, package_output):
                                          prefix=".ventoy-kernel-", delete=False) as stream:
             pending = stream.name
             os.fchmod(stream.fileno(), 0o600)
-            yaml.safe_dump(document, stream, sort_keys=False)
+            # Ubuntu 20.04.3 ships PyYAML before the sort_keys keyword existed.
+            yaml.safe_dump(document, stream, default_flow_style=False)
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(pending, path)
@@ -63,6 +88,10 @@ def lock_installer_kernel(config_path, release, package_output):
 
 if __name__ == "__main__":
     installed = subprocess.check_output(
-        ["dpkg-query", "-W", "-f=${Package}\t${Version}\t${db:Status-Status}\n"], text=True,
+        ["dpkg-query", "-W", "-f=${Package}\t${Version}\t${db:Status-Status}\n"], universal_newlines=True,
     )
-    lock_installer_kernel("/autoinstall.yaml", os.uname().release, installed)
+    release = os.uname().release
+    if not any(line.startswith('linux-image-' + release + '\t') and line.endswith('\tinstalled')
+               for line in installed.splitlines()):
+        installed += media_kernel_metadata(release)
+    lock_installer_kernel("/autoinstall.yaml", release, installed)

@@ -90,7 +90,7 @@ func TestKickstartInjectionBundle(t *testing.T) {
 }
 
 func TestKickstartInjectionPreparation(t *testing.T) {
-	for _, profile := range []string{"centos-7.9", "rocky-8", "rocky-9", "ubuntu-22.04"} {
+	for _, profile := range []string{"centos-7.9", "rocky-8", "rocky-9", "ubuntu-22.04", "ubuntu-24.04"} {
 		t.Run(profile, func(t *testing.T) {
 			injectionName := bootInjectionName(profile)
 			s := stagingFixture(t)

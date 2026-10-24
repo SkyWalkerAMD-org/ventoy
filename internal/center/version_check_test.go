@@ -19,6 +19,14 @@ func TestCentOSDistributionIdentity(t *testing.T) {
 		profile, id, version, release string
 		allowed                       bool
 	}{
+		{"almalinux-8", "almalinux", "8.10", "", true},
+		{"almalinux-9", "almalinux", "9.5", "", true},
+		{"almalinux-9", "rocky", "9.5", "", false},
+		{"rhel-7", "rhel", "7.9", "", true},
+		{"rhel-8", "rhel", "8.10", "", true},
+		{"rhel-9", "rhel", "9.4", "", true},
+		{"rhel-8", "centos", "8", "", false},
+		{"rhel-9", "rhel", "8.10", "", false},
 		{"centos-7.9", "centos", "7", "CentOS Linux release 7.9.2009 (Core)", true},
 		{"centos-8.5", "centos", "8", "CentOS Linux release 8.5.2111", true},
 		{"centos-stream-9", "centos", "9", "CentOS Stream release 9", true},

@@ -1,6 +1,7 @@
 """Parse generated TEST fixtures; never run an installer or partition command."""
 
 import base64
+import gzip
 import os
 from pathlib import Path
 import re
@@ -13,11 +14,13 @@ import hashlib
 from pykickstart.parser import KickstartParser
 from pykickstart.version import makeVersion
 from validate_ubuntu_kernel import check_kernel_binding
+from validate_update_policy_guard import check_update_policy_guard
 import yaml
 
 from validate_ubuntu_storage import check_storage_binding
 from validate_ubuntu_injection import check_injection
 from validate_network_keyfiles import check_network_keyfiles
+from validate_install_failure import check_install_failure
 
 
 def shell_check(source):
@@ -26,22 +29,41 @@ def shell_check(source):
     if not bash:
         raise RuntimeError("bash is required for template syntax validation")
     subprocess.run([bash, "-n"], input=source, text=True, check=True)
+    for encoded in re.findall(r"printf '%b' '([^']*)'", source):
+        decoded = re.sub(r"\\0([0-7]{3})", lambda match: chr(int(match.group(1), 8)), encoded)
+        if decoded.startswith(("#!/bin/", "set -eu")):
+            shell_check(decoded)
     # Follow only literal base64 scripts rendered into the fixture.
     for encoded in re.findall(r"printf '%s' '([A-Za-z0-9+/=]+)' \| base64 -d", source):
-        decoded = base64.b64decode(encoded).decode("utf-8")
+        decoded = decode_script(encoded)
         if decoded.startswith("#!/bin/"):
             shell_check(decoded)
 
 
+def decode_script(encoded):
+    data = base64.b64decode(encoded, validate=True)
+    if data.startswith(b"\x1f\x8b"):
+        data = gzip.decompress(data)
+    return data.decode("utf-8")
+
+
 root = Path(sys.argv[1])
+check_update_policy_guard((root / "ubuntu-24.04" / "uefi" / "linux-update-policy.sh").read_text(encoding="utf-8"))
 count = 0
-for profile, version in [("centos-7.9", "RHEL7"), ("centos-8.5", "RHEL8"), ("centos-stream-9", "RHEL9"), ("centos-stream-10", "RHEL10"), ("rocky-8", "RHEL8"), ("rocky-9", "RHEL9"), ("rocky-10", "RHEL10")]:
+kickstart_versions = {
+    **dict.fromkeys(("rhel-7", "centos-7.6", "centos-7.9"), "RHEL7"),
+    **dict.fromkeys(("rhel-8", "almalinux-8", "centos-8.0", "centos-8.4",
+                     "centos-8.5", "centos-stream-8", "rocky-8"), "RHEL8"),
+    **dict.fromkeys(("rhel-9", "almalinux-9", "centos-stream-9", "rocky-9"), "RHEL9"),
+    **dict.fromkeys(("centos-stream-10", "rocky-10"), "RHEL10"),
+}
+for profile, version in kickstart_versions.items():
     for firmware in ("bios", "uefi"):
         path = root / profile / firmware / "kickstart.cfg"
         handler = makeVersion(version)
         parser = KickstartParser(handler, followIncludes=False)
         parser.readKickstart(str(path))
-        if profile == "rocky-9":
+        if profile in ("rocky-9", "almalinux-9", "rhel-9"):
             check_network_keyfiles(path.read_text(encoding="utf-8"))
         if profile in ("centos-7.9", "centos-8.5", "rocky-8", "rocky-9"):
             # These initrds turn only the first network directive into
@@ -58,7 +80,7 @@ for profile, version in [("centos-7.9", "RHEL7"), ("centos-8.5", "RHEL8"), ("cen
             shell_check(script.script)
         count += 1
 
-for release in ("20.04", "22.04", "24.04", "26.04"):
+for release in ("20.04", "22.04", "24.04", "24.10", "25.04", "26.04"):
     for firmware in ("bios", "uefi"):
         path = root / ("ubuntu-" + release) / firmware / "user-data"
         config = yaml.safe_load(path.read_text(encoding="utf-8"))["autoinstall"]
@@ -67,23 +89,24 @@ for release in ("20.04", "22.04", "24.04", "26.04"):
         assert config["storage"]["grub"] == {"reorder_uefi": False, "remove_duplicate_entries": False}
         check_storage_binding(config)
         check_kernel_binding(config)
-        if release == "22.04":
+        check_install_failure(path.parent / "ubuntu-install-failed.py")
+        if True:
             with tarfile.open(path.parent / "ubuntu-iventoy.tar.gz", "r:gz") as archive:
                 members = archive.getmembers()
-                assert len(members) == 3
+                assert len(members) == 4
                 for member in members:
                     assert member.isfile() and member.mode == 0o755
                     source = archive.extractfile(member).read().decode("utf-8")
                     shell_check(source)
                     if member.name.endswith(("hook.sh", "ubuntu-live.sh")):
                         assert hashlib.sha512(path.read_bytes()).hexdigest() in source
-                check_injection(archive, path.read_bytes())
-        for phase in ("early-commands", "late-commands"):
+                check_injection(archive, path.read_bytes(), release)
+        for phase in ("early-commands", "late-commands", "error-commands"):
             for script in config[phase]:
                 shell_check(script)
         count += 1
 
-for release in ("11", "12", "13"):
+for release in ("10", "11", "12", "13"):
     for firmware in ("bios", "uefi"):
         path = root / ("debian-" + release) / firmware / "preseed.cfg"
         text = path.read_text(encoding="utf-8").replace("\\\n", " ")
@@ -96,3 +119,53 @@ for release in ("11", "12", "13"):
         count += 1
 
 print(f"Parsed {count} Linux templates; shell syntax checked. No OS installation performed.")
+
+# The opt-in policy must be valid for native installers, not just Go templates.
+policy_hash = "$6$policy$" + "b" * 86
+policy_count = 0
+for directory in sorted((root / "password-policy").iterdir()):
+    if (directory / "kickstart.cfg").exists():
+        profile = directory.name
+        version = kickstart_versions[profile]
+        handler = makeVersion(version)
+        KickstartParser(handler, followIncludes=False).readKickstart(str(directory / "kickstart.cfg"))
+        assert handler.rootpw.password == policy_hash and handler.rootpw.isCrypted and not handler.rootpw.lock
+        assert handler.user.userList[0].password == policy_hash
+        assert handler.user.userList[0].name == "admin"
+        for script in handler.scripts:
+            shell_check(script.script)
+    elif (directory / "user-data").exists():
+        config = yaml.safe_load((directory / "user-data").read_text(encoding="utf-8"))["autoinstall"]
+        assert "identity" not in config
+        userdata = config["user-data"]
+        user = userdata["users"][0]
+        assert len(userdata["users"]) == 1 and user["name"] == "admin"
+        assert user["passwd"] == policy_hash and user["lock_passwd"] is False
+        assert user["shell"] == "/bin/bash" and "sudo" in user["groups"]
+        assert user["sudo"] == "ALL=(ALL) ALL"
+        assert userdata["hostname"] == "LAB-PASSWORD"
+        assert userdata["package_update"] is False and userdata["package_upgrade"] is False
+        assert userdata["disable_root"] is False and userdata["ssh_pwauth"] is True
+        assert config["ssh"]["allow-pw"] is True
+        assert "usermod --password '" + policy_hash + "' root" in config["late-commands"][0]
+        for script in config["late-commands"]:
+            shell_check(script)
+    else:
+        text = (directory / "preseed.cfg").read_text(encoding="utf-8").replace("\\\n", " ")
+        if directory.name == "ubuntu-22.04-desktop":
+            command = next(line.split(" string ", 1)[1] for line in text.splitlines()
+                           if line.startswith("ubiquity ubiquity/success_command string "))
+            assert len(command.encode()) < 128 * 1024, "Ubiquity exec argument is too large"
+            decoded = decode_script(re.search(r"printf '%s' '([A-Za-z0-9+/=]+)'", command).group(1))
+            assert "usermod --password '" + policy_hash + "' root" in decoded
+            shell_check(decoded)
+        else:
+            assert "passwd/root-password-crypted password " + policy_hash in text
+        assert "passwd/user-password-crypted password " + policy_hash in text
+        assert "passwd/username string vcinstall" in text
+        for line in text.splitlines():
+            if line.startswith("d-i preseed/late_command string"):
+                shell_check(line.split(" string ", 1)[1])
+    policy_count += 1
+assert policy_count == 28
+print(f"Validated shared administrator/root policy for {policy_count} Linux profiles.")

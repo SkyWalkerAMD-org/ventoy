@@ -1,0 +1,16 @@
+[Unit]
+Description=Apply and verify Ventoy manual-install configuration
+Wants=network-online.target systemd-hostnamed.service
+# cloud-final is ordered after multi-user on Ubuntu. Depending on it here
+# would create a cycle with our WantedBy=multi-user.target.
+After=network-online.target systemd-hostnamed.service cloud-init.service cloud-config.service ssh.service sshd.service ssh.socket
+ConditionPathExists=/var/lib/ventoy-center/manual-init/offline
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/ventoy-manual/current/install.sh --resume
+TimeoutStartSec=600
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

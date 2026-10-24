@@ -9,14 +9,17 @@ import (
 const centosInjectionName = "centos7-iventoy.tar.gz"
 const rockyInjectionName = "rocky-iventoy.tar.gz"
 const ubuntuInjectionName = "ubuntu-iventoy.tar.gz"
+const debianInjectionName = "debian-iventoy.tar.gz"
 
 func bootInjectionName(profile string) string {
 	switch profile {
-	case "centos-7.9":
+	case "debian-10", "debian-11", "debian-12", "debian-13":
+		return debianInjectionName
+	case "centos-7.6", "centos-7.9":
 		return centosInjectionName
-	case "rocky-8", "rocky-9":
+	case "centos-8.0", "centos-8.4", "centos-8.5", "centos-stream-8", "centos-stream-9", "centos-stream-10", "rocky-8", "rocky-9", "rocky-10", "almalinux-8", "almalinux-9", "rhel-7", "rhel-8", "rhel-9":
 		return rockyInjectionName
-	case "ubuntu-22.04":
+	case "ubuntu-20.04", "ubuntu-22.04", "ubuntu-24.04", "ubuntu-24.10", "ubuntu-25.04", "ubuntu-26.04", "ubuntu-22.04-desktop", "ubuntu-26.04-desktop":
 		return ubuntuInjectionName
 	default:
 		return ""

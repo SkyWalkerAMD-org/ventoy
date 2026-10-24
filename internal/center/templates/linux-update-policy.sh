@@ -15,12 +15,28 @@ fail() { echo "Kernel/update policy: $*" >&2; exit 1; }
 . /etc/os-release
 case "$ID" in
     ubuntu|debian) family=apt;;
-    centos|rocky) family=rpm;;
+    centos|rocky|almalinux|rhel|ol|scientific|anolis) family=rpm;;
     *) fail "Unsupported distribution: $ID";;
 esac
 if [ "$mode" = --apply ]; then
     [ "$(id -u)" = 0 ] || fail 'Run as root in the installed system'
-    [ ! -e /run/anaconda ] && [ ! -e /cdrom/.disk/info ] || fail 'Do not apply to the live installer; enter the installed target first'
+    if [ -e /run/anaconda ]; then
+        # Anaconda 8 bind-mounts /run into the target chroot during %post.
+        # Accept that marker only for an explicit offline invocation whose
+        # root differs from the running installer's PID 1 root.
+        [ "$offline" = --offline ] || fail 'Do not apply to the live installer; enter the installed target first'
+        live_root=$(stat -Lc '%d:%i' /proc/1/root 2>/dev/null) || fail 'Do not apply to the live installer; cannot identify installer root'
+        [ "$(stat -Lc '%d:%i' /)" != "$live_root" ] || fail 'Do not apply to the live installer; enter the installed target first'
+    fi
+    # Subiquity 24.04 can leave the ISO mounted at /target/cdrom during
+    # late-commands. That mount also appears as /cdrom inside the target
+    # chroot, so media presence alone does not identify the live root.
+    if [ -e /cdrom/.disk/info ]; then
+        case "$(stat -f -c %T /)" in
+            ext2/ext3|xfs|btrfs|zfs) ;;
+            *) fail 'Do not apply to the live installer; enter the installed target first';;
+        esac
+    fi
 fi
 state=/var/lib/ventoy-center/kernel-policy
 work=$(mktemp -d /tmp/ventoy-kernel-policy.XXXXXX)
@@ -121,6 +137,10 @@ fi
 [ -f "$state/kernel-packages.tsv" ] || fail 'Policy not applied yet; run with --apply'
 for unit in $units; do
     [ "$(readlink "/etc/systemd/system/$unit")" = /dev/null ] || fail "$unit is not masked"
+    if [ -z "$offline" ] && [ -d /run/systemd/system ]; then
+        active=$(systemctl is-active "$unit" 2>/dev/null || true)
+        case "$active" in inactive|failed|unknown) ;; *) fail "$unit is still running ($active)";; esac
+    fi
 done
 if [ "$family" = apt ]; then
     sha256sum -c "$state/policy.sha256" >/dev/null || fail 'Managed apt policy was changed'

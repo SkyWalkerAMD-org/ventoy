@@ -3,6 +3,7 @@ import copy
 from pathlib import Path
 import re
 import tempfile
+from unittest.mock import patch
 
 import yaml
 
@@ -15,6 +16,7 @@ def check_kernel_binding(config):
     namespace = {"__name__": "kernel_fixture"}
     exec(compile(source[1], "ubuntu-kernel.py", "exec"), namespace)
     lock = namespace["lock_installer_kernel"]
+    media_metadata = namespace["media_kernel_metadata"]
     release = "5.15.0-78-generic"
     packages = (
         "linux-image-5.15.0-78-generic\t5.15.0-78.85\tinstalled\n"
@@ -26,6 +28,27 @@ def check_kernel_binding(config):
     )
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / "autoinstall.yaml"
+        pool = Path(directory) / 'pool'
+        pool.mkdir()
+        for name in ('linux-image-' + release, 'linux-modules-' + release,
+                     'linux-image-5.15.0-99-generic'):
+            (pool / (name + '_5.15.0-78.85_amd64.deb')).touch()
+
+        def metadata(args, **kwargs):
+            name = Path(args[2]).name.split('_')[0]
+            return {'Package': name, 'Version': '5.15.0-78.85', 'Architecture': 'amd64'}[args[3]]
+
+        with patch.object(namespace['subprocess'], 'check_output', side_effect=metadata):
+            media = media_metadata(release, pool)
+            assert 'linux-image-' + release + '\t5.15.0-78.85\tinstalled' in media
+            assert '5.15.0-99' not in media
+            (pool / ('linux-modules-' + release + '_5.15.0-78.85_amd64.deb')).unlink()
+            try:
+                media_metadata(release, pool)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError('Accepted media missing the exact kernel modules')
         for wrapped in (False, True):
             original = copy.deepcopy(config)
             document = {"autoinstall": original} if wrapped else original

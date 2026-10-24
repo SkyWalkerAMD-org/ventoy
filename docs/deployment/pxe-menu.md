@@ -1,0 +1,103 @@
+# 从 PXE 菜单选择系统后自动安装
+
+从 `0.3.0-alpha.12` 起，可在管理端的“PXE 自动安装”页面为每个原始 ISO 准备一个可复用入口。普通 ISO 继续用于手动安装。
+
+日常装机从客户端 BIOS / UEFI 的网卡启动项进入。alpha.22 的新建 Linux 入口采用“选择系统版本 → 选择自动安装脚本 → 自动安装”：只有一块可用内置盘时直接清空安装，不再选择磁盘或输入 `yes`。多盘时在 PXE 画面选择目标盘并输入 `yes`，随后自动安装。日常安装无需提前登记 MAC、带外地址或创建专属任务。`26080` 用于准备系统入口和查看任务，目前不提供带外管理。
+
+常规无 GUI 装机使用 Ubuntu Server / live-server、Debian 标准系统与 SSH，以及 CentOS / Rocky / AlmaLinux / RHEL 最小化环境。安装后默认启动目标为 `multi-user.target`。alpha.25 另提供 Ubuntu Desktop 22.04.4 的 CLI 启动入口，但它仍含桌面软件，不替代无桌面的 Server 安装。
+
+## 准备一次系统入口
+
+1. 添加入口，选择原始 ISO 和对应模板，填写包含具体版本的名称、本地管理员用户名、SHA-512 crypt 密码哈希及可选 SSH 公钥。
+2. 点击“准备与关联”，生成镜像硬链接、安装脚本及需要的启动兼容包。原始 ISO 内容不变。
+3. 在 iVentoy 镜像管理刷新，选择页面给出的 `ventoy-center/PXE-Auto/系统版本-Auto-短编号/image.iso`，关联自动安装脚本及列出的启动注入文件。
+4. 自动安装脚本默认编号可设为 `1`，选择超时设为 `0`，等待用户选择脚本。全局默认镜像保持为空、系统倒计时为 `0`，客户端自行选择版本。[iVentoy 官方说明](https://www.iventoy.com/en/doc_unattend_install.html)解释了默认镜像、脚本编号及倒计时。刷新和修改关联前，须确认没有客户端仍在使用网络镜像。
+5. 在管理端启用入口。准备文件与启用入口不会自动修改 iVentoy 参数；两边都配置完成后才能使用。
+
+## 在待装机器上操作
+
+1. 在 BIOS / UEFI 选择接入装机网络的网卡，从 iVentoy 的 `ventoy-center → PXE-Auto` 目录选择具体系统版本。
+2. 在脚本菜单选择自动安装脚本（Ubuntu 为 `user-data`，CentOS / Rocky 为 `kickstart.cfg`，Debian 为 `preseed.cfg`）；`Boot without auto install script` 是不加载脚本的选项。
+3. 安装客户端检查内置盘：只有一块且可用时，自动生成绑定该磁盘序列号的任务并继续。多盘在 PXE 画面选择盘号、输入 `yes`，按单盘安装；需要双盘镜像时输入 `r`，选择两个盘号（如 `1 2`），再输入 `yes`，重建 RAID1 + LVM。容量、型号、序列号和不可选原因会在确认前显示。
+4. 分区、安装、内核锁定、关闭 APT 自动刷新和无人值守升级、重启及首次启动回报自动进行，可在管理端“安装任务”查看状态。Ubuntu 安装配置不设置交互页面，并在启动安装器时启用 `autoinstall`；动态配置仍按[官方 early-commands 重新读取机制](https://canonical-subiquity.readthedocs-hosted.com/en/latest/reference/autoinstall-reference.html#early-commands)生成。
+
+多盘选盘和清盘确认直接在安装控制台完成，后台自动登记本机并生成绑定所选磁盘序列号的一次性任务。管理员预先授权的匹配任务仍可复用，但不是日常装机的必要步骤。其他未完成任务仍会阻止新装，以免两次安装并发写盘。
+
+安装后从硬盘启动。再次主动选择自动安装入口和脚本，将按同一规则重新安装：单盘直接安装，多盘重新选盘和确认，不复用历史清盘授权。未迁移的旧入口保留原策略，以管理页“选盘方式”为准。
+
+## 覆盖范围和保护
+
+- 新菜单模板当前覆盖 CentOS 7.6 / 7.9 / 8.0 / 8.4 / 8.5 / Stream 8 / 9 / 10、Rocky 8 / 9 / 10、AlmaLinux 8 / 9、RHEL 7 / 8 / 9、Debian 10 / 11 / 12 / 13、Ubuntu Server 20.04 / 22.04 / 24.04 / 24.10 / 25.04 / 26.04 live-server，以及 Ubuntu Desktop 22.04.4 的 CLI 启动流程。模板和代码测试不等于所有硬件均已完成实装验收，具体进度见[验收记录](../development/progress.md)。
+- 现场共启用 52 个入口；本轮 43 个 E610 成品各自的手动/PXE 隔离安装与重启通过。Ubuntu Desktop 26.04 未列入本轮自动安装验收；Windows 不在本轮统一 Linux 流程内。
+- 按序列号选择唯一的整块非 USB 磁盘。无序列号、重复序列号、只读盘、已挂载盘或活动交换空间会被拒绝。单盘方式继续保护现有 LVM / RAID；双盘重建方式可以清理完全落在所选两盘内的旧存储，涉及第三块盘或缺失成员时停止。
+- Ubuntu 安装器发生致命错误时，使用本次任务专属凭据回报 `failed`，释放已停止任务的占用。PXE 选盘后的检查失败也走同一回报；没有领到任务的错误不提交失败事件。断电、断网或回报失败仍需核实客户端已停止后结束旧任务，不根据超时自动重启安装。
+
+### 双盘 RAID1 + LVM（alpha.24）
+
+多盘菜单继续支持输入盘号、`yes` 后单盘安装；新增输入 `r`，选择两个盘号，再输入一次 `yes` 的双盘重建方式。选择流程覆盖 Subiquity、Debian Installer 和 Anaconda；Ubuntu 22.04 Desktop 的 Ubiquity 暂不提供该 RAID 选项。alpha.24 发布时更新了 39 个 CLI 入口，包含新增的 2 个 AlmaLinux 和 8 个 RHEL 镜像；alpha.25 扩至 52 个。双盘完整安装另按家族代表版本验收，不能把本轮 43 个成品的单盘检查扩大为所有版本的双盘或物理硬件验收。
+
+2026-10-24，`.235` 已通过该流程的 Ubuntu 22.04.3 实机 PXE 安装、首次硬盘启动及正常重启；root/admin 密码 SSH、DHCP、CLI、内核和更新策略均检查通过。首次镜像同步在后台继续，未进行实物拔盘测试，详见[实机验收记录](../development/progress.md)。
+
+两个序列号和 RAID 布局共同绑定一次性任务。安装前重新核对完整 LVM / MD 成员关系、挂载、交换分区和磁盘连接；旧存储跨到第三块未选磁盘时停止。确认只允许清空选中的两个成员，不能用单盘任务或旧确认扩大范围。
+
+布局为两盘各自 ESP（或 BIOS 引导分区）、RAID1 `/boot`、RAID1 数据分区，再在数据镜像上创建 LVM 根卷与交换卷。有效容量约为较小的一块盘。安装完成检查阵列、根卷及两盘启动文件；完整验收另外移除一块临时成员盘，分别验证剩余盘启动。此功能重建布局，不保留原文件、分区大小或原数据。
+- 自动单盘规则排除 USB / 可移除介质，统计所有内置盘及连接位置不明的磁盘，包括暂不可安装的盘；两块内置盘中一块被占用或含 LVM，不会自动清空另一块。PCI 下的硬件 RAID 逻辑盘可计作一块内置盘；网络块设备和未知连接不作为自动目标。
+- 客户端与服务端分别检查单盘规则，配置发放前后重新枚举硬件和挂载状态；最终保护脚本再次核对目标序列号。旧缓存客户端不能请求新的单盘授权；入口规则改变后旧会话失效，须重新网启。
+- 菜单确认凭据 15 分钟有效且只能使用一次；实例安装授权 24 小时有效且只能领取一次。再次确认硬件没有变化后，安装前还会检查发行版、MAC、磁盘和固件模式。
+- 停用入口会撤销尚未开始的菜单安装授权和待确认会话；已经开始写盘的安装不会被强制中断。入口重新启用不会恢复已撤销授权。
+- Ubuntu 固定镜像安装环境对应的内核，再应用内核包保留、APT 周期任务关闭和无人值守升级服务屏蔽。RPM 系统应用 kernel 包排除和相应自动更新服务屏蔽。普通 ISO 手动安装预置[完整配置包](manual-linux.md)，进入硬盘系统后手动执行；预置本身不会应用策略。
+- 菜单启动文件只有该入口的有限凭据，不包含管理口令；新装账户的密码哈希和机器任务凭据在确认后通过 HTTPS 返回。MAC 和磁盘检查用于防止误装，不是硬件身份认证；应部署在受控装机局域网中。
+
+## 实现与验证
+
+Kickstart 在外层 `%pre` 运行菜单客户端，领取绑定本机的配置，执行一次安装保护，再通过 `%include` 读取配置。生成的动态配置不再包含重复 `%pre`。Ubuntu 使用 `early-commands` 将 API 返回的 cloud-init 配置转换为直接的安装参数，再写入 `/autoinstall.yaml`、执行保护并由 Subiquity 重新读取。此文件不保留 `autoinstall:` 外层；22.04.3 的 Subiquity 23.08.1 不会在重新读取时解包该层，否则会忽略磁盘、软件源及内核设置而使用默认值。alpha.13 修复并增加了此项回归检查，保留现有 Ubuntu 22.04 启动兼容注入和镜像内核固定逻辑。
+
+alpha.20 为新建 CentOS / Rocky / Debian / Ubuntu 22.04 和 24.04 入口统一保存 `disk_policy: single-internal`；缺少该字段的旧入口继续使用 `console`，不会因更新程序而隐式取消确认。迁移旧入口须备份状态和关联文件、设置策略、重新准备脚本与注入包，并在无客户端使用网络镜像时刷新 iVentoy。客户端库存协议版本为 `2`，每块盘包含 `internal` / `external` / `unknown` 连接位置；服务端不接受旧协议自动放行。单盘授权和已指定盘的任务分别记录，单次领取、停用撤销及硬件检查继续生效。
+
+alpha.22 新入口使用 `disk_policy: single-or-console`：只有一块可用内置盘时直接安装，多盘则返回本机选盘流程。客户端把 `yes` 转换为绑定准确序列号的确认，服务端再次校验所选盘、一次性会话和现有任务。取消、空回车或重复提交不会授权写盘。原有 `single-internal` 与 `console` 策略仍按原义执行；发布时明确迁移入口和脚本，避免旧缓存客户端错误执行新策略。
+
+管理员 API 为 `POST /api/pxe/entries`、`POST /api/pxe/entries/{id}/prepare` 和 `POST /api/pxe/entries/{id}/enabled`。菜单客户端的发现、确认接口为 `/pxe/{id}/discover` 和 `/pxe/{id}/install`，不能使用它们修改其他入口或访问管理 API。入口凭据、默认账户配置和确认会话只存在于私有状态文件，管理概览不返回它们。
+
+## 统一 Linux 初始密码（alpha.17）
+
+服务器私有 `config.json` 可设置 `linux_initial_password_hash`，值为 `openssl passwd -6` 生成的 SHA-512 crypt 哈希。配置后重启管理服务，新建 Linux 任务以及已有 PXE 入口新发出的任务，都将该密码同时用于普通管理员和 root。管理页面显示统一密码策略，不再要求逐入口填写密码哈希。alpha.18 可另设 `linux_admin_username: "admin"`，统一后续 Linux 安装的管理员账户；未设置时使用入口或任务指定的用户名，新建表单默认为 `admin`。
+
+未配置此项时继续使用各任务的管理员密码，root 默认锁定。密码在创建任务时保存快照；修改服务配置不会改变已经发出的任务或已安装系统。完成或取消任务后清除两类密码哈希，管理概览只返回策略是否启用。密码不写入共享 PXE 引导文件。普通 ISO 手动安装不经过此策略。
+
+alpha.22 起，配置统一 root 密码的 Ubuntu / Debian 新任务同时启用 root SSH 密码登录，管理员公钥仍可用。服务端在目标系统设置 OpenSSH 全局选项，并在 Ubuntu cloud-init 完成后再次核对；没有配置 root 密码时不解除锁定。CentOS / Rocky 保持原来的 root SSH 策略。已安装系统不因更新管理端自动改变账户或 SSH 配置。
+
+当前现场约定为管理员 `admin`、root 密码均为 `ventoy`。连接使用安装后的系统 IP，例如 `ssh root@192.168.1.52`，不是带外 IP。
+
+## 主机名与 DHCP 初始化
+
+所有 Linux 自动安装模板设置任务主机名，并配置持久化 DHCP；Ubuntu 和 CentOS / Rocky 绑定启动网卡 MAC，Debian 沿用安装器识别的网络接口。通用 PXE 自动登记时默认名称为 `PXE` 加 MAC；安装过程无需另外输入。模板预置用户提供的 `safe-server-init.sh`，命令为 `/usr/local/sbin/safe-server-init`。例如：
+
+```sh
+safe-server-init hostname my-server --update-hosts
+safe-server-init network --dry-run
+safe-server-init network
+```
+
+脚本保留 hostname 校验、备份、hosts 可选更新和现有网络保护；只向无配置、无全局 IP 的硬件有线网卡新增 DHCP。新增配置是否立即激活取决于后端，文件后端只保存，不能把成功保存等同于已取得租约。传统 ifupdown / ifcfg 的次要接口限制继续保留，不在安装时自动放宽。完整上游说明见 [safe-server-init v3.0.0](safe-server-init-upstream.md)。本项目额外纳入 Debian 10 ifupdown，其他后端限制不变。alpha.24 的普通 ISO 注入另行预置完整配置包，由用户安装后手动执行。
+
+alpha.18 的清盘确认使用 `yes`（不区分大小写），`no` / `q` 取消，其他输入最多重试三次。后台仍核对所选磁盘序列号与本次发现记录，提交前重新检查硬件及挂载状态。连续按回车不会确认。终端使用无缓冲读取，避免 KVM 多行输入被缓存后误判超时。确认失败不会创建安装任务或开始写盘。
+
+Ubuntu 安装器与 Debian user-setup 均保留 `admin` 名称。Ubuntu 为此账户使用官方支持的 `autoinstall.user-data.users`，设置密码、sudo、SSH 公钥和主机名；首启回报等待 cloud-config 完成。Debian 先通过原生 user-setup 创建安装用账户，再在目标系统的 late-command 中改名为 `admin` 并迁移家目录，最后配置 SSH。其他用户名保持原有生成方式。此兼容处理不修改已安装机器的账户。
+
+回归包括无授权、错误清盘确认、过期会话、并发重复请求、服务重启、入口停用、源镜像变化、其他未完成任务、重复序列号及不可用磁盘。`scripts/validate_pxe.py` 解析实际生成的 Kickstart / YAML、检查 shell / Python 语法，并模拟磁盘枚举、控制台选择及硬件变化时的中止，不执行真实分区。
+
+2026-10-16 的 Ubuntu 22.04.3 实机测试发现，切换到 tty6 后，`autovt@tty6.service` 仍会启动登录程序，即使 `getty@tty6.service` 已被屏蔽；它导致确认客户端读到 EOF 并中止，未创建安装任务。修复改用 tty9，同时在安装环境中临时屏蔽两个服务名。这也避开了 [systemd 默认保留的第六终端](https://github.com/systemd/systemd/blob/main/man/logind.conf.xml)。修复后的实际安装环境已验证：后台服务能够等待并读取 KVM 输入，两个登录服务均保持 masked / inactive。
+
+2026-10-19，alpha.13 / iVentoy 1.0.45 Pro 在 `.235` 完成 Ubuntu Server 22.04.3 / Intel X710 / UEFI 的完整通用入口验收：选择版本与 Q0Q 磁盘、输入清空确认后，自动生成任务、分区、安装并从硬盘启动，后台回报 `installed`。第二次正常重启、SSH / sudo、镜像内核 `5.15.0-78-generic` 锁定、APT 周期任务关闭、无人值守升级服务屏蔽和 Q0R 保留盘检查均通过。其他版本的通用入口仍需各自实装；详情见 [Ubuntu 验收记录](ubuntu22.md#alpha13-通用-pxe-菜单验收2026-10-19)。
+
+Debian 使用原生 shell / udev 客户端，在 partman 启动前通过 HTTPS 领取配置；共享脚本只含锁定的占位账户，真实密码哈希随后写入安装器配置。客户端不依赖 Python；单盘不打开终端，多盘使用独立的 tty9 选盘和确认，仍复用一次性授权和目标盘核对。安装源与组件下载失败会停止，不会跳过保护继续安装。
+
+### alpha.20 安装器兼容回归（2026-10-23）
+
+Ubuntu Server 22.04.3、22.04.4、22.04.5、24.04.3、24.04.4、24.04.5，以及 Debian DVD 12.8.0、12.15.0、13.0.0，已在隔离 QEMU/KVM UEFI 环境中使用各自原始 ISO 和实际生成的通用菜单客户端完成自动安装。每个版本均核对两次硬盘启动、`admin` 登录与 sudo、内核锁定、APT 周期选项为 0、更新服务 masked / inactive，以及后台 `installed` 回报。虚拟机只使用新建测试磁盘，没有在安装器内补填答案。
+
+本轮隔离测试直接启动 ISO 的内核和 initrd，再加载生成的菜单脚本；它验证安装器和任务流程，不替代物理机 BIOS、网卡 PXE 和 iVentoy 介质传输的完整验收。已有物理结果和本轮隔离结果分别记录在[进度表](../development/progress.md)。
+
+Debian 的保护脚本兼容安装器的发行版标识和 virtio 序列号读取，并使用带类型的 preseed 答案注册尚未加载的分区问题。`admin` 由安装器临时账户在目标系统中改名获得。Debian 13 首次启动可能先到达网络就绪目标、随后才取得 DHCP 地址；完成回报因此只对尚未建立连接的 DNS/连接失败进行有界重试，认证、证书错误和已发送请求后的超时不重试。
+
+CentOS / Rocky 菜单客户端固定以 UTF-8 读写配置，兼容旧 Python 的 C locale。RHEL 9 安装器提供的 zram 内存交换设备不计作第二块内置磁盘，只有名称与 sysfs 路径共同确认的 RAM 设备会被排除；NBD、未知连接和真实第二块磁盘仍阻止自动单盘安装。

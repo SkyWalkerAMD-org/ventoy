@@ -58,7 +58,7 @@ func managedPaths(j PrivateJob) (isoDir, scriptDir, script string, err error) {
 	if p.OS == "windows" {
 		return "", "", "", errors.New("当前自动准备仅支持 Linux；Windows 请使用安装包")
 	}
-	script = map[string]string{"kickstart": "kickstart.cfg", "autoinstall": "user-data", "preseed": "preseed.cfg"}[p.Installer]
+	script = map[string]string{"kickstart": "kickstart.cfg", "autoinstall": "user-data", "preseed": "preseed.cfg", "ubiquity": "preseed.cfg"}[p.Installer]
 	if script == "" {
 		return "", "", "", errors.New("未知安装模板")
 	}

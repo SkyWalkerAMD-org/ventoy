@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 
 
-def check_injection(archive, user_data):
+def check_injection(archive, user_data, release):
     if os.name != "posix":
         return  # Linux CI exercises execution; Windows still checks shell syntax.
     prefix = "live_injection_7ed136ec_7a61_4b54_adc3_ae494d5106ea/"
@@ -57,21 +57,21 @@ def check_injection(archive, user_data):
         service.parent.mkdir(parents=True)
         service.write_text("[Service]\nExecStart=/usr/bin/snap run subiquity.subiquity-server\n")
         (live_root / "var/log").mkdir(parents=True)
-        release = live_root / "etc/os-release"
+        release_file = live_root / "etc/os-release"
         mac = root / "sys/class/net/eth0/address"
         (root / "ventoy-center/ubuntu-subiquity.sh").write_bytes(
             archive.extractfile("ventoy-center/ubuntu-subiquity.sh").read())
         dropin = Path(str(service) + ".d/ventoy-center.conf")
         selected.write_bytes(user_data)
         for version, address, should_enable in (
-            ("24.04", "02:00:00:00:01:01", False),
-            ("22.04", "02:00:00:00:02:02", False),
-            ("22.04", "02:00:00:00:01:01", True),
+            ("24.04" if release == "22.04" else "22.04", "02:00:00:00:01:01", False),
+            (release, "02:00:00:00:02:02", False),
+            (release, "02:00:00:00:01:01", True),
         ):
-            release.write_text("ID=ubuntu\nVERSION_ID=" + version + "\n")
+            release_file.write_text("ID=ubuntu\nVERSION_ID=" + version + "\n")
             mac.write_text(address + "\n")
             result = run(live, str(live_root))
-            assert dropin.exists() == should_enable
+            assert dropin.exists() == should_enable, (release, version, result.stderr)
             if should_enable:
                 assert result.returncode == 0, result.stderr
                 assert "ExecStart=/usr/local/sbin/ventoy-center-subiquity" in dropin.read_text()
