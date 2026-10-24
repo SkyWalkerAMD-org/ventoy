@@ -1,5 +1,21 @@
 # Ventoy Center 当前进度
 
+## Ubuntu 24.04.3 实机 PXE 双盘回归（2026-10-24）
+
+用户本次使用 `PXE-Auto` 自动入口，在安装控制台依次输入 `r`、`1 2`、`yes`。这是双盘 RAID1 + LVM 自动安装，不是普通 ISO 手动安装。任务 `e5a6e60e9da47e9d7847d011` 于 `12:09:23Z` 开始安装；Curtin 的分区、目标系统安装和引导步骤均为 SUCCESS。
+
+安装退出时曾显示 `Failed unmounting cdrom.mount - /cdrom`，用户随后进入 BIOS。诊断时退出 BIOS，保留原有硬盘优先顺序，系统从 Ubuntu 硬盘入口正常启动，于 `12:35:01Z` 回报 `installed`。此行属于安装介质卸载阶段，不能单独作为系统安装失败的依据；本次没有据此重新清盘。由于中间进入过 BIOS，本轮不声称已经观察到安装器退出到硬盘启动的连续无人干预过程。
+
+实机为 Intel X710 / UEFI，系统 Ubuntu Server 24.04.3，内核 `6.8.0-71-generic`。Q0Q、Q0R 各自含 1 GiB ESP，两个 RAID1 阵列分别用于 2 GiB `/boot` 和约 444 GiB 数据卷；数据阵列承载 `vcvg/root` 约 442 GiB 与 2 GiB swap。两次启动均通过实际 root/admin 密码 SSH、管理员 sudo、DHCP、主机名、CLI、内核锁定及禁用 APT 自动刷新/无人值守升级检查，后台保持 installed。
+
+首次从 Q0R 的 Ubuntu EFI 项启动（BootCurrent 0001）；另一次正常重启只设置 BootNext，改从 Q0Q 的 EFI 项启动（BootCurrent 0000）。永久 BootOrder 保持不变，两个 ESP 的回退引导文件摘要一致。两组阵列均为 `[2/2] [UU]`；第二次检查数据阵列初次同步约 24.8%，继续在后台进行，不能视为同步已完成。本轮两块盘始终连接，未做实物拔盘或降级运行验证，也不增加 E610 实卡验收结果。
+
+服务器证据位于 `e610-pxe-media-20261023/diagnostic235/ubuntu24-raid-boot1.json`、`ubuntu24-raid-boot2.json`。当前这台机器的系统地址为 `192.168.1.52`，带外地址为 `192.168.1.235`。
+
+## 源码与 E610 Release（2026-10-24）
+
+Ventoy 的 [PR #2](https://github.com/SkyWalkerAMD-org/ventoy/pull/2) 已合入 main，包含原 PR #1 的工作，13 项 CI 全部通过。E610 的 [PR #6](https://github.com/SkyWalkerAMD-org/E610/pull/6) 也已合入 main。[E610 ISO Kit 6.4.5 r1](https://github.com/SkyWalkerAMD-org/E610/releases/tag/v6.4.5-iso-kit-r1) 已正式发布，7 个附件的 GitHub SHA-256 与本地逐项一致。该包包含驱动、制作工具及验证记录，需要自行提供原版 ISO，不包含完整操作系统镜像。
+
 ## alpha.25 E610 原生 ISO 注入（2026-10-24 已发布）
 
 本轮按所有库存 Linux 镜像核对启动内核：43 个原版需补充 E610，9 个原版的启动驱动已覆盖 E610，另有 2 个历史 E610 专用版本。制作 41 个新适配成品，并更新既有 CentOS 7.9 / Ubuntu 22.04.3 专用版本，不另加重复版本菜单。旧 Ubuntu 22.04.3 的 HWE 6.2 启动路径尚缺驱动，旧专用镜像的手动安装持久化也不能仅凭文件名视为通过。
@@ -247,10 +263,10 @@ Ubuntu Server 22.04.3 已验收物理 PXE 入口，包括本轮 `.235` 预设 Q0
 | Debian 12.8、12.15、13.0 | ISO 校验并入库，对应大版本的 preseed 模板已实现 | 每个 ISO 完整实装 |
 | Ubuntu Server 22.04.3 | alpha.13 / X710 原版镜像及 alpha.16 / E610 适配镜像通用 PXE 菜单选盘后自动实装、UEFI 硬盘启动、SSH / sudo、完成回报、第二次重启、内核锁定和关闭自动更新通过；X710 双盘场景另有保留盘检查 | 其他硬件、Legacy BIOS、批量并发 |
 | Ubuntu Server 22.04.4 | ISO 已核对并准备 | 完整实装 |
-| Ubuntu Server 24.04.3 | ISO 已准备，对应 LTS 模板已实现 | 完整实装 |
+| Ubuntu Server 24.04.3 | alpha.25 / X710 / UEFI 实机 PXE 双盘 RAID1 + LVM 安装、两盘 EFI 入口分别启动、SSH、DHCP 与策略检查通过 | 安装器到硬盘启动的连续观察、同步完成与实物拔盘、其他硬件 |
 | Ubuntu Server 22.04.5、24.04.4、24.04.5 | ISO 校验并入库，对应 LTS 模板已实现 | 每个 ISO 完整实装 |
 
-18 个具体版本中，目前 4 个版本有完整物理无人值守实装与登录证据。CentOS 7.9 的原版 DVD 验收为 alpha.3，E610 适配镜像新增验收为 alpha.11；Rocky 8.10 最近物理回归为 alpha.7，Ubuntu 22.04.3 的 X710 物理验收为 alpha.13、E610 为 alpha.16，Rocky 9.2 最近物理回归为 alpha.10。本轮隔离安装不增加物理验收数量。详细证据见 [CentOS 7.9](../deployment/centos7.md)、[Rocky 8.10](../deployment/rocky8.md)、[Rocky 9 客户端](../deployment/rocky9-client.md)和 [Ubuntu 22.04.3](../deployment/ubuntu22.md)。
+18 个具体版本中，目前 5 个版本有完整物理安装、硬盘启动与登录证据。CentOS 7.9 的原版 DVD 验收为 alpha.3，E610 适配镜像新增验收为 alpha.11；Rocky 8.10 最近物理回归为 alpha.7，Ubuntu 22.04.3 的 X710 双盘回归为 alpha.24、E610 为 alpha.16，Rocky 9.2 最近物理回归为 alpha.10，Ubuntu 24.04.3 的 X710 双盘回归为 alpha.25。24.04.3 中间进入过 BIOS，连续自动重启仍按上方记录保留边界。本轮隔离安装不增加物理验收数量。详细证据见 [CentOS 7.9](../deployment/centos7.md)、[Rocky 8.10](../deployment/rocky8.md)、[Rocky 9 客户端](../deployment/rocky9-client.md)、[Ubuntu 22.04.3](../deployment/ubuntu22.md)和本页最新实机记录。
 
 此前“无人值守通过”指预先完成机器登记、目标盘清盘授权、存储准备及专属任务绑定后，从正确网启入口自动执行分区、安装、重启和完成回报。Ubuntu 22.04.3 的 alpha.13 还验收了通用入口：无需预建本机任务，在 PXE 控制台选择磁盘并输入完整序列号确认后，剩余安装自动执行。已有 LVM / RAID 仍需独立离线准备；管理端尚未提供经过验收的一键配置 iVentoy 功能。
 
@@ -294,4 +310,4 @@ Rocky 9.2 本轮验收代码为 `15f8c66`，CI [38841473820](https://github.com/
 
 alpha.8 的 Go 测试、Go vet、22 组 Linux 安装模板解析和 JavaScript 语法检查已通过。Ubuntu 注入脚本在 Linux 临时目录中执行验证：缺失或不匹配的 user-data、异常 init 标记、错误系统版本或 MAC 均不会启用无人值守入口；匹配输入会生成预期的 live systemd 配置。实机排查还修复了早期 `/dev/null` 不存在导致的注入失败，加入对应回归，并用实际 iVentoy BusyBox 与原始 initramfs 在隔离目录执行验证。原始 Subiquity 23.08.1 的 UEFI / BIOS 存储模型检查通过，UEFI 完整无人值守实装也已通过；BIOS 模型检查不等于 BIOS 实机验收。
 
-代码在 `codex/linux-install-verification` 分支，[PR #2](https://github.com/SkyWalkerAMD-org/ventoy/pull/2) 保持草稿，叠加在 CentOS 工作 [PR #1](https://github.com/SkyWalkerAMD-org/ventoy/pull/1) 上，尚未合并到 main。本轮两项优先工作已经收口，后续继续按 18 版清单逐 ISO 验收。
+早期代码曾在 `codex/linux-install-verification` 分支以草稿 PR 维护。2026-10-24，[PR #2](https://github.com/SkyWalkerAMD-org/ventoy/pull/2) 连同 CentOS 工作 [PR #1](https://github.com/SkyWalkerAMD-org/ventoy/pull/1) 已合入 main；后续验收状态以上方最新记录为准。

@@ -14,7 +14,7 @@ E610 的精确内核驱动、ISO 制作工具和逐镜像验证记录见 [E610 I
 
 现场使用 **iVentoy 1.0.47 专业版**，运行目录 `/home/ventoy-center/iventoy`。18 个规划版本 ISO 已全部入库，目前共启用 52 个明确标注系统版本的自动安装入口，合计 113 个镜像路径（60 个基础系统路径、1 个 MemTest86 工具镜像、52 个自动入口）。CentOS 7.9 与 Ubuntu 22.04.3 的历史 E610 入口复用更新后的成品，没有再次制作重复版本。原版镜像在菜单外备份，专业版授权、原有机器/任务记录和未涉及入口设置保留。
 
-18 个规划标准版本均完成本轮隔离 QEMU/KVM 自动安装与两次硬盘启动验证。CentOS 7.9、Rocky 8.10、Rocky 9.2 和 Ubuntu Server 22.04.3 另有此前完整物理机验收；两类结果分别记录，不能替代其他硬件或启动模式的验收。具体版本与证据见 [当前进度](docs/development/progress.md)和[现场镜像清单](docs/deployment/image-catalog.md)。
+18 个规划标准版本均完成本轮隔离 QEMU/KVM 自动安装与两次硬盘启动验证。CentOS 7.9、Rocky 8.10、Rocky 9.2 和 Ubuntu Server 22.04.3 另有此前完整物理机验收；Ubuntu Server 24.04.3 新增物理 PXE 双盘 RAID1 + LVM 安装、两盘 EFI 入口分别启动与策略检查，中间进入过 BIOS，连续自动重启仍保留验收边界。物理与隔离结果分别记录，不能替代其他硬件或启动模式的验收。具体版本与证据见 [当前进度](docs/development/progress.md)和[现场镜像清单](docs/deployment/image-catalog.md)。
 
 ## 已实现
 
