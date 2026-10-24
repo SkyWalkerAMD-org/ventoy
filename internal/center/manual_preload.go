@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-//go:embed assets/manual-preload/*
+//go:embed assets/manual-preload/*.sh assets/manual-preload/*.py assets/manual-preload/finish-* assets/manual-preload/README.txt
 var manualPreloadAssets embed.FS
 
 // manualPreloadInjection adds installer completion hooks, without supplying

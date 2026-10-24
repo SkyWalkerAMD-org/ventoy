@@ -24,6 +24,8 @@ jobs:
           VENTOY_TEST_OUTPUT: ${{ runner.temp }}/ventoy-template-fixtures
       - name: Parse Linux installer templates
         if: runner.os == 'Linux'
+        env:
+          PYTHONPYCACHEPREFIX: ${{ runner.temp }}/template-pycache
         run: |
           python3 -m venv "$RUNNER_TEMP/template-validator"
           "$RUNNER_TEMP/template-validator/bin/pip" install --disable-pip-version-check pykickstart==3.78 PyYAML==6.0.3
