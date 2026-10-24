@@ -33,17 +33,18 @@ type Preparation struct {
 }
 
 type PreparationPlan struct {
-	JobID           string `json:"job_id"`
-	MAC             string `json:"mac"`
-	ISOPath         string `json:"iso_path"`
-	ScriptPath      string `json:"script_path"`
-	ImageSelection  string `json:"image_selection"`
-	ScriptSelection string `json:"script_selection"`
-	ManualBinding   bool   `json:"manual_binding"`
-	Prepared        bool   `json:"prepared"`
-	CanPrepare      bool   `json:"can_prepare"`
-	CanCleanup      bool   `json:"can_cleanup"`
-	Reason          string `json:"reason,omitempty"`
+	JobID              string `json:"job_id"`
+	MAC                string `json:"mac"`
+	ISOPath            string `json:"iso_path"`
+	ScriptPath         string `json:"script_path"`
+	ImageSelection     string `json:"image_selection"`
+	ScriptSelection    string `json:"script_selection"`
+	InjectionSelection string `json:"injection_selection,omitempty"`
+	ManualBinding      bool   `json:"manual_binding"`
+	Prepared           bool   `json:"prepared"`
+	CanPrepare         bool   `json:"can_prepare"`
+	CanCleanup         bool   `json:"can_cleanup"`
+	Reason             string `json:"reason,omitempty"`
 }
 
 func managedPaths(j PrivateJob) (isoDir, scriptDir, script string, err error) {
@@ -57,7 +58,7 @@ func managedPaths(j PrivateJob) (isoDir, scriptDir, script string, err error) {
 	if p.OS == "windows" {
 		return "", "", "", errors.New("当前自动准备仅支持 Linux；Windows 请使用安装包")
 	}
-	script = map[string]string{"kickstart": "kickstart.cfg", "autoinstall": "user-data", "preseed": "preseed.cfg"}[p.Installer]
+	script = map[string]string{"kickstart": "kickstart.cfg", "autoinstall": "user-data", "preseed": "preseed.cfg", "ubiquity": "preseed.cfg"}[p.Installer]
 	if script == "" {
 		return "", "", "", errors.New("未知安装模板")
 	}
@@ -123,6 +124,10 @@ func (s *Server) plan(j PrivateJob) PreparationPlan {
 	p.ScriptPath = path.Join(d, script)
 	p.ImageSelection = strings.TrimPrefix(p.ISOPath, "iso/")
 	p.ScriptSelection = filepath.Join(s.config.IVentoyRoot, filepath.FromSlash(p.ScriptPath))
+	injectionName := bootInjectionName(j.Profile)
+	if injectionName != "" {
+		p.InjectionSelection = filepath.Join(s.config.IVentoyRoot, filepath.FromSlash(d), injectionName)
+	}
 	r, err := s.openIVentoyRoot()
 	if err != nil {
 		p.Reason = err.Error()
@@ -135,6 +140,12 @@ func (s *Server) plan(j PrivateJob) PreparationPlan {
 	}
 	p.CanCleanup = j.Preparation != nil && terminal(j.State)
 	p.CanPrepare = j.State == "ready" && time.Now().Before(j.Expires)
+	if j.Preparation != nil && p.InjectionSelection != "" && j.Preparation.Files[injectionName] == "" {
+		p.InjectionSelection = ""
+		p.CanPrepare = false
+		p.Reason = "此旧任务未包含所需的启动兼容注入包；请取消并清理旧任务后重新创建"
+		return p
+	}
 	if !p.CanPrepare && !p.CanCleanup {
 		p.Reason = "准备文件需要有效的待启动任务；清理前须完成或取消任务"
 	}

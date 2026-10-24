@@ -40,6 +40,19 @@ CA 文件仅放公有证书。客户端安装环境能解析该域名、校准�
 
 新管理端用 TCP 26080，现有 fyhocsys 继续使用 TCP 443。iVentoy 仍使用自己的端口。防火墙仅允许实际的装机和管理网段，不关闭现有防火墙，不更改 fyhocsys 允许网段。
 
+使用 firewalld 时，规则需要同时写入运行配置和永久配置。只执行 `--add-rich-rule` 的临时规则会在服务器重启或防火墙重载后丢失。先用 `firewall-cmd --get-active-zones` 核对管理网卡所属区域；以下仅演示允许示例管理网段访问管理端，按实际地址替换：
+
+```sh
+rule='rule family="ipv4" source address="192.168.0.0/23" destination address="192.168.1.2" port port="26080" protocol="tcp" accept'
+sudo firewall-cmd --zone=public --add-rich-rule="$rule"
+sudo firewall-cmd --permanent --zone=public --add-rich-rule="$rule"
+sudo firewall-cmd --zone=public --query-rich-rule="$rule"
+sudo firewall-cmd --permanent --zone=public --query-rich-rule="$rule"
+sudo firewall-cmd --check-config
+```
+
+为 iVentoy 按 [PXE 端口说明](pxe.md)分别配置所需端口和来源网段；ProxyNet 模式尤其需要 UDP 4011。无需为这些新增规则重载整个防火墙，也不要用 `--runtime-to-permanent` 覆盖其他服务的临时配置。规则保存后，从实际管理电脑和测试客户端验证，服务器本机 HTTP 200 不能证明外部访问正常。
+
 ```sh
 sudo systemctl enable --now ventoy-center
 sudo systemctl status ventoy-center

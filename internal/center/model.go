@@ -23,19 +23,21 @@ type Machine struct {
 }
 
 type JobRequest struct {
-	MachineID    string          `json:"machine_id"`
-	Profile      string          `json:"profile"`
-	OS           string          `json:"os"`
-	ISO          string          `json:"iso"`
-	Username     string          `json:"username"`
-	Password     string          `json:"password"`
-	PasswordHash string          `json:"password_hash"`
-	SSHKey       string          `json:"ssh_key"`
-	WindowsImage int             `json:"windows_image"`
-	Locale       string          `json:"locale"`
-	Enroll       bool            `json:"enroll"`
-	Package      string          `json:"package"`
-	Connection   json.RawMessage `json:"connection,omitempty"`
+	MachineID        string          `json:"machine_id"`
+	Profile          string          `json:"profile"`
+	OS               string          `json:"os"`
+	ISO              string          `json:"iso"`
+	Username         string          `json:"username"`
+	Password         string          `json:"password"`
+	PasswordHash     string          `json:"password_hash"`
+	RootPasswordHash string          `json:"root_password_hash,omitempty"`
+	SSHKey           string          `json:"ssh_key"`
+	WindowsImage     int             `json:"windows_image"`
+	Locale           string          `json:"locale"`
+	Enroll           bool            `json:"enroll"`
+	Package          string          `json:"package"`
+	Connection       json.RawMessage `json:"connection,omitempty"`
+	StoragePlan      *StoragePlan    `json:"storage_plan,omitempty"`
 }
 
 type Event struct {
@@ -44,6 +46,7 @@ type Event struct {
 	Message string    `json:"message"`
 }
 type Job struct {
+	StoragePlan   *StoragePlan `json:"storage_plan,omitempty"`
 	ID            string       `json:"id"`
 	Machine       Machine      `json:"machine"`
 	OS            string       `json:"os"`
@@ -57,6 +60,7 @@ type Job struct {
 	PackageSHA256 string       `json:"package_sha256,omitempty"`
 	Events        []Event      `json:"events"`
 	Preparation   *Preparation `json:"preparation,omitempty"`
+	PXEEntryID    string       `json:"pxe_entry_id,omitempty"`
 }
 type PrivateJob struct {
 	Job
@@ -64,9 +68,11 @@ type PrivateJob struct {
 	Token   string     `json:"token"`
 }
 type State struct {
-	Schema   int          `json:"schema"`
-	Machines []Machine    `json:"machines"`
-	Jobs     []PrivateJob `json:"jobs"`
+	Schema     int               `json:"schema"`
+	Machines   []Machine         `json:"machines"`
+	Jobs       []PrivateJob      `json:"jobs"`
+	PXEEntries []PrivatePXEEntry `json:"pxe_entries,omitempty"`
+	PXETickets []PXETicket       `json:"pxe_tickets,omitempty"`
 }
 type Store struct {
 	mu    sync.Mutex
@@ -105,6 +111,10 @@ func validateMachine(m *Machine) error {
 }
 
 func validateJob(r JobRequest) error {
+	if err := validateStorageShape(r.StoragePlan); err != nil {
+		return err
+	}
+
 	if _, err := resolveProfile(r.Profile, r.OS); err != nil {
 		return err
 	}
@@ -133,6 +143,9 @@ func validateJob(r JobRequest) error {
 		}
 		if !hashRE.MatchString(r.PasswordHash) {
 			return errors.New("Linux 需要完整的 SHA-512 crypt 密码哈希（可用 openssl passwd -6 生成）")
+		}
+		if r.RootPasswordHash != "" && !hashRE.MatchString(r.RootPasswordHash) {
+			return errors.New("Linux root 密码需要完整的 SHA-512 crypt 哈希")
 		}
 		if r.SSHKey != "" && (!strings.HasPrefix(r.SSHKey, "ssh-ed25519 ") && !strings.HasPrefix(r.SSHKey, "ssh-rsa ") || strings.ContainsAny(r.SSHKey, "\r\n\x00")) {
 			return errors.New("SSH 公钥格式无效")
@@ -240,6 +253,7 @@ func addEvent(j *PrivateJob, state, message string) {
 		j.Request.Connection = nil
 		j.Request.Password = ""
 		j.Request.PasswordHash = ""
+		j.Request.RootPasswordHash = ""
 	}
 }
 

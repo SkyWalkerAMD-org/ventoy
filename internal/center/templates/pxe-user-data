@@ -1,0 +1,16 @@
+#cloud-config
+autoinstall:
+  version: 1
+  refresh-installer:
+    update: false
+  early-commands:
+    - |
+      set -eu
+      umask 077
+      python3 -c {{sh .PXECommand}}
+  error-commands:
+    - |
+      # No job exists before menu discovery and disk confirmation succeed.
+      if [ -f /run/ventoy-center-install-failed.py ]; then
+        python3 /run/ventoy-center-install-failed.py
+      fi

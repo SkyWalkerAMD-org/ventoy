@@ -13,21 +13,23 @@ import (
 	"strings"
 )
 
-const Version = "0.3.0-alpha.2"
+const Version = "0.3.0-alpha.25"
 
 type Config struct {
-	Listen         string `json:"listen"`
-	PublicURL      string `json:"public_url"`
-	DataDir        string `json:"data_dir"`
-	ISODir         string `json:"iso_dir"`
-	PackageDir     string `json:"package_dir"`
-	AdminTokenFile string `json:"admin_token_file"`
-	TLSCert        string `json:"tls_cert_file"`
-	TLSKey         string `json:"tls_key_file"`
-	BootstrapCA    string `json:"bootstrap_ca_file"`
-	IVentoyURL     string `json:"iventoy_url"`
-	IVentoyRoot    string `json:"iventoy_root,omitempty"`
-	FYHOCSYSURL    string `json:"fyhocsys_url"`
+	Listen                   string `json:"listen"`
+	PublicURL                string `json:"public_url"`
+	DataDir                  string `json:"data_dir"`
+	ISODir                   string `json:"iso_dir"`
+	PackageDir               string `json:"package_dir"`
+	AdminTokenFile           string `json:"admin_token_file"`
+	TLSCert                  string `json:"tls_cert_file"`
+	TLSKey                   string `json:"tls_key_file"`
+	BootstrapCA              string `json:"bootstrap_ca_file"`
+	IVentoyURL               string `json:"iventoy_url"`
+	IVentoyRoot              string `json:"iventoy_root,omitempty"`
+	FYHOCSYSURL              string `json:"fyhocsys_url"`
+	LinuxInitialPasswordHash string `json:"linux_initial_password_hash,omitempty"`
+	LinuxAdminUsername       string `json:"linux_admin_username,omitempty"`
 }
 
 func randomID(n int) string {
@@ -89,6 +91,12 @@ func loadConfig(path string) (Config, error) {
 	if err = json.Unmarshal(b, &c); err != nil {
 		return c, err
 	}
+	if c.LinuxInitialPasswordHash != "" && !hashRE.MatchString(c.LinuxInitialPasswordHash) {
+		return c, errors.New("linux_initial_password_hash must be a SHA-512 crypt hash")
+	}
+	if c.LinuxAdminUsername != "" && (!userRE.MatchString(c.LinuxAdminUsername) || c.LinuxAdminUsername == "root" || c.LinuxAdminUsername == "operator") {
+		return c, errors.New("linux_admin_username must be a valid non-root administrator name")
+	}
 	base, _ := filepath.Abs(filepath.Dir(path))
 	for _, p := range []*string{&c.DataDir, &c.ISODir, &c.PackageDir, &c.AdminTokenFile, &c.TLSCert, &c.TLSKey, &c.BootstrapCA, &c.IVentoyRoot} {
 		if *p != "" && !filepath.IsAbs(*p) {
@@ -127,4 +135,19 @@ func loadConfig(path string) (Config, error) {
 		}
 	}
 	return c, nil
+}
+
+// Snapshot the configured policy when issuing a task. Changing the service
+// configuration must not change credentials in an already issued installer.
+func (c Config) applyLinuxAccounts(r *JobRequest) {
+	if r.OS == "windows" {
+		return
+	}
+	if c.LinuxAdminUsername != "" {
+		r.Username = c.LinuxAdminUsername
+	}
+	if c.LinuxInitialPasswordHash != "" {
+		r.PasswordHash = c.LinuxInitialPasswordHash
+		r.RootPasswordHash = c.LinuxInitialPasswordHash
+	}
 }

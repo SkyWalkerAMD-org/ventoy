@@ -8,7 +8,7 @@ let armId = '';
 let closeId = '';
 let refreshInFlight = null;
 const states = {draft:'草稿',ready:'等待网启',installing:'正在安装',enrolling:'配置接入中',enrolled:'接入已配置',installed:'系统已安装',failed:'失败',canceled:'已取消'};
-const osNames = {centos:'CentOS',rocky:'Rocky Linux',ubuntu:'Ubuntu Server',debian:'Debian',windows:'Windows'};
+const osNames = {centos:'CentOS',rocky:'Rocky Linux',almalinux:'AlmaLinux',rhel:'Red Hat Enterprise Linux',ubuntu:'Ubuntu Server',debian:'Debian',windows:'Windows'};
 const profileFor = id => data.profiles.find(p => p.id === id);
 function jobSystem(job) { return profileFor(job.profile)?.label || osNames[job.os] || job.os; }
 function el(tag, text, cls) { const node = document.createElement(tag); if (text != null) node.textContent = text; if (cls) node.className = cls; return node; }
@@ -23,7 +23,7 @@ function showLogin() { if (!$('#login-dialog').open) $('#login-dialog').showModa
 function closeDialog(event) { event.target.closest('dialog').close(); }
 $$('[data-close]').forEach(b => b.addEventListener('click', closeDialog));
 $('#login-dialog').addEventListener('cancel', event => event.preventDefault());
-function route() { const page = location.hash.slice(1) || 'overview'; const chosen = ['overview','machines','jobs','images','profiles'].includes(page) ? page : 'overview'; $$('.page').forEach(p => {p.hidden = p.id !== chosen;}); $$('[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === chosen)); $('#breadcrumb').textContent = {overview:'部署总览',machines:'目标机器',jobs:'安装任务',images:'镜像管理',profiles:'系统版本'}[chosen]; }
+function route() { const page = location.hash.slice(1) || 'overview'; const chosen = ['overview','machines','jobs','images','profiles','pxe'].includes(page) ? page : 'overview'; $$('.page').forEach(p => {p.hidden = p.id !== chosen;}); $$('[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === chosen)); $('#breadcrumb').textContent = {overview:'部署总览',machines:'目标机器',jobs:'安装任务',images:'镜像管理',profiles:'系统版本',pxe:'PXE 自动安装'}[chosen]; }
 window.addEventListener('hashchange', route); route();
 function empty(target, title, description, action) { const box = el('div',null,'empty'); box.append(el('div','↗','empty-symbol'),el('h2',title),el('p',description)); if (action) {const b=el('button',action[0],'primary'); b.addEventListener('click',action[1]);box.append(b);} target.replaceChildren(box); }
 function table(target, headings, rows) { const t=el('table'); const head=el('thead'); const tr=el('tr'); headings.forEach(h=>tr.append(el('th',h))); head.append(tr); const body=el('tbody'); rows.forEach(row=>{const r=el('tr'); row.forEach(cell=>{const c=el('td'); if(cell instanceof Node)c.append(cell);else c.textContent=cell; r.append(c);});body.append(r);});t.append(head,body);target.replaceChildren(t); }
@@ -45,7 +45,7 @@ function renderJobs(target,jobs) {
 function renderAll() {
   $('#version').textContent=data.version;$('#count-machines').textContent=data.machines.length;$('#count-ready').textContent=data.jobs.filter(j=>j.state==='ready').length;$('#count-running').textContent=data.jobs.filter(j=>['installing','enrolling'].includes(j.state)).length;$('#count-done').textContent=data.jobs.filter(j=>['installed','enrolled'].includes(j.state)).length;
   renderJobs($('#recent-jobs'),data.jobs.slice(0,6));renderJobs($('#all-jobs'),data.jobs);
-  renderMachines(); renderBoot(); renderImages(); renderProfiles();
+  renderMachines(); renderBoot(); renderImages(); renderProfiles(); renderPXE();
   const link=$('#iventoy-link');link.hidden=!data.iventoy_url;if(data.iventoy_url)link.href=data.iventoy_url;
   $('#warnings').hidden=!data.warnings.length;$('#warnings').textContent=data.warnings.join('；');
 }
@@ -64,7 +64,7 @@ function renderBoot() {
 }
 function renderProfiles() {
   const root=$('#profile-list');root.replaceChildren();
-  for(const os of ['rocky','centos','ubuntu','debian','windows']) {
+  for(const os of ['rocky','centos','almalinux','rhel','ubuntu','debian','windows']) {
     const card=el('article',null,'panel padded');card.append(el('div',os==='windows'?'次要支持':'LINUX / X86-64','label'),el('h2',osNames[os]));
     const list=el('ul',null,'profile-versions');
     data.profiles.filter(p=>p.os===os).forEach(p=>{const item=el('li');item.append(el('strong',p.label),el('small',`${p.installer} · ${p.media}`),el('p',p.notes));list.append(item);});
@@ -104,10 +104,11 @@ function refresh(force = false) {
 function newMachine(){ $('#machine-form').reset();$('#machine-dialog').showModal(); }
 function setOptions(select,items,label,value){select.replaceChildren();const p=el('option','请选择');p.value='';select.append(p);items.forEach(item=>{const o=el('option',label(item));o.value=value(item);select.append(o);});}
 function newJob(imagePath=''){if(!data.machines.length){notify('请先登记一台目标机器');newMachine();return;}if(!data.images?.length){notify('请先把 ISO 放入服务器镜像目录并刷新');location.hash='images';return;}const f=$('#job-form');f.reset();setOptions(f.elements.machine_id,data.machines,m=>`${m.name} · ${m.mac}`,m=>m.id);setOptions(f.elements.profile,data.profiles,p=>p.label,p=>p.id);f.elements.profile.value='rocky-9';setOptions(f.elements.iso,data.images,i=>i.path,i=>i.path);if(typeof imagePath==='string'&&imagePath){f.elements.iso.value=imagePath;const image=data.images.find(i=>i.path===imagePath);if(image?.suggested_profile)f.elements.profile.value=image.suggested_profile;}updateJobFields();$('#job-dialog').showModal();}
-function updateJobFields(){const f=$('#job-form');const profile=profileFor(f.elements.profile.value);const win=profile?.os==='windows';$$('[data-windows]',f).forEach(n=>n.hidden=!win);$$('[data-linux]',f).forEach(n=>n.hidden=win);f.elements.password.required=win;f.elements.password_hash.required=!win;$('#profile-hint').textContent=profile?`${profile.media}。${profile.notes}`:'请选择目标系统版本。';}
+function updateLinuxPasswordFields(f,win=false){const shared=!!data.linux_initial_password_configured;const input=f.elements.password_hash;input.required=!win&&!shared;input.disabled=win||shared;input.closest('label').hidden=win||shared;const username=f.elements.username;username.readOnly=!win&&!!data.linux_admin_username;if(username.readOnly)username.value=data.linux_admin_username;const note=$('[data-password-policy]',f);note.hidden=win||(!shared&&!username.readOnly);note.textContent=(username.readOnly?`后续安装的管理员账户统一为 ${data.linux_admin_username}。`:'')+(shared?'管理员和 root 使用服务端配置的统一初始密码。':'');}
+function updateJobFields(){const f=$('#job-form');const profile=profileFor(f.elements.profile.value);const win=profile?.os==='windows';$$('[data-windows]',f).forEach(n=>n.hidden=!win);$$('[data-linux]',f).forEach(n=>n.hidden=win);f.elements.password.required=win;updateLinuxPasswordFields(f,win);$('#profile-hint').textContent=profile?`${profile.media}。${profile.notes}`:'请选择目标系统版本。';}
 $('#job-form').elements.profile.addEventListener('change',updateJobFields);
 $('#job-form').elements.iso.addEventListener('change',()=>{const f=$('#job-form');const image=data.images.find(i=>i.path===f.elements.iso.value);if(image?.suggested_profile)f.elements.profile.value=image.suggested_profile;updateJobFields();});
-$$('[data-action]').forEach(b=>b.addEventListener('click',()=>b.dataset.action==='new-machine'?newMachine():newJob()));
+$$('[data-action]').forEach(b=>b.addEventListener('click',()=>b.dataset.action==='new-machine'?newMachine():b.dataset.action==='new-pxe'?newPXE():newJob()));
 async function submit(form,action){const b=$('button[type=submit]',form)||$('button.primary:last-child',form)||$('button.danger',form);if(b)b.disabled=true;try{await action();await refresh(true);form.closest('dialog').close();}catch(error){notify(error.message);}finally{if(b)b.disabled=false;}}
 async function openPreparation(job) {
   const plan=await (await api(`/api/jobs/${job.id}/preparation`)).json();
@@ -115,9 +116,11 @@ async function openPreparation(job) {
   root.append(el('p',plan.prepared?'任务文件已准备。请在 iVentoy 中完成以下关联。':'在同机 iVentoy 目录生成安装脚本和独立 ISO 硬链接。'));
   const dl=el('dl',null,'detail-grid');
   for(const [label,value] of [['目标机器',job.machine.name],['启动 MAC',plan.mac],['镜像路径',plan.image_selection||'—'],['自动安装脚本',plan.script_selection||'—']])dl.append(el('dt',label),el('dd',value));
+  if(plan.injection_selection)dl.append(el('dt','启动注入文件'),el('dd',plan.injection_selection));
   root.append(dl);
   if(plan.reason)root.append(el('p',plan.reason,'warning'));
   const steps=el('ol',null,'preparation-steps');
+  if(plan.injection_selection)steps.append(el('li','为上述任务镜像同时设置“启动注入文件”，选择显示的启动兼容包；自动安装脚本仍需单独关联。'));
   for(const text of ['准备文件后，在 iVentoy 镜像管理刷新并选择上述镜像，关联自动安装脚本。','将脚本设为默认，设置非零选择超时；在专业版分机独启中把上述 MAC 绑定到此镜像。','客户端从网卡启动。任务结束后，先移除 iVentoy 中的关联，再清理任务文件。'])steps.append(el('li',text));
   root.append(steps);
   const actions=el('div',null,'dialog-actions');
@@ -131,10 +134,56 @@ $('#job-form').addEventListener('submit',event=>{event.preventDefault();const f=
 function openArm(job){armId=job.id;$('#arm-form').reset();$('#arm-target').textContent=`${job.machine.name} · ${job.machine.mac} · 磁盘 ${job.machine.disk_serial}`;$('#arm-dialog').showModal();}
 $('#arm-form').addEventListener('submit',event=>{event.preventDefault();const f=event.target;submit(f,async()=>{await post(`/api/jobs/${armId}/arm`,{name:f.elements.name.value,disk_serial:f.elements.disk_serial.value,erase:f.elements.erase.checked});notify('已授权；下载并配置安装包后，从目标机器网卡启动');});});
 async function downloadBundle(job){const response=await api(`/api/jobs/${job.id}/bundle`);const url=URL.createObjectURL(await response.blob());const a=el('a');a.href=url;a.download=`ventoy-${job.machine.name}-${job.id}.zip`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);notify('安装包已下载，请按包内 README 配置 iVentoy');}
-function details(job){const root=$('#job-detail');const dl=el('dl',null,'detail-grid');for(const [key,value] of [['任务编号',job.id],['节点',job.machine.name],['系统版本',jobSystem(job)],['目标磁盘',job.machine.disk_serial],['状态',states[job.state]],['到期时间',job.state==='draft'?'尚未授权':stamp(job.expires)]]){dl.append(el('dt',key),el('dd',value));}const timeline=el('ol',null,'timeline');job.events.forEach(e=>{const li=el('li');li.append(el('strong',states[e.state]),el('small',` · ${stamp(e.time)}`));if(e.message)li.append(el('p',e.message));timeline.append(li);});root.replaceChildren(dl,timeline);if(job.state==='enrolled')root.append(el('p','历史接入任务：此状态代表本地检查成功，中心连接需另行核对。','warning'));$('#detail-dialog').showModal();}
+$('#download-linux-policy').addEventListener('click',async event=>{const b=event.currentTarget;b.disabled=true;try{const response=await api('/api/linux-update-policy');const url=URL.createObjectURL(await response.blob());const a=el('a');a.href=url;a.download='linux-update-policy.sh';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);notify('脚本已下载，请在手动安装完成的新系统中执行');}catch(error){notify(error.message);}finally{b.disabled=false;}});
+$('#download-linux-manual').addEventListener('click',async event=>{const b=event.currentTarget;b.disabled=true;try{const response=await api('/api/linux-manual-setup?format=run');const url=URL.createObjectURL(await response.blob());const a=el('a');a.href=url;a.download='ventoy-linux-setup.run';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);notify('完整配置包已下载；在新装系统中运行 sudo bash ventoy-linux-setup.run --apply');}catch(error){notify(error.message);}finally{b.disabled=false;}});
+function details(job){const root=$('#job-detail');const dl=el('dl',null,'detail-grid');const disks=job.storage_plan?.mode==='raid1-lvm'?'双盘 RAID1 + LVM：'+job.storage_plan.disk_serials.join('、'):job.machine.disk_serial;for(const [key,value] of [['任务编号',job.id],['节点',job.machine.name],['系统版本',jobSystem(job)],['目标磁盘',disks],['状态',states[job.state]],['到期时间',job.state==='draft'?'尚未授权':stamp(job.expires)]]){dl.append(el('dt',key),el('dd',value));}const timeline=el('ol',null,'timeline');job.events.forEach(e=>{const li=el('li');li.append(el('strong',states[e.state]),el('small',` · ${stamp(e.time)}`));if(e.message)li.append(el('p',e.message));timeline.append(li);});root.replaceChildren(dl,timeline);if(job.state==='enrolled')root.append(el('p','历史接入任务：此状态代表本地检查成功，中心连接需另行核对。','warning'));$('#detail-dialog').showModal();}
 $('#login-form').addEventListener('submit',async event=>{event.preventDefault();token=event.target.elements.token.value.trim();try{await refresh();sessionStorage.setItem('ventoy-token',token);$('#login-dialog').close();$('#login-error').textContent='';event.target.reset();}catch(error){$('#login-error').textContent=error.message;}});
 $('#logout').addEventListener('click',()=>{token='';sessionStorage.removeItem('ventoy-token');location.reload();});$('#refresh').addEventListener('click',()=>refresh().catch(e=>notify(e.message)));
 setInterval(()=>{if(!document.hidden&&token)refresh().catch(()=>{});},10000);
 if(token)refresh().catch(e=>notify(e.message));else showLogin();
 
 $('#close-form').addEventListener('submit',event=>{event.preventDefault();const f=event.target;submit(f,async()=>{await post(`/api/jobs/${closeId}/close`,{name:f.elements.name.value,stopped:f.elements.stopped.checked,reason:f.elements.reason.value});notify('任务已结单，旧授权已失效；重新安装请创建新任务');});});
+
+function pxeSupported(p){return ['kickstart','preseed','autoinstall','ubiquity'].includes(p.installer);}
+function newPXE(){
+  const f=$('#pxe-form');f.reset();
+  setOptions(f.elements.profile,data.profiles.filter(pxeSupported),p=>p.label,p=>p.id);
+  setOptions(f.elements.iso,data.images||[],i=>i.path,i=>i.path);
+  updateLinuxPasswordFields(f);
+  $('#pxe-dialog').showModal();
+}
+$('#pxe-form').elements.iso.addEventListener('change',()=>{
+  const f=$('#pxe-form'), item=data.images.find(i=>i.path===f.elements.iso.value);
+  if(item){f.elements.label.value=item.path.split('/').at(-1).replace(/\.iso$/i,'')+' 自动安装';const p=profileFor(item.suggested_profile);if(p&&pxeSupported(p))f.elements.profile.value=p.id;}
+});
+$('#pxe-form').addEventListener('submit',event=>{event.preventDefault();const f=event.target;submit(f,async()=>{await post('/api/pxe/entries',Object.fromEntries(new FormData(f)));f.reset();notify('入口已保存，请准备并关联 iVentoy');});});
+function renderPXE(){
+  const entries=data.pxe_entries||[];
+  if(!entries.length){empty($('#pxe-table'),'准备第一个系统入口','选择系统和自动安装脚本后，单内置盘直接安装；多盘在 PXE 画面选盘并输入 yes。',['添加系统入口',newPXE]);return;}
+  table($('#pxe-table'),['系统入口','原始镜像','选盘方式','状态','操作'],entries.map(e=>{
+    const actions=el('div',null,'actions');
+    actions.append(button('准备与关联',()=>pxeDetails(e)));
+    if(e.preparation?.prepared_at&&!e.preparation.prepared_at.startsWith('0001'))actions.append(button(e.enabled?'停用入口':'启用入口',async()=>{await post(`/api/pxe/entries/${e.id}/enabled`,{enabled:!e.enabled});await refresh(true);notify(e.enabled?'入口已停用，未开始的安装授权已撤销':'入口已启用；请确认 iVentoy 关联完成');}));
+    const selection=e.disk_policy==='single-or-console'?'单盘自动安装；多盘在 PXE 选盘':e.disk_policy==='single-internal'?'旧策略：多盘需预先指定':'控制台选盘并确认';
+    return[e.label,e.iso,selection,e.enabled?'已启用':'未启用',actions];
+  }));
+}
+function pxeDetails(entry){
+  const root=$('#preparation-body');root.replaceChildren(el('h3',entry.label));
+  const p=entry.preparation;
+  if(p){
+    const absolute=name=>p.root.replace(/[\\/]$/,'')+'/'+name;
+    const dl=el('dl',null,'detail-grid');
+    for(const [label,value] of [['菜单镜像',p.iso_path.replace(/^iso\//,'')],['自动安装脚本',absolute(p.script_path)]])dl.append(el('dt',label),el('dd',value));
+    const injection=Object.keys(p.files).find(n=>n.endsWith('.tar.gz'));
+    if(injection)dl.append(el('dt','启动注入文件'),el('dd',absolute(p.script_path.replace(/[^/]+$/,injection))));
+    root.append(dl);
+  }
+  const steps=el('ol',null,'preparation-steps');
+  const local=entry.disk_policy==='single-or-console';
+  const automatic=local||entry.disk_policy==='single-internal';
+  for(const text of ['准备文件后，在 iVentoy 镜像管理刷新，选择上面的版本目录内 image.iso。','关联上面的自动安装脚本；若列有启动注入文件，也需要关联。','脚本选择菜单保持手动选择，关闭倒计时。保持全局默认镜像为空，客户端可以自主选系统。',automatic?'在本页启用入口。客户端选择系统与自动安装脚本后，只有一块可用内置盘时直接清空安装，无需选盘或输入 yes。':'在本页启用入口。客户端选择系统后，核对磁盘并输入 yes 确认安装；no 或 q 取消。'])steps.append(el('li',text));
+  root.append(steps,el('p',local?'多盘时直接在 PXE 画面选择安装盘并输入 yes，随后自动分区、安装和重启，无需登记机器或在后台创建任务。已有 LVM / RAID 仍需单独处理。安装完成后从硬盘启动。':automatic?'此入口使用旧策略：多盘先指定目标盘并授权任务。迁移入口后可改为在 PXE 选盘。已有 LVM / RAID 仍需单独处理。':'已有匹配的待启动任务会使用原授权。再次网启已安装的机器需要重新确认。'));
+  root.append(button('准备 / 核对菜单文件',async()=>{const updated=await (await post(`/api/pxe/entries/${entry.id}/prepare`)).json();await refresh(true);pxeDetails(updated);},'primary'));
+  if(!$('#preparation-dialog').open)$('#preparation-dialog').showModal();
+}

@@ -102,6 +102,8 @@ func (s *Server) Handler() http.Handler {
 		respond(w, 200, map[string]string{"status": "ok", "version": Version})
 	})
 	m.HandleFunc("GET /api/overview", s.auth(s.overview))
+	m.HandleFunc("GET /api/linux-update-policy", s.auth(s.linuxUpdatePolicy))
+	m.HandleFunc("GET /api/linux-manual-setup", s.auth(s.linuxManualSetup))
 	m.HandleFunc("POST /api/machines", s.auth(s.createMachine))
 	m.HandleFunc("DELETE /api/machines/{id}", s.auth(s.deleteMachine))
 	m.HandleFunc("POST /api/jobs", s.auth(s.createJob))
@@ -113,6 +115,11 @@ func (s *Server) Handler() http.Handler {
 	m.HandleFunc("GET /api/jobs/{id}/preparation", s.auth(s.preparationPlan))
 	m.HandleFunc("POST /api/jobs/{id}/prepare", s.auth(s.prepareJob))
 	m.HandleFunc("POST /api/jobs/{id}/cleanup", s.auth(s.cleanupJob))
+	m.HandleFunc("POST /api/pxe/entries", s.auth(s.createPXEEntry))
+	m.HandleFunc("POST /api/pxe/entries/{id}/prepare", s.auth(s.preparePXEEntry))
+	m.HandleFunc("POST /api/pxe/entries/{id}/enabled", s.auth(s.enablePXEEntry))
+	m.HandleFunc("POST /pxe/{id}/discover", s.pxeDiscover)
+	m.HandleFunc("POST /pxe/{id}/install", s.pxeInstall)
 	m.HandleFunc("POST /bootstrap/{id}/event", s.bootEvent)
 	m.HandleFunc("GET /bootstrap/{id}/connection", s.connection)
 	m.HandleFunc("GET /bootstrap/{id}/package", s.nodePackage)
@@ -249,7 +256,7 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 	if pe != nil {
 		warnings = append(warnings, "节点包目录无法读取，请检查服务配置和权限")
 	}
-	respond(w, 200, map[string]any{"version": Version, "machines": state.Machines, "jobs": jobs, "images": isos, "packages": packages, "warnings": warnings, "profiles": profiles, "iventoy_url": s.config.IVentoyURL, "fyhocsys_url": s.config.FYHOCSYSURL, "public_url": s.config.PublicURL})
+	respond(w, 200, map[string]any{"version": Version, "machines": state.Machines, "jobs": jobs, "images": isos, "packages": packages, "warnings": warnings, "profiles": profiles, "iventoy_url": s.config.IVentoyURL, "fyhocsys_url": s.config.FYHOCSYSURL, "public_url": s.config.PublicURL, "pxe_entries": publicPXEEntries(state), "linux_initial_password_configured": s.config.LinuxInitialPasswordHash != "", "linux_admin_username": s.config.LinuxAdminUsername})
 }
 
 func (s *Server) createMachine(w http.ResponseWriter, r *http.Request) {
@@ -293,6 +300,7 @@ func (s *Server) createJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.Profile, req.OS = p.ID, p.OS
+	s.config.applyLinuxAccounts(&req)
 	if strings.EqualFold(strings.Split(req.ISO, "/")[0], "ventoy-center") {
 		fail(w, 400, "ventoy-center 目录用于任务镜像，请选择原始 ISO")
 		return
@@ -303,6 +311,12 @@ func (s *Server) createJob(w http.ResponseWriter, r *http.Request) {
 	}
 	if p.OS == "debian" && len(s.ca) == 0 {
 		fail(w, 400, "Debian 安装环境需要显式 CA；请先配置 bootstrap_ca_file 后重启服务")
+		return
+	}
+	// RAID authorizations must include the live inventory and both selected
+	// members. The older management form confirms only one serial.
+	if req.StoragePlan != nil {
+		fail(w, 400, "请在 PXE 控制台选择两块成员盘并确认 RAID1 + LVM 安装")
 		return
 	}
 	if err := validateJob(req); err != nil {
@@ -512,6 +526,12 @@ func (s *Server) bootEvent(w http.ResponseWriter, r *http.Request) {
 		j := findJob(state, r.PathValue("id"))
 		if j == nil || !sameToken(j.Token, bearer(r)) || time.Now().After(j.Expires) {
 			return errors.New("任务已失效")
+		}
+		if e.State == "installing" && j.PXEEntryID != "" {
+			entry := findPXEEntry(state, j.PXEEntryID)
+			if entry == nil || !entry.Enabled {
+				return errors.New("PXE 自动安装入口已停用")
+			}
 		}
 		return transition(j, e.State)
 	})

@@ -3,6 +3,17 @@ Task: {{.ID}}
 Machine: {{.Machine.Name}} / {{.Machine.MAC}}
 Target disk serial: {{.Machine.DiskSerial}}
 Firmware: {{.Machine.Firmware}}
+{{if ne .OS "windows"}}
+Linux defaults: keep installed kernel package versions, disable automatic
+repository refresh and unattended system upgrades. Linux postinstall applies
+linux-update-policy.sh inside the target and stops installation on failure.
+Ubuntu also pins the live media kernel before Curtin installs packages.
+Debian netinst obtains its initial kernel from the configured mirror, then locks it.
+Manual ISO installation: copy linux-update-policy.sh to the installed machine,
+then run `sudo sh linux-update-policy.sh --apply` followed by `--check`.
+This script does not retroactively change the kernel chosen during manual setup.
+Recovery notes: docs/deployment/linux-update-policy.md in the repository.
+{{end}}
 ISO: {{.ISO}}
 Profile: {{.Target.ID}} / {{.Target.Label}}
 Expires: {{.Expires}}
@@ -22,6 +33,11 @@ Keep it in a restricted administrator directory, never a public repository.
    deliberately blocks installation when they are absent. Include NIC/storage
    drivers for the target hardware. Windows 11 requires supported UEFI hardware.
 {{else if eq .OS "ubuntu"}}   user-data (matching Ubuntu Server live-server ISO, not Desktop or legacy-server).
+{{if .InjectionName}}   Also bind {{.InjectionName}} to this task image to enable unattended
+   confirmation on Ubuntu 22.04. The compatibility hook verifies the exact
+   user-data before starting Subiquity with its autoinstall option. All disk
+   identity and one-use authorization checks still run in early-commands.
+{{end}}
 {{else if eq .OS "debian"}}   preseed.cfg (matching Debian amd64 netinst or DVD-1, not Live ISO).
    The installer requires access to the selected Debian suite's package mirror,
    including wget-udeb and its dependencies. If using a LAN mirror, edit the
@@ -30,6 +46,11 @@ Keep it in a restricted administrator directory, never a public repository.
    On guard failure, the installer stays blocked. Inspect tty4 or
    /var/log/ventoy-center-guard.log; fix the cause and create a new task if claimed.
 {{else}}   kickstart.cfg (matching full DVD / Everything ISO; boot/minimal-network ISO is not supported by this template).
+{{if .InjectionName}}   Also set this task image's boot injection file to {{.InjectionName}}.
+   It supplies the Kickstart entry through dracut's cmdline.d, fixing
+   the observed iVentoy 1.0.44 script-loading issue. Bind BOTH files to this
+   task image. The archive does not replace the Kickstart or its disk guard.
+{{end}}
 {{end}}4. Select that script as the default, with a nonzero script-selection timeout.
 5. In iVentoy Pro Matrix Boot, map exactly {{.Machine.MAC}} to this task's ISO.
    Use a non-destructive default menu for unknown machines; do not set a global

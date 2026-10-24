@@ -13,6 +13,7 @@
       <a href="#overview" data-nav="overview">◫ <span>部署总览</span></a>
       <a href="#machines" data-nav="machines">▦ <span>目标机器</span></a>
       <a href="#jobs" data-nav="jobs">↗ <span>安装任务</span></a>
+      <a href="#pxe" data-nav="pxe">▤ <span>PXE 自动安装</span></a>
       <a href="#images" data-nav="images">▱ <span>镜像管理</span></a>
       <a href="#profiles" data-nav="profiles">☷ <span>系统版本</span></a>
     </nav>
@@ -22,12 +23,12 @@
     <header class="topbar"><div><span class="muted">工作空间</span><span class="slash">/</span><span id="breadcrumb">部署总览</span></div><div class="top-actions"><span id="connection-state" class="muted">尚未连接</span><button id="refresh" class="quiet">刷新</button><button id="logout" class="quiet">退出</button></div></header>
     <main>
       <section id="overview" class="page">
-        <div class="page-heading"><div><div class="eyebrow">LINUX NETWORK DEPLOYMENT</div><h1>从网卡启动，让系统就绪。</h1><p>CentOS · Rocky Linux · Ubuntu Server · Debian</p></div><button class="primary" data-action="new-job">＋ 新建安装任务</button></div>
+        <div class="page-heading"><div><div class="eyebrow">LINUX NETWORK DEPLOYMENT</div><h1>从网卡启动，让系统就绪。</h1><p>CentOS · Rocky Linux · Ubuntu Server · Debian</p></div><a class="button primary" href="#pxe">管理 PXE 系统入口 →</a></div>
         <div class="metrics"><article><span>已登记机器</span><strong id="count-machines">—</strong><small>通过 MAC 与资产编号识别</small></article><article><span>等待启动</span><strong id="count-ready">—</strong><small>已授权，等待客户端网启</small></article><article><span>正在部署</span><strong id="count-running">—</strong><small>根据客户端实际回传更新</small></article><article><span>系统已安装</span><strong id="count-done">—</strong><small>Linux 首次启动后回报</small></article></div>
-        <article class="flow-panel"><div><span class="label">部署路径</span><h2>一次准备，按机器部署</h2><p>保持现有 DHCP，由 iVentoy 提供网络引导。</p></div><ol><li><b>01</b><span>登记机器<small>MAC · 目标磁盘</small></span></li><li><b>02</b><span>选择系统<small>发行版 · 版本 · ISO</small></span></li><li><b>03</b><span>网卡启动<small>iVentoy · 自动安装</small></span></li><li><b>04</b><span>安装完成<small>首次启动 · 状态回传</small></span></li></ol></article>
+        <article class="flow-panel"><div><span class="label">部署路径</span><h2>系统入口准备一次，装机从 BIOS 开始</h2><p>无需预先登记机器或带外地址。</p></div><ol><li><b>01</b><span>网卡启动<small>BIOS / UEFI · PXE</small></span></li><li><b>02</b><span>选择系统<small>自动安装 · 具体版本</small></span></li><li><b>03</b><span>确认目标盘<small>本机识别 · 确认清空</small></span></li><li><b>04</b><span>自动安装<small>重启 · 状态回传</small></span></li></ol></article>
         <div class="section-heading"><h2>启动信息</h2><span class="muted">已登记机器的最近任务；网络引导日志在 iVentoy 查看</span></div><div id="boot-table" class="panel"></div>
         <div class="section-heading"><h2>最近的安装任务</h2><a href="#jobs">查看全部 →</a></div><div id="recent-jobs" class="panel"></div>
-        <div class="note"><span>↳</span><p>首次部署先用一台测试机验证启动、网卡驱动与磁盘识别。安装包生成后，需要在 iVentoy 中关联镜像、脚本与 MAC 规则。</p></div>
+        <div class="note"><span>↳</span><p>先在“PXE 自动安装”准备系统入口并完成 iVentoy 关联。日常装机选择系统和自动安装脚本后，单内置盘自动安装；多盘在 PXE 画面选盘。安装任务自动出现在这里。</p></div>
       </section>
       <section id="machines" class="page" hidden>
         <div class="page-heading"><div><div class="eyebrow">MACHINES & MAC</div><h1>目标机器</h1><p>固定机器身份与安装磁盘，避免依赖容易变化的磁盘顺序。</p></div><button class="primary" data-action="new-machine">＋ 登记机器</button></div>
@@ -39,8 +40,15 @@
       <section id="images" class="page" hidden>
         <div class="page-heading"><div><div class="eyebrow">IMAGE LIBRARY</div><h1>镜像管理</h1><p>按目录管理服务器上的 ISO，选择镜像后创建安装任务。</p></div><a id="iventoy-link" class="button" target="_blank" rel="noopener noreferrer" hidden>打开 iVentoy ↗</a></div>
         <label class="search-label">查找镜像<input id="image-search" type="search" placeholder="文件名、目录或版本"></label>
+        <div class="note"><span>↳</span><div><p>已绑定预置脚本的普通 Linux ISO，手动安装后会在新系统中放好完整配置包。进入硬盘系统后执行下面的命令，配置并检查 SSH、主机名、DHCP、内核锁定、禁用自动更新和 E610 驱动。</p><p><code>sudo bash /root/ventoy-linux-setup.run --apply --hostname server01</code></p><p>预置文件不会自动改动系统；执行前使用安装时创建的账户。执行后默认账户：admin / ventoy、root / ventoy。保留原有用户和静态网络；不填写主机名时沿用合法的现有名称。如需驱动重启，重启后自动继续检查。</p><button id="download-linux-manual">为已有系统下载完整配置包</button><button id="download-linux-policy">仅下载内核与更新策略脚本</button></div></div>
         <div class="media-browser panel"><div class="media-list"><div class="section-heading"><h2>镜像文件</h2><span id="image-count" class="muted"></span></div><div id="image-tree"></div></div><div id="image-detail" class="media-detail"></div></div>
         <div class="note"><span>↳</span><p>将镜像放入 iso_dir 的 CentOS、Rocky、Ubuntu、Debian 等目录后刷新。DHCP、TFTP 和 MAC 启动过滤规则在 iVentoy 中配置。</p></div>
+      </section>
+      <section id="pxe" class="page" hidden>
+        <div class="page-heading"><div><div class="eyebrow">PXE INSTALL MENU</div><h1>选好系统，自动安装</h1><p>每个版本准备一次，客户端从网卡启动后选择对应的系统。</p></div><button class="primary" data-action="new-pxe">＋ 添加系统入口</button></div>
+        <div class="note"><span>↳</span><p>网启选择系统 → 选择自动安装脚本 → 单内置盘自动安装。多盘在 PXE 画面选盘、输入 yes，随后自动安装并重启，无需在后台创建任务。默认锁定内核，关闭自动更新；现有 LVM / RAID 磁盘需先单独处理。各入口的选盘方式见下表。</p></div>
+        <div id="pxe-table" class="panel"></div>
+        <p class="muted">当前菜单覆盖 CentOS、Rocky、Debian、Ubuntu Server 22.04／24.04。普通 ISO 仍用于手动安装。请将自动安装菜单用于受控装机局域网。</p>
       </section>
       <section id="profiles" class="page" hidden>
         <div class="page-heading"><div><div class="eyebrow">OPERATING SYSTEMS</div><h1>系统版本</h1><p>Linux 优先。当前阶段完成装机，压测与监控接入后续再做。</p></div></div>
@@ -63,10 +71,12 @@
     <label>系统与版本<select name="profile" required></select></label>
     <label class="span-2">ISO 镜像<select name="iso" required></select></label>
     <p id="profile-hint" class="span-2"></p>
-    <label>本地管理员用户名<input name="username" value="deployadmin" required></label>
+    <p class="span-2" data-linux>默认锁定内核并关闭自动更新。Ubuntu 在安装阶段固定镜像内核；Debian 首次从所选安装源取得内核后锁定。</p>
+    <label>本地管理员用户名<input name="username" value="admin" required></label>
     <label data-windows hidden>Windows 镜像索引<input name="windows_image" type="number" min="1" max="100" value="1"></label>
     <label data-windows hidden>Windows 镜像语言<select name="locale"><option value="zh-CN">简体中文 (zh-CN)</option><option value="en-US">English (en-US)</option></select></label>
     <label class="span-2" data-linux>Linux 密码哈希<input name="password_hash" type="password" autocomplete="new-password" placeholder="使用 openssl passwd -6 生成"></label>
+    <p class="span-2" data-password-policy hidden></p>
     <label class="span-2" data-linux>SSH 公钥（可选）<input name="ssh_key" placeholder="ssh-ed25519 …"></label>
     <label class="span-2" data-windows hidden>Windows 初始管理员密码<input name="password" type="password" minlength="14" autocomplete="new-password"></label>
   </div>
@@ -77,5 +87,17 @@
 <dialog id="close-dialog"><form id="close-form"><div class="dialog-heading"><h2>结束失败任务</h2><button type="button" class="close" data-close aria-label="关闭">×</button></div><p id="close-target"></p><div class="warning">此操作只结束任务记录，不会停止客户端正在执行的安装程序。请先在客户端确认安装已停止。</div><label>输入完整节点名<input name="name" required autocomplete="off"></label><label>结单原因<input name="reason" required maxlength="160"></label><label class="check"><input name="stopped" type="checkbox" required> 我已确认客户端停止安装</label><div class="dialog-actions"><button type="button" data-close>返回</button><button class="danger">标记失败并结束</button></div></form></dialog>
 <dialog id="detail-dialog" class="wide"><div class="dialog-heading"><h2>任务记录</h2><button class="close" data-close aria-label="关闭">×</button></div><div id="job-detail"></div></dialog>
 <dialog id="preparation-dialog" class="wide"><div class="dialog-heading"><h2>iVentoy 安装文件</h2><button class="close" data-close aria-label="关闭">×</button></div><div id="preparation-body"></div></dialog>
+<dialog id="pxe-dialog" class="wide"><form id="pxe-form"><div class="dialog-heading"><h2>添加 PXE 系统入口</h2><button type="button" class="close" data-close aria-label="关闭">×</button></div>
+  <p>此入口可重复用于不同机器。每次新安装均需核对本机目标盘；完成的安装不会因再次网启自动重装。</p>
+  <div class="form-grid">
+    <label class="span-2">菜单名称（含版本）<input name="label" required maxlength="100" placeholder="Ubuntu Server 22.04.3 自动安装"></label>
+    <label>系统模板<select name="profile" required></select></label><label>原始 ISO<select name="iso" required></select></label>
+    <label>本地管理员用户名<input name="username" value="admin" required></label>
+    <label>管理员密码哈希<input name="password_hash" type="password" autocomplete="new-password" required placeholder="用 openssl passwd -6 生成"></label>
+    <p class="span-2" data-password-policy hidden></p>
+    <label class="span-2">SSH 公钥（可选）<input name="ssh_key" placeholder="ssh-ed25519 …"></label>
+  </div><p class="muted">从此入口安装的机器使用上述账户设置。保存后准备文件，再按说明关联 iVentoy。</p>
+  <div class="dialog-actions"><button type="button" data-close>取消</button><button class="primary">保存入口</button></div>
+</form></dialog>
 <script src="/app.js" defer></script>
 </body></html>

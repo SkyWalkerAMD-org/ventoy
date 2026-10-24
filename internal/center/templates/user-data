@@ -1,10 +1,32 @@
 #cloud-config
 autoinstall:
   version: 1
+{{if .Target.Desktop}}  source:
+    id: ubuntu-desktop
+    search_drivers: false
+  codecs:
+    install: false
+  drivers:
+    install: false
+  oem:
+    install: false
+{{end}}
   refresh-installer:
     update: false
+  apt:
+    preserve_sources_list: false
+    geoip: false
+    primary:
+      - arches: [default]
+        uri: https://{{if .Target.Archived}}old-releases{{else}}archive{{end}}.ubuntu.com/ubuntu
+    security:
+      - arches: [default]
+        uri: https://{{if .Target.Archived}}old-releases{{else}}security{{end}}.ubuntu.com/ubuntu
   packages:
     - curl
+{{if .RAIDSetup}}    - mdadm
+    - lvm2
+{{end}}
   locale: en_US.UTF-8
   keyboard:
     layout: us
@@ -16,33 +38,100 @@ autoinstall:
           macaddress: {{yaml .Machine.MAC}}
         dhcp4: true
         dhcp-identifier: mac
-  identity:
+{{if eq .Request.Username "admin"}}  # Subiquity reserves admin in identity; cloud-init supports an explicit user.
+  user-data:
+    hostname: {{yaml .Machine.Name}}
+    preserve_hostname: false
+    manage_etc_hosts: true
+    groups: [admin]
+    users:
+      - name: admin
+        gecos: Administrator
+        primary_group: admin
+        groups: [adm, sudo]
+        shell: /bin/bash
+        lock_passwd: false
+        passwd: {{yaml .Request.PasswordHash}}
+        sudo: "ALL=(ALL) ALL"
+{{if .Request.SSHKey}}        ssh_authorized_keys: [{{yaml .Request.SSHKey}}]
+{{end}}
+    package_update: false
+    package_upgrade: false
+{{if .SSHPolicy}}    disable_root: false
+    ssh_pwauth: true
+{{end}}
+{{else}}  identity:
     hostname: {{yaml .Machine.Name}}
     username: {{yaml .Request.Username}}
     password: {{yaml .Request.PasswordHash}}
+{{if .SSHPolicy}}  user-data:
+    disable_root: false
+    ssh_pwauth: true
+    package_update: false
+    package_upgrade: false
+{{end}}
+{{end}}
   ssh:
     install-server: true
-    allow-pw: {{if .Request.SSHKey}}false{{else}}true{{end}}
+    allow-pw: {{if .SSHPolicy}}true{{else if .Request.SSHKey}}false{{else}}true{{end}}
     authorized-keys: [{{if .Request.SSHKey}}{{yaml .Request.SSHKey}}{{end}}]
   storage:
+    grub:
+      # Keep the new disk entry first; Curtin otherwise restores BootCurrent
+      # (the PXE adapter) ahead of it on a network-booted installation.
+      reorder_uefi: false
+      remove_duplicate_entries: false
     layout:
       name: direct
       match:
-        serial: {{yaml .Machine.DiskSerial}}
-  early-commands:
+        # early-commands replaces this only after unique serial verification.
+        path: /dev/ventoy-center-unverified
+{{if not .PXEEntryID}}  early-commands:
     - |
 {{indent 6 .Guard}}
+{{end}}
+  error-commands:
+    - |
+      python3 - <<'VC_INSTALL_FAILED'
+{{indent 6 .InstallFailure}}
+      VC_INSTALL_FAILED
   late-commands:
     - |
       set -eu
       umask 077
+{{if .RAIDSetup}}      printf '%s' {{sh (b64 .RAIDSetup)}} | base64 -d > /target/usr/local/sbin/ventoy-center-raid
+      chmod 0700 /target/usr/local/sbin/ventoy-center-raid
+      curtin in-target --target=/target -- /bin/bash /usr/local/sbin/ventoy-center-raid --apply
+{{end}}
+{{if .Request.RootPasswordHash}}      curtin in-target --target=/target -- usermod --password {{sh .Request.RootPasswordHash}} root
+{{end}}
+{{if .SSHPolicy}}      printf '%s' {{sh (b64 .SSHPolicy)}} | base64 -d > /target/usr/local/sbin/ventoy-center-root-ssh
+      chmod 0700 /target/usr/local/sbin/ventoy-center-root-ssh
+      curtin in-target --target=/target -- /bin/sh /usr/local/sbin/ventoy-center-root-ssh --apply
+{{end}}      printf '%s' {{sh (b64 .ServerInit)}} | base64 -d > /target/usr/local/sbin/safe-server-init
+      chmod 0755 /target/usr/local/sbin/safe-server-init
+      # Check the installed kernel against the installer BEFORE reporting success.
+      test -f "/target/boot/vmlinuz-$(uname -r)"
+      # Adapted media carries the driver into the installation source itself.
+      # Verify its target module and initramfs before allowing first-boot success.
+      if [ -f /usr/local/lib/ventoy-e610/install-target.sh ]; then
+        /bin/sh /usr/local/lib/ventoy-e610/install-target.sh /target
+      fi
+      if [ -f /target/usr/local/sbin/ventoy-e610-verify ]; then
+        curtin in-target --target=/target -- /bin/sh /usr/local/sbin/ventoy-e610-verify
+      fi
+      printf '%s' {{sh (b64 .UpdatePolicy)}} | base64 -d > /target/usr/local/sbin/ventoy-center-update-policy
+      chmod 0700 /target/usr/local/sbin/ventoy-center-update-policy
+      curtin in-target --target=/target -- /bin/sh /usr/local/sbin/ventoy-center-update-policy --apply --offline
+      curtin in-target --target=/target -- systemctl set-default multi-user.target
+      uname -r > /target/var/lib/ventoy-center/kernel-policy/expected-release
       printf '%s' {{sh (b64 .Bootstrap)}} | base64 -d > /target/usr/local/sbin/ventoy-center-bootstrap
       chmod 0700 /target/usr/local/sbin/ventoy-center-bootstrap
       cat > /target/etc/systemd/system/ventoy-center-bootstrap.service <<'VCUNIT'
       [Unit]
       Description=Ventoy Center installation handoff
-      Wants=network-online.target
-      After=network-online.target
+      Wants=network-online.target cloud-config.service
+      After=network-online.target cloud-config.service
       ConditionPathExists=/usr/local/sbin/ventoy-center-bootstrap
       [Service]
       Type=oneshot

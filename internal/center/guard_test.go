@@ -9,11 +9,54 @@ import (
 	"testing"
 )
 
+func TestBootstrapRetriesOnlyConnectionFailures(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("requires Linux /bin/bash")
+	}
+	for _, tc := range []struct {
+		name, code, failures, calls string
+		ok                          bool
+	}{
+		{"dhcp-pending", "7", "2", "3", true},
+		{"dns-pending", "6", "1", "2", true},
+		{"offline-bounded", "7", "99", "12", false},
+		{"unauthorized", "22", "99", "1", false},
+		{"untrusted-ca", "60", "99", "1", false},
+		{"ambiguous-timeout", "28", "99", "1", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			curl := "#!/bin/bash\nn=$(cat \"$CALLS\" 2>/dev/null || echo 0); n=$((n+1)); echo \"$n\" > \"$CALLS\"\n[ \"$n\" -gt \"$FAILURES\" ] || exit \"$CODE\"\n"
+			for name, content := range map[string]string{"curl": curl, "sleep": "#!/bin/sh\nexit 0\n"} {
+				if err := os.WriteFile(filepath.Join(root, name), []byte(content), 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			script, err := render("bootstrap.sh", renderData{Base: "https://controller.invalid/bootstrap/test"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			start, end := strings.Index(script, "request() {"), strings.Index(script, "\nevent()")
+			if start < 0 || end <= start {
+				t.Fatal("request function missing")
+			}
+			cmd := exec.Command("/bin/bash")
+			cmd.Stdin = strings.NewReader("set -eu\n" + script[start:end] + "\nrequest https://controller.invalid/event\n")
+			cmd.Env = append(os.Environ(), "PATH="+root+":/usr/bin:/bin", "CALLS="+filepath.Join(root, "calls"), "CODE="+tc.code, "FAILURES="+tc.failures)
+			output, err := cmd.CombinedOutput()
+			calls, _ := os.ReadFile(filepath.Join(root, "calls"))
+			if (err == nil) != tc.ok || strings.TrimSpace(string(calls)) != tc.calls {
+				t.Fatalf("wrong retry behavior: %v, calls=%q, output=%s", err, calls, output)
+			}
+		})
+	}
+}
+
 func TestBootstrapRequiresHumanLogin(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("requires Linux /bin/bash")
 	}
-	for _, mode := range []string{"valid", "system-uid", "missing-user", "nologin"} {
+	for _, mode := range []string{"valid", "system-uid", "missing-user", "nologin", "missing-policy", "policy-failed"} {
 		t.Run(mode, func(t *testing.T) {
 			root := t.TempDir()
 			bin := filepath.Join(root, "bin")
@@ -29,6 +72,15 @@ func TestBootstrapRequiresHumanLogin(t *testing.T) {
 			}
 			for name, body := range commands {
 				if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\n"+body+"\n"), 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if mode != "missing-policy" {
+				policy := filepath.Join(root, "usr/local/sbin/ventoy-center-update-policy")
+				if err := os.MkdirAll(filepath.Dir(policy), 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(policy, []byte("#!/bin/sh\n[ \"$1\" = --check ] && [ \"$BOOT_TEST_MODE\" != policy-failed ]\n"), 0700); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -60,11 +112,11 @@ func TestBootstrapRequiresHumanLogin(t *testing.T) {
 
 // CentOS 7.9 util-linux 2.23 omits virtio SERIAL, although the kernel exposes it.
 // Run the real hook against fixture devices, without touching disks or networking.
-func TestCentOSGuardDiskIdentity(t *testing.T) {
+func TestLinuxGuardDiskIdentity(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("requires Linux /bin/bash")
 	}
-	for _, mode := range []string{"legacy-virtio", "modern-virtio", "sata", "missing-serial", "wrong-serial", "conflicting-serial", "duplicate-mixed", "duplicate-virtio", "wrong-mac", "wrong-version", "wrong-firmware", "usb", "raid", "claim-rejected"} {
+	for _, mode := range []string{"legacy-virtio", "modern-virtio", "sata", "missing-serial", "wrong-serial", "conflicting-serial", "duplicate-mixed", "duplicate-virtio", "wrong-mac", "wrong-version", "wrong-firmware", "usb", "raid", "claim-rejected", "ubuntu-sata", "ubuntu-binding-failed", "ubuntu-kernel-failed", "ubuntu-duplicate", "ubuntu-raid"} {
 		t.Run(mode, func(t *testing.T) {
 			root := t.TempDir()
 			write := func(name, content string, perm os.FileMode) {
@@ -88,7 +140,7 @@ func TestCentOSGuardDiskIdentity(t *testing.T) {
 				}
 			}
 			serial := "DISK-001"
-			if mode == "wrong-serial" || mode == "sata" {
+			if mode == "wrong-serial" || mode == "sata" || strings.HasPrefix(mode, "ubuntu-") && mode != "ubuntu-duplicate" {
 				serial = "OTHER-DISK"
 			}
 			if mode != "missing-serial" {
@@ -111,23 +163,30 @@ func TestCentOSGuardDiskIdentity(t *testing.T) {
 			}
 			write("bin/udevadm", "#!/bin/sh\nexit 0\n", 0700)
 			write("bin/base64", "#!/bin/sh\necho 'base64 unavailable in CentOS 7 installer' >&2\nexit 127\n", 0700)
+			// Exercise the shell's binder/claim ordering; the validator executes
+			// the real embedded Python against temporary autoinstall documents.
+			write("bin/python3", "#!/bin/sh\nif [ \"$#\" -eq 1 ]; then\n echo KERNEL >> \"$GUARD_TEST_LOG\"\n [ \"$GUARD_TEST_MODE\" != ubuntu-kernel-failed ]\nelse\n printf 'BIND %s\\n' \"$2\" >> \"$GUARD_TEST_LOG\"\n [ \"$GUARD_TEST_MODE\" != ubuntu-binding-failed ]\nfi\n", 0700)
 			write("bin/lsblk", `#!/bin/sh
 case "$3" in
  NAME,TYPE) printf 'sda disk\nvda disk\nvdb disk\nsda1 part\nsr0 rom\n' ;;
  SERIAL)
   case "${4##*/}" in
-   sda) case "$GUARD_TEST_MODE" in sata|duplicate-mixed) echo DISK-001;; *) echo OTHER-DISK;; esac ;;
+   sda) case "$GUARD_TEST_MODE" in sata|duplicate-mixed|ubuntu-*) echo DISK-001;; *) echo OTHER-DISK;; esac ;;
    vda) case "$GUARD_TEST_MODE" in modern-virtio) echo DISK-001;; conflicting-serial) echo DIFFERENT;; esac ;;
   esac ;;
  TYPE) echo disk ;;
  TRAN) if [ "$GUARD_TEST_MODE" = usb ]; then echo usb; fi ;;
- FSTYPE) if [ "$GUARD_TEST_MODE" = raid ]; then echo linux_raid_member; fi ;;
+ FSTYPE) case "$GUARD_TEST_MODE" in raid|ubuntu-raid) echo linux_raid_member;; esac ;;
  *) exit 2 ;;
 esac
 exit 0
 `, 0700)
 			write("bin/curl", "#!/bin/sh\necho CLAIM >> \"$GUARD_TEST_LOG\"\n[ \"$GUARD_TEST_MODE\" != claim-rejected ]\n", 0700)
 			p, _ := findProfile("centos-7.9")
+			if strings.HasPrefix(mode, "ubuntu-") {
+				p, _ = findProfile("ubuntu-22.04")
+				write("etc/os-release", "ID=ubuntu\nVERSION_ID=22.04\n", 0600)
+			}
 			d := renderData{Target: p, CA: "fixture CA\nquoted 'value'\n", Base: "https://controller.invalid/bootstrap/test", PrivateJob: PrivateJob{Job: Job{Machine: Machine{MAC: "02:00:00:00:01:01", DiskSerial: "DISK-001", Firmware: "uefi"}}, Token: "fixture-token"}}
 			var err error
 			d.VersionCheck, err = render("version-check.sh", d)
@@ -146,13 +205,17 @@ exit 0
 			cmd.Env = append(os.Environ(), "PATH="+filepath.Join(root, "bin")+":/usr/bin:/bin", "GUARD_TEST_LOG="+logPath, "GUARD_TEST_MODE="+mode)
 			output, err := cmd.CombinedOutput()
 			log, _ := os.ReadFile(logPath)
-			allowed := mode == "legacy-virtio" || mode == "modern-virtio" || mode == "sata"
+			allowed := mode == "legacy-virtio" || mode == "modern-virtio" || mode == "sata" || mode == "ubuntu-sata"
 			if allowed {
 				want := "vda"
-				if mode == "sata" {
+				if mode == "sata" || mode == "ubuntu-sata" {
 					want = "sda"
 				}
-				if err != nil || string(log) != "CLAIM\nSELECTED "+want+"\n" {
+				operations := "CLAIM\nSELECTED " + want + "\n"
+				if mode == "ubuntu-sata" {
+					operations = "KERNEL\nBIND sda\n" + operations
+				}
+				if err != nil || string(log) != operations {
 					t.Fatalf("identity check: %v, %s, %s", err, log, output)
 				}
 				ca, err := os.ReadFile(filepath.Join(root, "tmp/ventoy-center-ca.crt"))
@@ -177,7 +240,7 @@ func TestDebianGuardAuthorizesOnlyAfterChecks(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("requires Linux /bin/sh")
 	}
-	for _, mode := range []string{"allowed", "wrong-mac", "wrong-serial", "duplicate-serial", "wrong-firmware", "usb", "raid", "no-wget-udeb", "claim-rejected"} {
+	for _, mode := range []string{"allowed", "virtio-serial", "wrong-release", "wrong-mac", "wrong-serial", "duplicate-serial", "wrong-firmware", "usb", "readonly", "mounted", "raid", "no-wget-udeb", "claim-rejected"} {
 		t.Run(mode, func(t *testing.T) {
 			root := t.TempDir()
 			write := func(name, content string, perm os.FileMode) {
@@ -198,8 +261,30 @@ func TestDebianGuardAuthorizesOnlyAfterChecks(t *testing.T) {
 			if mode == "wrong-serial" {
 				serial = "DISK-WRONG"
 			}
+			release := "13 (trixie) - installer build fixture"
+			if mode == "wrong-release" {
+				release = "12 (bookworm) - installer build fixture"
+			}
+			write("etc/lsb-release", "DISTRIB_ID=Debian\nDISTRIB_RELEASE='"+release+"'\n", 0600)
 			write("sys/class/net/eth0/address", mac+"\n", 0600)
-			write("sys/block/sda/device/serial", serial+"\n", 0600)
+			serialPath := "sys/block/sda/device/serial"
+			if mode == "virtio-serial" {
+				serialPath = "sys/block/sda/serial"
+			}
+			write(serialPath, serial+"\n", 0600)
+			readOnly := "0\n"
+			if mode == "readonly" {
+				readOnly = "1\n"
+			}
+			write("sys/block/sda/ro", readOnly, 0600)
+			write("sys/block/sda/removable", "0\n", 0600)
+			write("sys/block/sda/dev", "8:0\n", 0600)
+			mounts := ""
+			if mode == "mounted" {
+				mounts = "1 2 8:0 / /target rw - ext4 /dev/sda rw\n"
+			}
+			write("proc/self/mountinfo", mounts, 0600)
+			write("proc/swaps", "Filename Type Size Used Priority\n", 0600)
 			write("dev/sda", "fake disk", 0600)
 			if mode == "duplicate-serial" {
 				write("sys/block/sdb/device/serial", serial+"\n", 0600)
@@ -214,7 +299,9 @@ func TestDebianGuardAuthorizesOnlyAfterChecks(t *testing.T) {
 				t.Fatal(err)
 			}
 			write("bin/udevadm", "#!/bin/sh\nexit 0\n", 0700)
-			write("bin/debconf-set", "#!/bin/sh\nprintf 'SET %s %s\\n' \"$1\" \"$2\" >> \"$GUARD_TEST_LOG\"\n", 0700)
+			// Early partman hooks run before every question template is registered.
+			write("bin/debconf-set", "#!/bin/sh\nexit 10\n", 0700)
+			write("bin/debconf-set-selections", "#!/bin/sh\nawk '{print \"SET \" $2 \" \" $4}' \"$1\" >> \"$GUARD_TEST_LOG\"\n", 0700)
 			fsType := ""
 			if mode == "raid" {
 				fsType = "linux_raid_member"
@@ -240,14 +327,14 @@ func TestDebianGuardAuthorizesOnlyAfterChecks(t *testing.T) {
 				t.Fatal(err)
 			}
 			// Substitute the failure hold with a test exit, and block tests with files.
-			script = strings.NewReplacer("/sys/", root+"/sys/", "/dev/", root+"/dev/", "/tmp/", root+"/tmp/", "[ -b ", "[ -f ", "while :; do sleep 60; done", "exit 77").Replace(script)
+			script = strings.NewReplacer("/etc/lsb-release", root+"/etc/lsb-release", "/proc/", root+"/proc/", "/sys/", root+"/sys/", "/dev/", root+"/dev/", "/tmp/", root+"/tmp/", "[ -b ", "[ -f ", "while :; do sleep 60; done", "exit 77").Replace(script)
 			cmd := exec.Command("/bin/sh")
 			cmd.Stdin = strings.NewReader(script)
 			logPath := filepath.Join(root, "operations.log")
 			cmd.Env = append(os.Environ(), "PATH="+filepath.Join(root, "bin")+":/usr/bin:/bin", "GUARD_TEST_LOG="+logPath)
 			output, err := cmd.CombinedOutput()
 			log, _ := os.ReadFile(logPath)
-			if mode == "allowed" {
+			if mode == "allowed" || mode == "virtio-serial" {
 				if err != nil {
 					t.Fatalf("guard failed: %v: %s", err, output)
 				}

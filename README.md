@@ -2,9 +2,19 @@
 
 局域网批量装机管理端。客户端在 BIOS / UEFI 的 Boot 菜单选择网卡，由 **iVentoy / PXE** 加载镜像和自动安装配置；本项目负责目标机器、安装任务、授权、安装包和进度回传。
 
-**当前：0.3.0-alpha.2，Linux 装机优先。** 本阶段只做直推装机，不修改 sckocstp / fyhocsys，也不创建新的自动接入任务。Windows 保留为次要支持，接入工作待装机流程完成后再考虑。
+**当前代码及现场管理端：0.3.0-alpha.25，iVentoy 1.0.47 Pro；Linux CLI 装机优先。** 43 个需要适配的 Linux ISO 已直接内置 E610 驱动，普通手动安装与 PXE 自动安装复用同一成品，并在安装收尾自动持久化驱动。43 个成品的 86 项隔离安装与重启验收通过，物理 E610 验收范围另列。常规无桌面装机使用 Ubuntu Server / live-server、Debian 标准系统与 SSH，以及 CentOS / Rocky / AlmaLinux / RHEL 最小化环境，默认启动到命令行。本阶段只做直推装机，不修改 sckocstp / fyhocsys，也不创建新的自动接入任务。Windows 保留为次要支持。
 
-服务端和安装包生成已实现；iVentoy 规则仍通过其原生界面配置。CentOS 7.9 已通过 UEFI 虚拟机完整安装、磁盘启动、SSH / sudo 登录和完成回报验证，详见 [验收记录](docs/deployment/centos7.md)。真实硬件的完整 PXE 自动安装仍待验收。
+日常装机使用“PXE 选择系统版本 → 选择自动安装脚本 → 自动安装”。一块可用内置盘自动清空安装；多盘在 PXE 画面选盘并输入 `yes`，也可输入 `r`、两个盘号和 `yes`，重建双盘 RAID1 + LVM。旧存储必须完整落在所选两盘内，否则停止。日常安装无需先登记带外地址或创建专属任务。详见 [PXE 菜单安装](docs/deployment/pxe-menu.md)。
+
+配置统一 root 密码的 Ubuntu / Debian 新安装允许 root SSH 密码登录，初次启动后再次检查。Linux 自动安装设置主机名和启动网卡 DHCP，并预置 `safe-server-init`，用于安装后修改主机名及向未配置网卡补充 DHCP；保留现有网络配置与脚本的后端限制。
+
+新生成的 Linux 自动安装任务默认锁定内核，并关闭软件源自动刷新和无人值守升级。54 个 Linux 基础路径均提供[完整配置包预置](docs/deployment/manual-linux.md)：45 个适配路径（43 个成品及两个历史 E610 别名）已将配置包写入 ISO，另 9 个原生支持 E610 的镜像保留原驱动及预置绑定。手动安装后运行 `/root/ventoy-linux-setup.run --apply`，配置并检查 SSH、主机名、DHCP、内核锁定和禁用自动更新；E610 驱动持久化独立于这个手动操作。Ubuntu Desktop 22.04.4 另有 CLI 启动的自动入口，但镜像仍含桌面软件，无桌面装机优先选择 Server。具体行为、检查与恢复见 [Linux 更新策略](docs/deployment/linux-update-policy.md)。
+
+E610 的精确内核驱动、ISO 制作工具和逐镜像验证记录见 [E610 ISO Kit Release](https://github.com/SkyWalkerAMD-org/E610/releases/tag/v6.4.5-iso-kit-r1)。该工具包需配合用户自行提供的原版安装 ISO；此仓库保存管理端及安装策略源码。
+
+现场使用 **iVentoy 1.0.47 专业版**，运行目录 `/home/ventoy-center/iventoy`。18 个规划版本 ISO 已全部入库，目前共启用 52 个明确标注系统版本的自动安装入口，合计 113 个镜像路径（60 个基础系统路径、1 个 MemTest86 工具镜像、52 个自动入口）。CentOS 7.9 与 Ubuntu 22.04.3 的历史 E610 入口复用更新后的成品，没有再次制作重复版本。原版镜像在菜单外备份，专业版授权、原有机器/任务记录和未涉及入口设置保留。
+
+18 个规划标准版本均完成本轮隔离 QEMU/KVM 自动安装与两次硬盘启动验证。CentOS 7.9、Rocky 8.10、Rocky 9.2 和 Ubuntu Server 22.04.3 另有此前完整物理机验收；两类结果分别记录，不能替代其他硬件或启动模式的验收。具体版本与证据见 [当前进度](docs/development/progress.md)和[现场镜像清单](docs/deployment/image-catalog.md)。
 
 ## 已实现
 
@@ -12,7 +22,8 @@
 - 按目录浏览 / 搜索 ISO、文件名版本建议、系统模板目录；不把文件名识别视为镜像内容验证。
 - 按 MAC、磁盘序列号、启动模式绑定安装任务；草稿需核对机器名和磁盘后授权。
 - 24 小时任务凭据、单次安装领取、持久状态、取消与过期检查；服务重启不自动重发安装。
-- 生成 CentOS 7.9、Rocky 8 / 9 / 10 Kickstart，Ubuntu Server 20.04 / 22.04 / 24.04 / 26.04 LTS autoinstall，Debian 11 / 12 / 13 preseed。
+- 生成 CentOS 7.6 / 7.9 / 8.0 / 8.4 / 8.5 / Stream 8 / 9 / 10、Rocky 8 / 9 / 10、AlmaLinux 8 / 9、RHEL 7 / 8 / 9 Kickstart，Ubuntu Server 20.04 / 22.04 / 24.04 / 24.10 / 25.04 / 26.04 autoinstall，Debian 10 / 11 / 12 / 13 preseed。
+- 通用 PXE 菜单覆盖上述 Linux CLI 模板；单内置盘自动建立任务，多盘在 PXE 本机选盘并生成对应任务。
 - Linux 安装前核对身份和磁盘、首次启动核对系统版本并回传安装状态。Debian 使用专门的安装环境保护脚本。
 - 同机 iVentoy 文件准备：独立镜像硬链接、安装脚本、持久清单、失败重试和任务结束后的受限清理。
 - Windows 安装前核对 MAC、磁盘序列号、磁盘编号和固件模式；需提前制作含所需可选组件的 WinPE。
@@ -21,21 +32,21 @@
 
 - **本阶段仅装机。** 新任务拒绝 `enroll: true`，界面不再要求节点包或连接文件。alpha.1 历史任务和状态仍保留，不自动迁移或执行。
 - **安装包下载不是 PXE 下发。** 需要在 iVentoy 中关联镜像、脚本及按 MAC 的分机独启规则。尚无经过现场验证的 iVentoy 自动配置适配器。
-- 每台机器生成独立任务。多台同时使用同一个源 ISO 时，配置不同 ISO 路径（可用硬链接），避免一个镜像的全局默认脚本串到其他机器。
+- 通用菜单为每台机器动态领取独立任务，按 MAC、盘序列号和启动模式再次核对。旧式专属任务仍使用各自独立 ISO 路径与脚本绑定。
 - Windows ISO 的 WinPE 默认通常不含 PowerShell / StorageWMI，组件不足时安装保护会阻止继续。当前 Windows 模板语言支持 zh-CN / en-US，须与镜像一致。
-- 当前 Linux 存储模板针对单块非 USB 磁盘。已有 LVM / RAID 成员需先人工处理；不会自动拆除可能跨盘的存储组。
+- Linux 存储模板支持单盘和明确选择的双盘 RAID1 + LVM 重建。单盘方式保护已有 LVM / RAID；双盘方式重新核对完整成员范围，拒绝第三块未选盘、缺失成员、挂载盘及活动交换空间。
 
 ## 服务端平台
 
 | 平台 | 交付方式 | 当前验证范围 |
 | --- | --- | --- |
-| Rocky Linux 9（首要目标，包含用户的 9.8 环境） | 静态 Linux x86-64 二进制 + systemd | 9.8 同机服务、TLS 与管理接口已验证；UEFI 实机网启已到 Rocky 9.7 安装器，完整实机安装待验收 |
+| Rocky Linux 9（首要目标，包含用户的 9.8 环境） | 静态 Linux x86-64 二进制 + systemd | 9.8 同机服务、TLS 与管理接口已验证；已承载 CentOS 7.9、Rocky 8.10、Ubuntu 22.04.3 实装，具体边界见验收记录 |
 | Rocky Linux 8 / 10 | 同一 Linux 二进制 | CI 启动检查，不等于 systemd / PXE 实机验收 |
 | Debian 12 / 13 | 同一 Linux 二进制 + systemd | 同上 |
 | Ubuntu 24.04 / 26.04 | 同一 Linux 二进制 + systemd | 同上；其他 24–26 间的短周期版本未单独验证 |
 | Windows 10 / 11 x64 | Windows 二进制 + 可选计划任务 | Windows 单元测试；桌面系统与 iVentoy 共存需实机验收 |
 
-这里列的是**装机服务器的运行系统**，与[客户端安装版本和镜像要求](docs/deployment/linux-targets.md)分开管理。当前按该页的 18 个具体版本推进，先验证 CentOS 7.9；CentOS Linux 8.5 和 Stream 9 / 10 已纳入后续计划。Ubuntu 仅支持 Server / live-server，不含 Desktop 或短周期版本。
+这里列的是**装机服务器的运行系统**，与[客户端安装版本和镜像要求](docs/deployment/linux-targets.md)分开管理。规划版本与库存扩展版本的模板、隔离安装和物理验收状态分别见进度表。Ubuntu 无桌面装机优先选择 Server / live-server；Desktop 22.04.4 的 CLI 启动验收单独记录，Desktop 26.04 未发布自动入口。
 
 ## 本地启动
 
@@ -56,8 +67,13 @@ go build -o ventoy-center ./cmd/ventoy-center
 - [Rocky 9 与 fyhocsys 同机部署](docs/deployment/rocky9.md)
 - [外部 DHCP、iVentoy 和安装包配置](docs/deployment/pxe.md)
 - [同机准备 iVentoy 文件和权限配置](docs/deployment/iventoy-files.md)
+- [iVentoy 现场升级与回退记录](docs/deployment/iventoy-upgrade.md)
 - [Linux 安装版本、镜像和验收矩阵](docs/deployment/linux-targets.md)
+- [现场镜像清单与新增 ISO 校验记录](docs/deployment/image-catalog.md)
 - [CentOS 7.9 镜像、兼容处理与安装验证](docs/deployment/centos7.md)
+- [Rocky 8.10 实机验收与启动回归](docs/deployment/rocky8.md)
+- [Ubuntu 22.04.3 无人值守实机验收](docs/deployment/ubuntu22.md)
+- [当前进度、客户端矩阵与后续工作](docs/development/progress.md)
 - [Windows 与其他 Linux 服务端](docs/deployment/platforms.md)
 - [架构、任务状态与尚未完成的能力](docs/development/architecture.md)
 - [开发与验证](docs/development/testing.md)

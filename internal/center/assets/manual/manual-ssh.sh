@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C
+umask 077
+mode=${1:---check}; keep=${2:-0}
+state=/var/lib/ventoy-center/manual-init
+die() { echo "SSH: $*" >&2; exit 1; }
+. /etc/os-release
+case "$ID" in ubuntu|debian) family=apt; service=ssh;; *) family=rpm; service=sshd;; esac
+if [[ $mode == --apply ]]; then
+    if ! command -v sshd >/dev/null || ! command -v ssh >/dev/null || ! command -v sudo >/dev/null; then
+        [[ ${VC_MANUAL_OFFLINE:-0} == 0 ]] || die 'SSH/sudo packages missing in offline mode. Install from your OS media and rerun.'
+        if [[ $family == apt ]]; then
+            apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=20 update
+            DEBIAN_FRONTEND=noninteractive apt-get -y --no-upgrade --no-install-recommends install openssh-server openssh-client sudo
+        else
+            manager=yum; command -v dnf >/dev/null && manager=dnf
+            "$manager" -y --exclude='kernel*' install openssh-server openssh-clients sudo
+        fi
+    fi
+    [[ -e "$state/accounts-set" ]] || {
+        backup=$(mktemp -d "$state/accounts-backup.XXXXXXXX")
+        cp -p /etc/passwd /etc/shadow /etc/group /etc/gshadow "$backup/"
+        if ! getent passwd admin >/dev/null; then
+            [[ $keep == 0 ]] || die '--keep-passwords requires an existing admin account.'
+            useradd -m -s /bin/bash admin
+        fi
+        uid=$(id -u admin)
+        ((uid >= 1000 && uid != 65534)) || die 'Existing admin is a system account; retained.'
+        group=wheel; [[ $family != apt ]] || group=sudo
+        getent group "$group" >/dev/null || groupadd "$group"
+        usermod -a -G "$group" admin
+        printf 'admin ALL=(ALL:ALL) ALL\n' > "$backup/sudoers.new"
+        visudo -cf "$backup/sudoers.new"
+        [[ ! -L /etc/sudoers.d/90-ventoy-manual-admin ]] || die 'Unexpected sudoers symlink.'
+        [[ ! -f /etc/sudoers.d/90-ventoy-manual-admin ]] || cp -p /etc/sudoers.d/90-ventoy-manual-admin "$backup/"
+        install -m 0440 "$backup/sudoers.new" /etc/sudoers.d/90-ventoy-manual-admin
+        if command -v restorecon >/dev/null; then restorecon /etc/sudoers.d/90-ventoy-manual-admin; fi
+        visudo -c
+        if [[ $keep == 0 ]]; then
+            printf 'admin:ventoy\nroot:ventoy\n' | chpasswd
+        fi
+        touch "$state/accounts-set"
+    }
+    cfg=/etc/ssh/sshd_config
+    [[ -f $cfg && ! -L $cfg ]] || die 'sshd_config must be a regular file.'
+    mkdir -p /run/sshd; chmod 0755 /run/sshd
+    ssh-keygen -A
+    backup=$(mktemp -d "$state/ssh-backup.XXXXXXXX")
+    cp -p "$cfg" "$backup/sshd_config"
+    tmp=$(mktemp /etc/ssh/.ventoy-manual.XXXXXXXX)
+    trap 'rm -f "$tmp"' EXIT
+    {
+        printf '%s\n' '# BEGIN VENTOY MANUAL SSH' 'PermitRootLogin yes' 'PasswordAuthentication yes' '# END VENTOY MANUAL SSH'
+        sed '/^# BEGIN VENTOY MANUAL SSH$/,/^# END VENTOY MANUAL SSH$/d' "$cfg"
+    } > "$tmp"
+    chmod --reference="$cfg" "$tmp"; chown --reference="$cfg" "$tmp"
+    sshd -t -f "$tmp"
+    mv -f "$tmp" "$cfg"
+    command -v restorecon >/dev/null && restorecon "$cfg"
+    if [[ -d /etc/cloud/cloud.cfg.d ]]; then
+        [[ ! -f /etc/cloud/cloud.cfg.d/99-ventoy-root-ssh.cfg ]] || cp -p /etc/cloud/cloud.cfg.d/99-ventoy-root-ssh.cfg "$backup/"
+        printf 'disable_root: false\nssh_pwauth: true\n' > /etc/cloud/cloud.cfg.d/99-ventoy-root-ssh.cfg
+    fi
+    if ! sshd -t || ! systemctl enable "$service.service" || ! systemctl start "$service.service" || ! systemctl reload "$service.service"; then
+        cp -p "$backup/sshd_config" "$cfg"
+        command -v restorecon >/dev/null && restorecon "$cfg"
+        sshd -t && systemctl reload "$service.service" || true
+        die "SSH activation failed; original daemon config restored from $backup."
+    fi
+    port=$(sshd -T | awk '$1=="port" && !seen++ {print $2}')
+    [[ $port =~ ^[0-9]+$ ]] || die 'Cannot determine SSH port.'
+    if command -v firewall-cmd >/dev/null && firewall-cmd --state >/dev/null 2>&1; then
+        zones=$(firewall-cmd --get-active-zones | awk '/^[^ ]/ {print $1}')
+        [[ -n $zones ]] || zones=$(firewall-cmd --get-default-zone)
+        for zone in $zones; do
+            firewall-cmd --zone="$zone" --add-port="$port/tcp"
+            firewall-cmd --permanent --zone="$zone" --add-port="$port/tcp"
+        done
+    elif command -v ufw >/dev/null && ufw status | grep -qx 'Status: active'; then
+        ufw allow "$port/tcp"
+    fi
+elif [[ $mode != --check ]]; then exit 2; fi
+sshd -t
+systemctl is-active --quiet "$service.service"
+effective=$(sshd -T -C user=root,host=localhost,addr=127.0.0.1)
+grep -qx 'permitrootlogin yes' <<< "$effective" || die 'Effective root login policy is not yes.'
+grep -qx 'passwordauthentication yes' <<< "$effective" || die 'Effective password authentication is not yes.'
+port=$(awk '$1=="port" {print $2;exit}' <<< "$effective")
+for user in root admin; do
+    secret=$(getent shadow "$user" | cut -d: -f2)
+    case "$secret" in ''|'!'*|'*'*) die "$user password is unavailable or locked.";; esac
+done
+sudo -l -U admin >/dev/null
+if [[ $keep == 0 ]]; then
+    # Test actual password authentication; do not confuse sshd -T with a login.
+    # /run is mounted noexec by the installed security policy on some systems.
+    scratch=$(mktemp -d "$state/ssh-check.XXXXXXXX")
+    trap 'rm -rf -- "$scratch"' EXIT
+    printf '#!/bin/sh\nprintf "%%s\\n" ventoy\n' > "$scratch/askpass"
+    chmod 0700 "$scratch/askpass"
+    for key in /etc/ssh/ssh_host_*_key.pub; do
+        [[ -f $key ]] || continue
+        awk -v host="[127.0.0.1]:$port" '{print host " " $1 " " $2}' "$key" >> "$scratch/known_hosts"
+        awk '{print "127.0.0.1 " $1 " " $2}' "$key" >> "$scratch/known_hosts"
+    done
+    for user in root admin; do
+        # Some units reload with kill -HUP, which returns before sshd has
+        # re-executed and read its new configuration. Still require a real
+        # password login; allow that brief transition only during --apply.
+        attempts=1; [[ $mode != --apply ]] || attempts=3
+        result=''; verified=0
+        for ((attempt=1; attempt<=attempts; attempt++)); do
+            if result=$(DISPLAY=:0 SSH_ASKPASS="$scratch/askpass" SSH_ASKPASS_REQUIRE=force setsid ssh -F /dev/null -p "$port" \
+                -o ConnectTimeout=8 -o NumberOfPasswordPrompts=1 -o PubkeyAuthentication=no -o PreferredAuthentications=password \
+                -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$scratch/known_hosts" "$user@127.0.0.1" 'id -un' </dev/null 2>"$scratch/login-error"); then
+                if [[ $result == "$user" ]]; then verified=1; break; fi
+            fi
+            ((attempt == attempts)) || sleep 1
+        done
+        if ((verified == 0)); then
+            cat "$scratch/login-error" >&2
+            die "$user actual SSH password login failed."
+        fi
+        echo "SSH_PASSWORD_LOGIN_VERIFIED user=$user port=$port"
+    done
+else
+    echo "SSH_CONFIG_VERIFIED port=$port; retained passwords require a client-side login test."
+fi

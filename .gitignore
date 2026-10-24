@@ -1,4 +1,5 @@
 .tools/
+.cache/
 .research/
 .codex-remote-attachments/
 .local/
@@ -11,9 +12,13 @@ runtime/
 *.rpm
 *.deb
 *.lic
+/1.0.45/
+iventoy-*-pro.tar.gz
+iventoy-*-pro.zip
 *.key
 *.pem
 *.token
 *.fyhocsys.json
 *.log
 coverage.out
+__pycache__/

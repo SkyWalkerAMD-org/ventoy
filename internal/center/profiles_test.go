@@ -31,15 +31,38 @@ func TestProfileSelectionAndCompatibility(t *testing.T) {
 		}
 	}
 	for _, test := range []struct{ path, id string }{
+		{"AlmaLinux/AlmaLinux-8.10-x86_64-dvd.iso", "almalinux-8"},
+		{"AlmaLinux/AlmaLinux-9.5-x86_64-dvd.iso", "almalinux-9"},
+		{"RHEL/rhel-server-7.6-x86_64-dvd.iso", "rhel-7"},
+		{"RHEL/rhel-server-7.9-x86_64-dvd.iso", "rhel-7"},
+		{"RHEL/rhel-8.10-x86_64-dvd.iso", "rhel-8"},
+		{"RHEL/rhel-9.4-x86_64-dvd.iso", "rhel-9"},
 		{"Rocky/Rocky-10.2-x86_64-dvd1.iso", "rocky-10"},
 		{"CentOS/CentOS-7.9-x86_64-Everything-2009.iso", "centos-7.9"},
 		{"CentOS/CentOS-7-x86_64-DVD-2009.iso", "centos-7.9"},
 		{"CentOS/CentOS-7-x86_64-Everything-2009.iso", "centos-7.9"},
-		{"CentOS/CentOS-7-x86_64-DVD-1810.iso", ""},
+		{"CentOS/CentOS-7-x86_64-DVD-1810.iso", "centos-7.6"},
+		{"CentOS/CentOS-8-x86_64-1905-dvd1.iso", "centos-8.0"},
+		{"CentOS/CentOS-8.4.2105-x86_64-dvd1.iso", "centos-8.4"},
+		{"CentOS/CentOS-Stream-8-20240101.0-x86_64-dvd1.iso", "centos-stream-8"},
 		{"CentOS/CentOS-7.90-x86_64-DVD.iso", ""},
-		{"CentOS/CentOS-8.5.2111-x86_64-dvd1.iso", ""},
-		{"CentOS/CentOS-Stream-9-latest-x86_64-dvd1.iso", ""},
+		{"CentOS/CentOS-8.5.2111-x86_64-dvd1.iso", "centos-8.5"},
+		{"CentOS/CentOS-Stream-9-latest-x86_64-dvd1.iso", "centos-stream-9"},
+		{"CentOS/CentOS-Stream-10-latest-x86_64-dvd1.iso", "centos-stream-10"},
+		{"CentOS/CentOS-Stream-100-x86_64-dvd1.iso", ""},
+		{"CentOS/CentOS-8.50-x86_64-dvd1.iso", ""},
 		{"Ubuntu/ubuntu-20.04.6-live-server-amd64.iso", "ubuntu-20.04"},
+		{"Ubuntu/ubuntu-20.04.3-live-server-amd64.iso", "ubuntu-20.04"},
+		{"Ubuntu/ubuntu-24.04-live-server-amd64.iso", "ubuntu-24.04"},
+		{"Ubuntu/ubuntu-24.10-live-server-amd64.iso", "ubuntu-24.10"},
+		{"Ubuntu/ubuntu-25.04-live-server-amd64.iso", "ubuntu-25.04"},
+		{"Ubuntu/ubuntu-26.04-live-server-amd64.iso", "ubuntu-26.04"},
+		{"Ubuntu/ubuntu-22.04.4-desktop-amd64.iso", "ubuntu-22.04-desktop"},
+		{"Ubuntu/ubuntu-26.04-desktop-amd64.iso", "ubuntu-26.04-desktop"},
+		{"Debian/debian-10.11.0-amd64-DVD-1.iso", "debian-10"},
+		{"Debian/debian-11.4.0-amd64-DVD-1.iso", "debian-11"},
+		{"Debian/debian-12.5.0-amd64-DVD-1.iso", "debian-12"},
+		{"Debian/debian-13.4.0-amd64-DVD-1.iso", "debian-13"},
 		{"Debian/debian-13.1.0-amd64-netinst.iso", "debian-13"},
 		{"custom-linux.iso", ""}, {"rocky-100-x86_64.iso", ""},
 	} {
@@ -47,10 +70,30 @@ func TestProfileSelectionAndCompatibility(t *testing.T) {
 			t.Errorf("%s: got %s", test.path, got)
 		}
 	}
-	for _, test := range [][2]string{{"rocky-9", "Rocky-8.10-x86_64-dvd1.iso"}, {"ubuntu-24.04", "ubuntu-24.04-desktop-amd64.iso"}, {"debian-13", "debian-live-13-amd64.iso"}, {"rocky-10", "Rocky-10.2-aarch64-dvd1.iso"}} {
+	for _, test := range [][2]string{{"rocky-9", "Rocky-8.10-x86_64-dvd1.iso"}, {"ubuntu-24.04", "ubuntu-24.04-desktop-amd64.iso"}, {"debian-13", "debian-live-13-amd64.iso"}, {"rocky-10", "Rocky-10.2-aarch64-dvd1.iso"}, {"centos-7.9", "CentOS-8.5.2111-x86_64-dvd1.iso"}, {"centos-stream-9", "CentOS-Stream-10-latest-x86_64-dvd1.iso"}, {"centos-8.5", "CentOS-8.5.2111-x86_64-boot.iso"}, {"centos-stream-10", "CentOS-Stream-10-latest-aarch64-dvd1.iso"}} {
 		p, _ := findProfile(test[0])
 		if validateMediaProfile(p, test[1]) == nil {
 			t.Fatal("incompatible ISO accepted", test)
+		}
+	}
+}
+
+func TestDesktopAndArchivedMediaBoundaries(t *testing.T) {
+	for _, test := range []struct {
+		profile, iso string
+		valid        bool
+	}{
+		{"ubuntu-22.04-desktop", "ubuntu-22.04.4-desktop-amd64.iso", true},
+		{"ubuntu-26.04-desktop", "ubuntu-26.04-desktop-amd64.iso", true},
+		{"ubuntu-22.04-desktop", "ubuntu-22.04.4-live-server-amd64.iso", false},
+		{"ubuntu-22.04", "ubuntu-22.04.4-desktop-amd64.iso", false},
+		{"ubuntu-26.04", "ubuntu-26.04-desktop-amd64.iso", false},
+		{"debian-10", "debian-10.11.0-amd64-DVD-1.iso", true},
+		{"debian-10", "debian-10.11.0-amd64-netinst.iso", false},
+	} {
+		p, _ := findProfile(test.profile)
+		if err := validateMediaProfile(p, test.iso); (err == nil) != test.valid {
+			t.Errorf("%s / %s: %v", test.profile, test.iso, err)
 		}
 	}
 }
@@ -117,6 +160,28 @@ func TestInstallationOnlyAndDebianCA(t *testing.T) {
 	}
 }
 
+func TestDebianDVDUsesOnlyInstallationMedia(t *testing.T) {
+	s := fixture(t)
+	s.ca = []byte("fixture CA")
+	for _, id := range []string{"debian-11", "debian-12", "debian-13"} {
+		p, _ := findProfile(id)
+		for _, medium := range []string{"DVD-1", "netinst"} {
+			iso := "Debian/" + id + ".0-amd64-" + medium + ".iso"
+			want := medium == "DVD-1"
+			d := renderData{Target: p, OfflineMedia: debianDVD(p, iso)}
+			for _, name := range []string{"preseed.cfg", "pxe-preseed.cfg"} {
+				cfg, err := render(name, d)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if strings.Contains(cfg, "apt-setup/use_mirror boolean false") != want || strings.Contains(cfg, "apt-setup/services-select multiselect\n") != want {
+					t.Fatalf("%s %s mirror policy mismatch", iso, name)
+				}
+			}
+		}
+	}
+}
+
 func TestEveryProfileProducesInstallationBundle(t *testing.T) {
 	for _, p := range profiles {
 		for _, firmware := range []string{"uefi", "bios"} {
@@ -144,11 +209,32 @@ func TestEveryProfileProducesInstallationBundle(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				main := map[string]string{"kickstart": "kickstart.cfg", "autoinstall": "user-data", "preseed": "preseed.cfg", "unattend": "autounattend.xml"}[p.Installer]
+				main := map[string]string{"kickstart": "kickstart.cfg", "autoinstall": "user-data", "preseed": "preseed.cfg", "ubiquity": "preseed.cfg", "unattend": "autounattend.xml"}[p.Installer]
 				if files[main] == "" {
 					t.Fatal("missing installation entry", main)
 				}
-				if p.OS == "centos" && (!strings.Contains(files[main], "\n@^minimal\n@core\n") || strings.Contains(files[main], "@^minimal-environment")) {
+				if p.OS != "windows" {
+					policy := files[main]
+					if p.OS == "debian" || p.Installer == "ubiquity" {
+						policy, err = render("debian-late.sh", renderData{Target: p, PrivateJob: j})
+						if err != nil {
+							t.Fatal(err)
+						}
+					}
+					if !strings.Contains(policy, "systemctl set-default multi-user.target") {
+						t.Fatal("CLI installation must boot to the console target")
+					}
+				}
+				if (files[centosInjectionName] != "") != (p.ID == "centos-7.9" || p.ID == "centos-7.6") {
+					t.Fatal("CentOS 7 compatibility archive must be limited to that profile")
+				}
+				if (files[rockyInjectionName] != "") != (p.Installer == "kickstart" && p.ID != "centos-7.9" && p.ID != "centos-7.6") {
+					t.Fatal("Kickstart compatibility archive must cover the remaining Anaconda profiles")
+				}
+				if (files[ubuntuInjectionName] != "") != (p.OS == "ubuntu") {
+					t.Fatal("Ubuntu compatibility archive must be limited to 22.04")
+				}
+				if p.ID == "centos-7.9" && (!strings.Contains(files[main], "\n@^minimal\n@core\n") || strings.Contains(files[main], "@^minimal-environment")) {
 					t.Fatal("package environment does not exist in the CentOS 7.9 DVD comps metadata")
 				}
 				for name, content := range files {
@@ -177,12 +263,16 @@ func TestEveryProfileProducesInstallationBundle(t *testing.T) {
 						checkShell(t, name, content)
 					}
 					if p.OS == "debian" {
-						if !strings.Contains(files[main], "mirror/suite string "+p.Suite) || strings.Contains(files[main], "partman/confirm boolean true") {
+						if !strings.Contains(files[main], "mirror/suite string "+p.Suite) || strings.Contains(files[main], "\nd-i partman/confirm boolean true") {
 							t.Fatal("unconditional erase or wrong suite")
 						}
 						// Check the actual embedded hooks, including their nested first-boot script.
 						encoded := regexp.MustCompile(`printf '%s' '([A-Za-z0-9+/=]+)' \| base64 -d`).FindAllStringSubmatch(files[main], -1)
-						if len(encoded) != 2 {
+						if p.ID == "debian-10" || p.ID == "debian-11" {
+							if strings.Count(files[main], "printf '%b'") != 2 {
+								t.Fatal("missing legacy installer hooks")
+							}
+						} else if len(encoded) != 2 {
 							t.Fatal("missing preseed hooks")
 						}
 						for _, match := range encoded {
