@@ -9,6 +9,7 @@ import tempfile
 import yaml
 from pykickstart.parser import KickstartParser
 from pykickstart.version import makeVersion
+from kickstart_profiles import KICKSTART_VERSIONS
 from validate_raid_guard import check_raid_guard
 
 root = pathlib.Path(sys.argv[1]) / 'raid'
@@ -44,12 +45,12 @@ for folder in sorted(root.glob('*/*')):
             assert path.read_bytes()==unchanged
     elif (folder/'kickstart.cfg').exists():
         profile=folder.parent.name
-        major='7' if profile in ('centos-7.9','rhel-7') else '8' if profile in ('centos-8.5','rocky-8','almalinux-8','rhel-8') else '10' if profile.endswith('-10') else '9'
-        parser=KickstartParser(makeVersion('RHEL'+major),followIncludes=False)
+        version=KICKSTART_VERSIONS[profile]
+        parser=KickstartParser(makeVersion(version),followIncludes=False)
         parser.readKickstart(str(folder/'kickstart.cfg'))
         recipe=re.search(r'<<VC_RAID_KS\n(.*?)\nVC_RAID_KS',guard,re.S).group(1)
         recipe=recipe.replace('$disk2','sdb').replace('$disk','nvme0n1')
-        parser=KickstartParser(makeVersion('RHEL'+major),followIncludes=False)
+        parser=KickstartParser(makeVersion(version),followIncludes=False)
         parser.readKickstartFromString(recipe)
         assert 'sdc' not in recipe and 'raid /boot' in recipe and 'volgroup vcvg pv.01' in recipe
     else:

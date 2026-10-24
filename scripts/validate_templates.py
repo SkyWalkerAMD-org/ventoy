@@ -13,6 +13,7 @@ import hashlib
 
 from pykickstart.parser import KickstartParser
 from pykickstart.version import makeVersion
+from kickstart_profiles import KICKSTART_VERSIONS
 from validate_ubuntu_kernel import check_kernel_binding
 from validate_update_policy_guard import check_update_policy_guard
 import yaml
@@ -50,13 +51,7 @@ def decode_script(encoded):
 root = Path(sys.argv[1])
 check_update_policy_guard((root / "ubuntu-24.04" / "uefi" / "linux-update-policy.sh").read_text(encoding="utf-8"))
 count = 0
-kickstart_versions = {
-    **dict.fromkeys(("rhel-7", "centos-7.6", "centos-7.9"), "RHEL7"),
-    **dict.fromkeys(("rhel-8", "almalinux-8", "centos-8.0", "centos-8.4",
-                     "centos-8.5", "centos-stream-8", "rocky-8"), "RHEL8"),
-    **dict.fromkeys(("rhel-9", "almalinux-9", "centos-stream-9", "rocky-9"), "RHEL9"),
-    **dict.fromkeys(("centos-stream-10", "rocky-10"), "RHEL10"),
-}
+kickstart_versions = KICKSTART_VERSIONS
 for profile, version in kickstart_versions.items():
     for firmware in ("bios", "uefi"):
         path = root / profile / firmware / "kickstart.cfg"
