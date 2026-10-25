@@ -19,14 +19,14 @@
 
 ## 节点执行
 
-alpha.30 的预置流程在普通手动安装和 PXE 自动安装结束时，将新版文件放在 `/root/ventoy-linux-setup.run`，无需另行下载。安装器只复制并校验文件，不执行软件安装。已安装的旧系统不会被远程改写，可从管理端下载新版后替换一次。
+alpha.31 的预置流程在普通手动安装和 PXE 自动安装结束时，将新版文件放在 `/root/ventoy-linux-setup.run`，无需另行下载。安装器只复制并校验文件，不执行软件安装。已安装的旧系统不会被远程改写，可从管理端下载新版后替换一次。
 
 ```bash
-# 无参数：自动获取、选择、安装 / 升级适合本机的软件
-sudo bash /root/ventoy-linux-setup.run
+# 无参数：完整系统配置 + 匹配的软件安装 / 升级 + 自动检查
+sudo /root/ventoy-linux-setup.run
 
-# 同义命令；不重设账户、主机名、网络
-sudo bash ventoy-linux-setup.run --software
+# 仅安装软件；不重设账户、主机名、网络
+sudo ./ventoy-linux-setup.run --software
 
 # 查看当前候选包；不安装
 sudo bash ventoy-linux-setup.run --list-software
@@ -34,11 +34,11 @@ sudo bash ventoy-linux-setup.run --list-software
 # 检查上次成功软件组是否仍已安装到要求版本或更新版本
 sudo bash ventoy-linux-setup.run --check-software
 
-# 完整系统配置 + 默认软件组
-sudo bash ventoy-linux-setup.run --apply --hostname server01
+# 完整配置并指定主机名；--apply 保留兼容但无需填写
+sudo ./ventoy-linux-setup.run --hostname server01
 ```
 
-`--apply --offline` 不连接软件库。完整配置因驱动或网络需要重启时，软件安装请求会在原配置恢复服务完成检查后继续一次；正常后续重启不再从软件库更新。新增软件、升级软件都由用户主动再次运行 setup 触发。
+`--offline` 不连接软件库。完整配置因驱动或网络需要重启时，软件安装请求会在原配置恢复服务完成检查后继续一次；正常后续重启不再从软件库更新。新增软件、升级软件都由用户主动再次运行 setup 触发。
 
 ## 自动选择与升级
 

@@ -9,10 +9,67 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
+
+// Exercise the actual launcher and installer argument parsers together, stopping
+// before either can extract files or change the test host's configuration.
+func TestManualSetupDefaultAction(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("requires Linux /bin/bash")
+	}
+	launcher := strings.ReplaceAll(manualLauncher, "\r\n", "\n")
+	installerBytes, err := manualAssets.ReadFile("assets/manual/install.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	installer := strings.ReplaceAll(string(installerBytes), "\r\n", "\n")
+	cut := func(source string) string {
+		i := strings.Index(source, "\n[[ $EUID == 0")
+		if i < 0 {
+			t.Fatal("missing privilege boundary")
+		}
+		return source[:i] + "\n"
+	}
+	root := t.TempDir()
+	installPath := filepath.Join(root, "install.sh")
+	if err := os.WriteFile(installPath, []byte(cut(installer)+`printf '%s|%s|%s|%s\n' "$mode" "$name" "$offline" "$keep_passwords"`+"\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	launchPath := filepath.Join(root, "ventoy-linux-setup.run")
+	if err := os.WriteFile(launchPath, []byte(cut(launcher)+"exec /bin/bash \"$DISPATCH_INSTALLER\" \"$@\"\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name string
+		args []string
+		want string
+		ok   bool
+	}{
+		{"default-full", nil, "--apply||0|0", true},
+		{"legacy-full", []string{"--apply"}, "--apply||0|0", true},
+		{"default-options", []string{"--hostname", "node01", "--offline", "--keep-passwords"}, "--apply|node01|1|1", true},
+		{"software-only", []string{"--software"}, "--software||0|0", true},
+		{"check-only", []string{"--check"}, "--check||0|0", true},
+		{"list-only", []string{"--list-software"}, "--list-software||0|0", true},
+		{"check-software-only", []string{"--check-software"}, "--check-software||0|0", true},
+		{"unknown-option", []string{"--unknown"}, "", false},
+		{"missing-hostname", []string{"--hostname"}, "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd := exec.Command(launchPath, tc.args...)
+			cmd.Env = append(os.Environ(), "DISPATCH_INSTALLER="+installPath)
+			output, err := cmd.CombinedOutput()
+			if (err == nil) != tc.ok || (tc.ok && strings.TrimSpace(string(output)) != tc.want) {
+				t.Fatalf("dispatch: err=%v output=%q want=%q", err, output, tc.want)
+			}
+		})
+	}
+}
 
 func TestManualSetupDownload(t *testing.T) {
 	s := fixture(t)

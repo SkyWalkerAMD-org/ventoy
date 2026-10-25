@@ -5,7 +5,11 @@ export PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C SYSTEMD_PAGER=cat
 umask 077
 here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 state=/var/lib/ventoy-center/manual-init
-mode=${1:---help}; (($# == 0)) || shift
+mode=--apply
+case "${1:-}" in
+    --apply|--resume|--check|--software|--list-software|--check-software|--help|-h)
+        mode=$1; shift;;
+esac
 name=; offline=0; keep_passwords=0
 die() { echo "Manual setup: $*" >&2; exit 1; }
 while (($#)); do
@@ -21,7 +25,8 @@ case "$mode" in
     --apply|--resume|--check|--software|--list-software|--check-software) ;;
     --help|-h)
         cat <<'HELP'
-sudo bash install.sh --apply [--hostname NAME] [--offline] [--keep-passwords]
+sudo ./ventoy-linux-setup.run [--hostname NAME] [--offline] [--keep-passwords]
+sudo bash install.sh [--hostname NAME] [--offline] [--keep-passwords]
 sudo bash /opt/ventoy-manual/current/install.sh --check
 sudo bash ventoy-linux-setup.run --software
 sudo bash ventoy-linux-setup.run --list-software
@@ -30,7 +35,8 @@ sudo bash ventoy-linux-setup.run --check-software
 Installs E610 support when required; enables root/admin SSH password login;
 configures unconfigured wired NICs for DHCP and activates new profiles;
 locks the installed kernel, disables automatic updates, and verifies results.
---apply also installs the controller's matching default software group once.
+No arguments applies the full configuration and installs/verifies the matching
+default software group. --apply remains a compatible alias for this default.
 --software installs that group alone; no account/network/hostname changes.
 Missing dependencies may be installed from this system's configured repositories.
 Default initial credentials: admin / ventoy, root / ventoy.
@@ -108,7 +114,7 @@ if [[ $mode == --apply ]]; then
     flock -u 7
     exec bash "$dest/install.sh" "${args[@]}"
 fi
-[[ -f "$state/offline" && -f "$state/keep-passwords" ]] || die 'Run --apply first.'
+[[ -f "$state/offline" && -f "$state/keep-passwords" ]] || die 'Run setup without arguments (or with --apply) first.'
 offline=$(cat "$state/offline"); keep_passwords=$(cat "$state/keep-passwords")
 export VC_MANUAL_OFFLINE=$offline
 exec > >(tee -a /var/log/ventoy-manual-init.log) 2>&1
@@ -191,7 +197,7 @@ if ((pending)); then
     exit 3
 fi
 if [[ $mode == --resume && $offline == 0 && -f "$state/software-request" && $(cat "$state/software-request") == 1 ]]; then
-    # Only a user invocation of --apply creates this request. Normal subsequent
+    # Only a user invocation of full setup creates this request. Normal subsequent
     # boots never fetch newly published software or upgrade existing packages.
     software_action --software
     printf '0\n' > "$state/software-request"
