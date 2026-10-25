@@ -156,3 +156,59 @@ func TestSoftwareSymlinkEscape(t *testing.T) {
 	mustCode(t, request(s, "GET", "/software/v1/manifest?os=ubuntu&version=22.04&arch=amd64", s.softwareToken(), nil), 409)
 	mustCode(t, request(s, "GET", "/software/v1/package?path=ubuntu/22.04/amd64/default/secret.deb&sha256="+strings.Repeat("0", 64), s.softwareToken(), nil), 404)
 }
+
+func TestSoftwareArchivesAreSeparateFromPackages(t *testing.T) {
+	s := softwareFixture(t)
+	addSoftware(t, s, "ipmitool-1.8.19.tar.gz", "archive bytes")
+	addSoftware(t, s, "incomplete.tar.gz.part", "not yet published")
+	addSoftware(t, s, "other.gz", "not an archive")
+	addSoftware(t, s, "app_1_amd64.deb", "deb fixture")
+	for _, target := range []string{"os=ubuntu&version=24.04&arch=amd64", "os=rocky&version=8.10&arch=x86_64"} {
+		w := request(s, "GET", "/software/v1/manifest?"+target, s.softwareToken(), nil)
+		mustCode(t, w, 200)
+		var m struct {
+			Group    *SoftwareGroup `json:"group"`
+			Archives []SoftwareFile `json:"archives"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &m); err != nil {
+			t.Fatal(err)
+		}
+		if len(m.Archives) != 1 || m.Archives[0].Path != "ipmitool-1.8.19.tar.gz" {
+			t.Fatal(w.Body.String())
+		}
+		if strings.Contains(target, "ubuntu") {
+			if m.Group == nil || len(m.Group.Files) != 1 || !strings.HasSuffix(m.Group.Files[0].Path, ".deb") {
+				t.Fatal("archive was mixed into installable packages")
+			}
+		} else if m.Group != nil {
+			t.Fatal("archive-only target must not pretend to have installable packages")
+		}
+		file := m.Archives[0]
+		url := "/software/v1/package?path=" + file.Path + "&sha256=" + file.SHA256
+		mustCode(t, request(s, "GET", url, "", nil), 401)
+		download := request(s, "GET", url, s.softwareToken(), nil)
+		mustCode(t, download, 200)
+		if download.Body.String() != "archive bytes" {
+			t.Fatal("archive changed during transfer")
+		}
+		addSoftware(t, s, file.Path, "replacement")
+		mustCode(t, request(s, "GET", url, s.softwareToken(), nil), 409)
+		addSoftware(t, s, file.Path, "archive bytes")
+	}
+	overview := request(s, "GET", "/api/software", s.admin, nil)
+	mustCode(t, overview, 200)
+	if !strings.Contains(overview.Body.String(), `"archive_files":[{"path":"ipmitool-1.8.19.tar.gz"`) {
+		t.Fatal("archive missing from management view")
+	}
+	for _, path := range []string{"../secret.tar.gz", "other.gz", "nested/archive.tar.gz", "incomplete.tar.gz.part"} {
+		mustCode(t, request(s, "GET", "/software/v1/package?path="+path+"&sha256="+strings.Repeat("0", 64), s.softwareToken(), nil), 400)
+	}
+	outside := filepath.Join(t.TempDir(), "private.tar.gz")
+	if err := os.WriteFile(outside, []byte("private"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(s.config.SoftwareDir, "escape.tar.gz")); err == nil {
+		mustCode(t, request(s, "GET", "/software/v1/manifest?os=ubuntu&version=24.04&arch=amd64", s.softwareToken(), nil), 409)
+		mustCode(t, request(s, "GET", "/software/v1/package?path=escape.tar.gz&sha256="+strings.Repeat("0", 64), s.softwareToken(), nil), 404)
+	}
+}

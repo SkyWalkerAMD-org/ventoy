@@ -15,6 +15,7 @@ import re
 import shlex
 import shutil
 import ssl
+import stat
 import subprocess
 import sys
 import tempfile
@@ -29,10 +30,12 @@ except ImportError:
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 STATE = '/var/lib/ventoy-center/software'
+ARCHIVES = '/root/ventoy-tools'
 RPM_IDS = ('centos', 'rocky', 'almalinux', 'rhel', 'ol', 'scientific', 'anolis')
 HASH = re.compile(r'^[0-9a-f]{64}$')
 NAME = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9.+_-]*$')
 FILENAME = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9._+~-]{0,240}\.(deb|rpm)$')
+ARCHIVE_NAME = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9._+~-]{0,240}\.tar\.gz$')
 MAX_FILE = 4 * 1024**3
 MAX_TOTAL = 8 * 1024**3
 
@@ -137,6 +140,20 @@ class Client(object):
 def validate_manifest(manifest, wanted):
     if manifest.get('schema') != 1 or manifest.get('target') != wanted:
         raise RuntimeError('Software manifest target/schema mismatch')
+    archives = manifest.get('archives', [])
+    if not isinstance(archives, list) or len(archives) > 256:
+        raise RuntimeError('Invalid archive list')
+    seen, total = set(), 0
+    for item in archives:
+        path = item.get('path', '')
+        if (not ARCHIVE_NAME.match(path) or not path.endswith('.tar.gz') or '/' in path or path in seen or
+                not HASH.match(item.get('sha256', '')) or
+                not isinstance(item.get('size'), (int, type(MAX_FILE))) or not 0 < item['size'] <= MAX_FILE):
+            raise RuntimeError('Invalid archive in manifest')
+        seen.add(path)
+        total += item['size']
+    if total > MAX_TOTAL:
+        raise RuntimeError('Software files exceed 8 GiB')
     group = manifest.get('group')
     if group is None:
         return
@@ -151,9 +168,8 @@ def validate_manifest(manifest, wanted):
     if group.get('id') != prefix and not flat:
         raise RuntimeError('Invalid software group identifier')
     files = group.get('files', [])
-    if not isinstance(files, list) or not 0 < len(files) <= 256:
-        raise RuntimeError('Default group must contain 1..256 packages')
-    seen, total = set(), 0
+    if not isinstance(files, list) or not 0 < len(files) or len(files) + len(archives) > 256:
+        raise RuntimeError('Default group and archives must contain 1..256 files')
     ext = '.deb' if wanted['os'] in ('ubuntu', 'debian') else '.rpm'
     for item in files:
         path = item.get('path', '')
@@ -355,6 +371,10 @@ def transaction(packages, family, work, allow_dependencies=True):
 
 
 def save_report(data):
+    save_json(data, 'last-result.json')
+
+
+def save_json(data, name):
     if not os.path.isdir(STATE):
         os.makedirs(STATE, 0o700)
     fd, tmp = tempfile.mkstemp(prefix='.result-', dir=STATE)
@@ -364,10 +384,83 @@ def save_report(data):
             f.write('\n')
             f.flush()
             os.fsync(f.fileno())
-        os.rename(tmp, os.path.join(STATE, 'last-result.json'))
+        os.rename(tmp, os.path.join(STATE, name))
     finally:
         if os.path.exists(tmp):
             os.unlink(tmp)
+
+
+def archive_matches(item):
+    path = os.path.join(ARCHIVES, item['path'])
+    if not os.path.lexists(path):
+        return False
+    info = os.lstat(path)
+    if not stat.S_ISREG(info.st_mode) or info.st_size != item['size']:
+        return False
+    digest = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for block in iter(lambda: f.read(1024*1024), b''):
+            digest.update(block)
+    return digest.hexdigest() == item['sha256']
+
+
+def archive_directory():
+    if not os.path.lexists(ARCHIVES):
+        os.makedirs(ARCHIVES, 0o700)
+    info = os.lstat(ARCHIVES)
+    if (not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid() or info.st_mode & 0o022 or
+            os.path.realpath(ARCHIVES) != ARCHIVES):
+        raise RuntimeError('Archive destination must be a private, non-symlink directory: ' + ARCHIVES)
+
+
+def sync_archives(client, items):
+    if not items:
+        return
+    archive_directory()
+    record = os.path.join(STATE, 'archive-state.json')
+    records = {}
+    if os.path.exists(record):
+        with open(record) as f:
+            records = json.load(f)
+    for item in items:
+        name = item['path']
+        dest = os.path.join(ARCHIVES, name)
+        if archive_matches(item):
+            print('ARCHIVE_VERIFIED: %s (unchanged; no download)' % dest)
+        else:
+            previous = records.get(name)
+            if os.path.lexists(dest) and (not previous or not archive_matches(previous)):
+                raise RuntimeError('Archive destination was modified or is unmanaged; file preserved: ' + dest)
+            space = os.statvfs(ARCHIVES)
+            if space.f_bavail * space.f_frsize < item['size'] + 128*1024**2:
+                raise RuntimeError('Insufficient free space for archive: ' + name)
+            fd, temp = tempfile.mkstemp(prefix='.download-', dir=ARCHIVES)
+            os.close(fd)
+            try:
+                client.download(item, temp)
+                os.chmod(temp, 0o600)
+                with open(temp, 'rb') as f:
+                    os.fsync(f.fileno())
+                if os.path.lexists(dest) and (not previous or not archive_matches(previous)):
+                    raise RuntimeError('Archive destination changed during download; preserved: ' + dest)
+                os.rename(temp, dest)
+            finally:
+                if os.path.exists(temp):
+                    os.unlink(temp)
+            print('ARCHIVE_SAVED: %s (SHA-256 verified; not extracted or executed)' % dest)
+        records[name] = item
+        save_json(records, 'archive-state.json')
+
+
+def verify_archives(items):
+    if items:
+        # Checks never create or repair the destination.
+        if not os.path.isdir(ARCHIVES) or os.path.realpath(ARCHIVES) != ARCHIVES:
+            raise RuntimeError('Archive destination is missing or is a symlink')
+        for item in items:
+            if not archive_matches(item):
+                raise RuntimeError('Archive missing or changed: ' + item['path'])
+        print('ARCHIVES_VERIFIED: %s files in %s' % (len(items), ARCHIVES))
 
 
 def execute(mode):
@@ -379,6 +472,7 @@ def execute(mode):
         if report.get('status') != 'verified' or report.get('target') != wanted:
             raise RuntimeError('No successfully installed matching software group to verify')
         verify(report['packages'], family)
+        verify_archives(report.get('archives', []))
         print('VERIFIED: %s packages are at the requested version or newer.' % len(report['packages']))
         return
     with open(os.path.join(HERE, 'software-client.json')) as f:
@@ -389,38 +483,42 @@ def execute(mode):
     client = Client(config)
     manifest = client.manifest(wanted)
     group = manifest['group']
-    if group is None:
+    archives = manifest.get('archives', [])
+    if group is None and not archives:
         print('SKIPPED: no default software group for %(os)s %(version)s %(arch)s.' % wanted)
         return
-    print('Default software group: %s (%s packages)' % (group['id'], len(group['files'])))
-    for f in group['files']:
+    files = group['files'] if group else []
+    print('Default software group: %s (%s packages)' % (group['id'] if group else 'none', len(files)))
+    for f in files:
         print('  %s  %s bytes  sha256=%s' % (f['path'].split('/')[-1], f['size'], f['sha256']))
+    for f in archives:
+        print('  ARCHIVE (copy only): %s  %s bytes  sha256=%s' % (f['path'], f['size'], f['sha256']))
     if mode == '--list-software':
         return
     # Immutable manifest hashes plus native installed versions allow repeat runs
     # to avoid retransferring already verified payloads. A replaced/new file
     # invalidates the shortcut and is inspected afresh before any transaction.
     previous = os.path.join(STATE, 'last-result.json')
+    unchanged = None
     try:
         with open(previous) as f:
             last = json.load(f)
-        if last.get('status') == 'verified' and last.get('manifest') == manifest:
-            verify(last['packages'],family)
-            if os.path.isdir('/var/lib/ventoy-center/kernel-policy'):
-                run(['sh',os.path.join(HERE,'linux-update-policy.sh'),'--check'],echo=True)
-            print('VERIFIED: unchanged software group; installed versions checked; no package download or installation needed.')
-            return
+        if (last.get('status') == 'verified' and last.get('target') == wanted and
+                last.get('manifest', {}).get('group') == group):
+            verify(last['packages'], family)
+            unchanged = last['packages']
     except (IOError, ValueError, RuntimeError):
         pass
     work = tempfile.mkdtemp(prefix='ventoy-software-', dir='/var/tmp')
-    report = dict(status='failed', target=wanted, group=group['id'], manifest=manifest,
-                  time=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), packages=[])
+    report = dict(status='failed', target=wanted, group=group['id'] if group else None, manifest=manifest,
+                  time=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), packages=[], archives=archives)
     try:
-        stat = os.statvfs(work)
-        if stat.f_bavail * stat.f_frsize < sum(f['size'] for f in group['files']) + 128*1024**2:
+        sync_archives(client, archives)
+        space = os.statvfs(work)
+        if space.f_bavail * space.f_frsize < sum(f['size'] for f in files) + 128*1024**2:
             raise RuntimeError('Insufficient free space to stage software packages')
         candidates = []
-        for item in group['files']:
+        for item in (files if unchanged is None else []):
             dest = os.path.join(work, item['path'].split('/')[-1])
             print('Downloading and verifying: ' + item['path']);sys.stdout.flush()
             client.download(item, dest)
@@ -433,12 +531,15 @@ def execute(mode):
                     if not isinstance(floor, int) or int(tag.group(1)) < floor or int(wanted['version'].split('.')[0]) < int(tag.group(1)):
                         raise RuntimeError('RPM Enterprise Linux release does not match this host: ' + p['name'])
             candidates.append(p)
-        report['packages'] = select_latest(candidates, family, wanted['arch'])
-        changed = transaction(report['packages'], family, work)
+        report['packages'] = select_latest(candidates, family, wanted['arch']) if unchanged is None else unchanged
+        changed = transaction(report['packages'], family, work) if report['packages'] and unchanged is None else 0
         policy = os.path.join(HERE, 'linux-update-policy.sh')
         if os.path.isdir('/var/lib/ventoy-center/kernel-policy'):
             run(['sh', policy, '--check'], echo=True)
+        verify_archives(archives)
         report['status'], report['changed'] = 'verified', changed
+        if unchanged is not None:
+            print('VERIFIED: unchanged software group; installed versions checked; no package download or installation needed.')
         print('VERIFIED: %s packages installed; %s changed; kernel package set preserved.' % (len(report['packages']), changed))
     except Exception as e:
         report['error'] = str(e)

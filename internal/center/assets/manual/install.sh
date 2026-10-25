@@ -37,6 +37,8 @@ configures unconfigured wired NICs for DHCP and activates new profiles;
 locks the installed kernel, disables automatic updates, and verifies results.
 No arguments applies the full configuration and installs/verifies the matching
 default software group. --apply remains a compatible alias for this default.
+Root-level tar.gz files from the software library are copied and verified in
+/root/ventoy-tools without extraction or execution.
 --software installs that group alone; no account/network/hostname changes.
 Missing dependencies may be installed from this system's configured repositories.
 Default initial credentials: admin / ventoy, root / ventoy.
@@ -191,16 +193,23 @@ case "$rc" in 0) ;; 3) pending=1;; *) die "Network verification failed (exit $rc
 rc=0; bash "$here/e610-driver.sh" --check "$here/e610" || rc=$?
 case "$rc" in 0) ;; 3) pending=1;; *) die "E610 verification failed (exit $rc).";; esac
 [[ $(systemctl get-default) == multi-user.target ]] || die 'CLI boot target verification failed.'
-if ((pending)); then
-    echo 'PENDING: settings saved; driver reboot, firmware enrollment, or DHCP lease is still required.'
-    printf 'pending %s\n' "$(date -Is)" > "$state/status"
-    exit 3
-fi
 if [[ $mode == --resume && $offline == 0 && -f "$state/software-request" && $(cat "$state/software-request") == 1 ]]; then
     # Only a user invocation of full setup creates this request. Normal subsequent
     # boots never fetch newly published software or upgrade existing packages.
+    # Another interface may reach the software server while a secondary NIC
+    # awaits DHCP or a driver awaits reboot. Keep pending checks independent
+    # of the requested software transaction. Failures retain the retry request.
+    if ((pending)); then
+        echo 'SYSTEM_PENDING: continuing requested software installation using available networking.'
+    fi
     software_action --software
     printf '0\n' > "$state/software-request"
+fi
+if ((pending)); then
+    echo 'PENDING: settings saved; driver reboot, firmware enrollment, or DHCP lease is still required.'
+    echo 'Review the DHCP/E610 messages above. Requested software results are reported separately.'
+    printf 'pending %s\n' "$(date -Is)" > "$state/status"
+    exit 3
 fi
 printf 'verified boot=%s time=%s\n' "$(cat /proc/sys/kernel/random/boot_id)" "$(date -Is)" > "$state/status"
 echo 'VERIFIED: SSH, hostname, networking, kernel lock, automatic-update disablement, and E610 status.'
