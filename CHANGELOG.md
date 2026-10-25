@@ -1,5 +1,13 @@
 # 开发记录
 
+## 0.3.0-alpha.33 — 2026-10-25
+
+- Linux 自动安装按实际磁盘容量分档：EFI 1 GiB、boot 2 GiB 固定；480/512 GB 档的 tmp/swap/var/root 为 5/32/64/128 GiB，120/128 GB 与 240/256 GB 分别缩至四分之一和一半，960 GB 及以上按档位倍增，home 使用余量。
+- 覆盖 Kickstart、Subiquity、Debian Installer 和 Ubiquity；双盘 RAID1 + LVM 以较小成员盘计算，保留镜像及双盘引导结构。容量不足在领取安装授权前停止；普通手动分区及现有系统不被重分区。
+- 默认普通管理员改为 `user`，现场策略统一 user/root 初始密码 `ventoy`，支持系统控制台和 SSH 的 root 直接登录；BMC 网页账户独立。
+- 新版预置 setup 补齐 user、sudo 和 root 登录配置，兼容旧版 admin 完成标记，保留其他账户及文件。
+- 增加各容量档位、不同容量 RAID1、原生分区配方和 user/root 密码策略的回归验证。
+
 ## 0.3.0-alpha.32 — 2026-10-25
 
 - tools 根目录的 `tar.gz` 文件随 setup 原样传到 `/root/ventoy-tools/`，校验 SHA-256，不解压执行；未变化文件免重复下载，同名已托管文件支持替换，保留用户修改的文件。

@@ -1,5 +1,28 @@
 # Ventoy Center 当前进度
 
+## alpha.33 容量分区、user/root 登录与软件升级（2026-10-25）
+
+Linux 自动安装改用[统一容量档位](../deployment/pxe-menu.md#默认分区容量alpha33)：EFI 1 GiB、boot 2 GiB 固定，480/512 GB 档的 tmp/swap/var/root 为 5/32/64/128 GiB，home 使用余量。更小容量按半档、四分之一档，大容量继续倍增；RAID1 以较小成员盘计算。单盘使用 GPT 直接分区，双盘保留 RAID1 boot、RAID1 数据及 LVM。容量不足在领取安装授权前停止。
+
+以下 UEFI 隔离完整安装均使用当前成品 ISO 的内核/initrd 和实际生成的 PXE 客户端；双盘按 `r → 1 2 → yes` 操作。安装后核对实际块设备容量、所有挂载点、swap、预置 setup 摘要、内核/更新策略、CLI、后台 installed，以及两次硬盘启动。每项均实际验证 `root / ventoy` 和 `user / ventoy` 的 SSH 密码登录、user sudo、root 系统控制台密码登录；不是仅检查配置文件。
+
+| 系统 | 测试磁盘标称容量 | 布局 | 安装及正常重启 |
+| --- | --- | --- | --- |
+| Ubuntu Server 24.04.3 | 128 GB | 单盘，四分之一档 | 通过 |
+| CentOS 7.9 | 256 GB | 单盘，半档 | 通过 |
+| Debian 13.4 | 1.92 TB | 单盘，四倍档 | 通过 |
+| Ubuntu Server 22.04.3 | 480 + 512 GB | RAID1 + LVM，基准档 | 通过 |
+| Rocky 8.10 | 960 GB + 1.024 TB | RAID1 + LVM，两倍档 | 通过 |
+| Debian 12.15 | 128 + 256 GB | RAID1 + LVM，四分之一档 | 通过 |
+
+本轮检查 660 个容量/模板/固件组合及档位边界、不同容量成员、错误配置拒绝、user/root 密码策略和旧 admin 标记迁移。完整安装是上述六个隔离代表版本；未增加物理 PXE、E610 实卡或拔盘故障切换验收。Debian 分区使用原生十进制 MB 配方，实际对齐大小可相差数 MiB。
+
+物理 `.235` 保留 Ubuntu 24.04.3 的现有磁盘布局，更新预置 setup 后直接执行 `./ventoy-linux-setup.run`。旧 admin 及其文件保留，新增 user；外部 user SSH 和本机 root/user 密码认证均通过。工具从中心目录自动选择 DEB，将 `fyhocsys-node 0.8.2-1` 升级为 `0.8.3-1`，其他两项业务软件保留版本；`ipmitool-IPMITOOL_1_8_19.tar.gz` 只传输、校验，不解压执行。再次执行没有重复下载或安装未变化的软件，SSH、主机名、DHCP、内核锁定和自动更新禁用检查全部通过。内核仍为 `6.8.0-71-generic`，启动 ID 与 fstab 摘要均保持不变。
+
+证据保存在服务器 `e610-pxe-media-20261023/storage33-20261025/`：`final-tests.log`、`qa/*/acceptance.json`、`qa/*/console-login.txt`、`node-final-acceptance.json`。BMC 网页凭据与系统 root 账户独立；普通手动安装先使用安装器设定的账户，进入系统后执行预置 setup 才应用统一账户策略。
+
+现场已发布 alpha.33，iVentoy 保持 1.0.47 Pro。发布前确认没有活动任务或网络镜像连接，备份后更新全部 52 个 PXE 自动入口和 54 个普通 Linux 入口；各入口预置包与当前下载一致。统一 setup SHA-256 为 `895ca3556ca1e3497d66e21774b32455e97b576591de15c6cd9c10b5fe5bbc09`。ISO 内容、路径、其他绑定及 tools 软件包保持一致，发布核验为 `deployment.json`，回退备份为 `production-backup-20261025-211637/`。源码与验证见 [PR #7](https://github.com/SkyWalkerAMD-org/ventoy/pull/7)。
+
 ## alpha.28 CentOS 7.9 物理 PXE 网络修复（2026-10-25）
 
 在 `.235` 复现用户的 `r → 1 2 → yes` 失败：Anaconda 读取第二条 Kickstart 网络指令后，创建并激活新连接，先断开正在使用的 PXE 网卡 `eno2`。IPv4 丢失后 iSCSI 安装介质读取超时，随后 `nm_get_all_settings` 和 `NetworkManager.GetDevices` 报 `GLib.Error: Timeout was reached (24)`。这次错误发生在原生分区安装前，原因不是 RAID 成员校验。

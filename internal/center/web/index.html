@@ -41,7 +41,7 @@
       <section id="images" class="page" hidden>
         <div class="page-heading"><div><div class="eyebrow">IMAGE LIBRARY</div><h1>镜像管理</h1><p>按目录管理服务器上的 ISO，选择镜像后创建安装任务。</p></div><a id="iventoy-link" class="button" target="_blank" rel="noopener noreferrer" hidden>打开 iVentoy ↗</a></div>
         <label class="search-label">查找镜像<input id="image-search" type="search" placeholder="文件名、目录或版本"></label>
-        <div class="note"><span>↳</span><div><p>已绑定预置脚本的普通 Linux ISO，手动安装后会在新系统中放好完整配置包。进入硬盘系统后执行下面的命令，配置并检查 SSH、主机名、DHCP、内核锁定、禁用自动更新和 E610 驱动，同时安装匹配的中心软件。</p><p><code>sudo /root/ventoy-linux-setup.run</code></p><p>预置文件不会自动改动系统；执行前使用安装时创建的账户。执行后默认账户：admin / ventoy、root / ventoy。保留原有用户和静态网络；不填写主机名时沿用合法的现有名称。如需驱动重启，重启后自动继续检查。</p><button id="download-linux-manual">为已有系统下载完整配置包</button><button id="download-linux-policy">仅下载内核与更新策略脚本</button></div></div>
+        <div class="note"><span>↳</span><div><p>已绑定预置脚本的普通 Linux ISO，手动安装后会在新系统中放好完整配置包。进入硬盘系统后执行下面的命令，配置并检查 SSH、主机名、DHCP、内核锁定、禁用自动更新和 E610 驱动，同时安装匹配的中心软件。</p><p><code>sudo /root/ventoy-linux-setup.run</code></p><p>预置文件不会自动改动系统；执行前使用安装时创建的账户。执行后默认账户：user / ventoy、root / ventoy。保留原有用户和静态网络；不填写主机名时沿用合法的现有名称。如需驱动重启，重启后自动继续检查。</p><button id="download-linux-manual">为已有系统下载完整配置包</button><button id="download-linux-policy">仅下载内核与更新策略脚本</button></div></div>
         <div class="media-browser panel"><div class="media-list"><div class="section-heading"><h2>镜像文件</h2><span id="image-count" class="muted"></span></div><div id="image-tree"></div></div><div id="image-detail" class="media-detail"></div></div>
         <div class="note"><span>↳</span><p>将镜像放入 iso_dir 的 CentOS、Rocky、Ubuntu、Debian 等目录后刷新。DHCP、TFTP 和 MAC 启动过滤规则在 iVentoy 中配置。</p></div>
       </section>
@@ -78,7 +78,7 @@
     <label class="span-2">ISO 镜像<select name="iso" required></select></label>
     <p id="profile-hint" class="span-2"></p>
     <p class="span-2" data-linux>默认锁定内核并关闭自动更新。Ubuntu 在安装阶段固定镜像内核；Debian 首次从所选安装源取得内核后锁定。</p>
-    <label>本地管理员用户名<input name="username" value="admin" required></label>
+    <label>本地管理员用户名<input name="username" value="user" required></label>
     <label data-windows hidden>Windows 镜像索引<input name="windows_image" type="number" min="1" max="100" value="1"></label>
     <label data-windows hidden>Windows 镜像语言<select name="locale"><option value="zh-CN">简体中文 (zh-CN)</option><option value="en-US">English (en-US)</option></select></label>
     <label class="span-2" data-linux>Linux 密码哈希<input name="password_hash" type="password" autocomplete="new-password" placeholder="使用 openssl passwd -6 生成"></label>
@@ -98,7 +98,7 @@
   <div class="form-grid">
     <label class="span-2">菜单名称（含版本）<input name="label" required maxlength="100" placeholder="Ubuntu Server 22.04.3 自动安装"></label>
     <label>系统模板<select name="profile" required></select></label><label>原始 ISO<select name="iso" required></select></label>
-    <label>本地管理员用户名<input name="username" value="admin" required></label>
+    <label>本地管理员用户名<input name="username" value="user" required></label>
     <label>管理员密码哈希<input name="password_hash" type="password" autocomplete="new-password" required placeholder="用 openssl passwd -6 生成"></label>
     <p class="span-2" data-password-policy hidden></p>
     <label class="span-2">SSH 公钥（可选）<input name="ssh_key" placeholder="ssh-ed25519 …"></label>

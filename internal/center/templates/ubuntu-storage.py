@@ -6,6 +6,7 @@ import tempfile
 
 import yaml
 
+{{.UbuntuSizes}}
 
 def bind_install_disk(config_path, disk):
     if not re.fullmatch(r"[a-zA-Z0-9_-]+", disk):
@@ -25,12 +26,9 @@ def bind_install_disk(config_path, disk):
     layout = storage["layout"]
     if layout != {"name": "direct", "match": {"path": "/dev/ventoy-center-unverified"}}:
         raise ValueError("Unexpected storage layout; refusing to select a disk")
-    layout["match"] = {"path": "/dev/" + disk}
-{{if or (eq .Target.ID "ubuntu-22.04") (eq .Target.ID "ubuntu-24.04")}}
-    # Subiquity 23.08.1 ignores storage.grub when using a guided layout.
-    # Use the same explicit actions on 22.04 and 24.04 for this verified disk.
-    # This passes the EFI policy to Curtin and only changes YAML; the one-use
-    # claim still precedes writes.
+    sizes = storage_sizes()
+    # Explicit actions preserve the same layout on every Subiquity version.
+    # This only rewrites YAML; the one-use claim still precedes disk writes.
     uefi = {{if eq .Machine.Firmware "uefi"}}True{{else}}False{{end}}
     actions = [
         {"id": "vc-disk", "type": "disk", "path": "/dev/" + disk,
@@ -49,16 +47,25 @@ def bind_install_disk(config_path, disk):
              "path": "/boot/efi"},
         ])
     actions.extend([
-        {"id": "vc-root", "type": "partition", "device": "vc-disk",
-         "number": 2, "size": -1, "wipe": "superblock", "preserve": False},
-        {"id": "vc-root-format", "type": "format", "volume": "vc-root",
+        {"id": "vc-linux-boot", "type": "partition", "device": "vc-disk",
+         "number": 2, "size": 2147483648, "wipe": "superblock", "preserve": False},
+        {"id": "vc-linux-boot-format", "type": "format", "volume": "vc-linux-boot",
          "fstype": "ext4", "preserve": False},
-        {"id": "vc-root-mount", "type": "mount", "device": "vc-root-format",
-         "path": "/"},
+        {"id": "vc-linux-boot-mount", "type": "mount", "device": "vc-linux-boot-format",
+         "path": "/boot"},
     ])
+    for number, (name, mib) in enumerate(sizes, 3):
+        volume = "vc-" + name
+        actions.extend([
+            {"id": volume, "type": "partition", "device": "vc-disk", "number": number,
+             "size": -1 if mib is None else mib * 1048576, "wipe": "superblock", "preserve": False},
+            {"id": volume + "-format", "type": "format", "volume": volume,
+             "fstype": "swap" if name == "swap" else "ext4", "preserve": False},
+            {"id": volume + "-mount", "type": "mount", "device": volume + "-format",
+             "path": "none" if name == "swap" else "/" if name == "root" else "/" + name},
+        ])
     storage.pop("layout")
     storage["config"] = actions
-{{end}}
 
     # Subiquity re-reads this file after early-commands. Preserve other settings
     # and replace atomically, so a failed rewrite cannot select an arbitrary disk.

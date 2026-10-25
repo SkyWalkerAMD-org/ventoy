@@ -1,5 +1,6 @@
 """Validate native RAID plans without invoking an installer or touching disks."""
 import copy
+import os
 import io
 import pathlib
 import re
@@ -7,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import yaml
+from unittest.mock import patch
 from pykickstart.parser import KickstartParser
 from pykickstart.version import makeVersion
 from kickstart_profiles import KICKSTART_VERSIONS
@@ -32,7 +34,8 @@ for folder in sorted(root.glob('*/*')):
         with tempfile.TemporaryDirectory() as directory:
             path=pathlib.Path(directory)/'config.yaml'
             path.write_text(yaml.safe_dump(original))
-            namespace['bind_install_disks'](str(path),'nvme0n1','sdb')
+            with patch.dict(os.environ, VC_STORAGE_SIZES_MIB='5120 32768 65536 131072'):
+                namespace['bind_install_disks'](str(path),'nvme0n1','sdb')
             result=yaml.safe_load(path.read_text())['autoinstall']['storage']['config']
             assert [x['path'] for x in result if x['type']=='disk']==['/dev/nvme0n1','/dev/sdb']
             assert len([x for x in result if x['type']=='raid' and x['raidlevel']==1])==2
@@ -50,6 +53,8 @@ for folder in sorted(root.glob('*/*')):
         parser.readKickstart(str(folder/'kickstart.cfg'))
         recipe=re.search(r'<<VC_RAID_KS\n(.*?)\nVC_RAID_KS',guard,re.S).group(1)
         recipe=recipe.replace('$disk2','sdb').replace('$disk','nvme0n1')
+        for name,size in zip(('tmp','swap','var','root'),(5120,32768,65536,131072)):
+            recipe=recipe.replace('$vc_'+name+'_mib',str(size))
         parser=KickstartParser(makeVersion(version),followIncludes=False)
         parser.readKickstartFromString(recipe)
         assert 'sdc' not in recipe and 'raid /boot' in recipe and 'volgroup vcvg pv.01' in recipe

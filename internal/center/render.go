@@ -33,6 +33,8 @@ type renderData struct {
 	DebianLate      string
 	UbiquityLate    string
 	UbuntuStorage   string
+	UbuntuSizes     string
+	StorageSizing   string
 	StorageGuard    string
 	StorageRecipe   string
 	RAIDSetup       string
@@ -148,6 +150,20 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 		}
 		files["injection/ventoy-center/ca.crt"] = d.CA
 	} else {
+		d.StorageSizing, err = render("storage-sizing.sh", d)
+		if err != nil {
+			return nil, err
+		}
+		if j.Request.StoragePlan == nil && p.Installer != "autoinstall" {
+			name := "single-kickstart.sh"
+			if p.Installer == "preseed" || p.Installer == "ubiquity" {
+				name = "single-debian.sh"
+			}
+			d.StorageRecipe, err = render(name, d)
+			if err != nil {
+				return nil, err
+			}
+		}
 		d.FailureShell, err = render("installer-failure.sh", d)
 		if err != nil {
 			return nil, err
@@ -173,6 +189,10 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 		}
 		guardName := "guard.sh"
 		if p.Installer == "autoinstall" {
+			d.UbuntuSizes, err = render("ubuntu-storage-sizes.py", d)
+			if err != nil {
+				return nil, err
+			}
 			d.InstallFailure, err = render("ubuntu-install-failed.py", d)
 			if err != nil {
 				return nil, err
@@ -244,11 +264,7 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 		if j.PXEEntryID != "" {
 			files["preinstall.sh"] = d.Guard
 			if p.Installer == "kickstart" {
-				if d.StorageRecipe != "" {
-					files["preinstall.sh"] += "\n" + d.StorageRecipe
-				} else {
-					files["preinstall.sh"] += "\nprintf 'ignoredisk --only-use=%s\\nclearpart --all --initlabel --drives=%s\\nbootloader --boot-drive=%s\\n' \"$disk\" \"$disk\" \"$disk\" > /tmp/ventoy-center-partition.ks\n"
-				}
+				files["preinstall.sh"] += "\n" + d.StorageRecipe
 			}
 		}
 		if d.InjectionName != "" {

@@ -32,6 +32,7 @@ jobs:
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_templates.py "$RUNNER_TEMP/ventoy-template-fixtures"
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_pxe.py "$RUNNER_TEMP/ventoy-template-fixtures"
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_raid.py "$RUNNER_TEMP/ventoy-template-fixtures"
+          "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_storage_layouts.py "$RUNNER_TEMP/ventoy-template-fixtures"
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_manual_setup.py
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_software.py
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_ubiquity_resolver.py

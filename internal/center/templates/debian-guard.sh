@@ -60,6 +60,7 @@ done
 {{end}}{{if eq .Machine.Firmware "uefi"}}[ -d /sys/firmware/efi ] || { echo 'UEFI boot required' >&2; exit 1; }
 {{else}}[ ! -d /sys/firmware/efi ] || { echo 'Legacy BIOS boot required' >&2; exit 1; }
 {{end}}
+{{.StorageSizing}}
 # BusyBox wget is not sufficient: require the signed installer package with TLS.
 anna-install wget-udeb
 wget --version | grep -q 'GNU Wget'

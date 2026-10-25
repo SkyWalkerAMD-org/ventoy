@@ -12,7 +12,7 @@ has been applied by the preload hook. After booting the installed system, run:
 Optionally set a hostname: sudo /root/ventoy-linux-setup.run --hostname server01
 
 Replace server01 with your desired hostname, or omit --hostname to keep the
-installation hostname. Default accounts after setup: admin / ventoy and
+installation hostname. Default accounts after setup: user / ventoy and
 root / ventoy. Use --keep-passwords to preserve existing account passwords.
 
 The package configures and checks SSH, hostname, DHCP on unconfigured wired

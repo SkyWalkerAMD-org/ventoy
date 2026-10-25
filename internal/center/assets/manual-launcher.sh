@@ -5,7 +5,7 @@ umask 077
 if (($# == 0)); then set -- --apply; fi
 if [[ ${1:---help} == --help || ${1:-} == -h ]]; then
     echo 'Usage: sudo ./ventoy-linux-setup.run [--hostname NAME] [--offline] [--keep-passwords]'
-    echo 'Run after installing and booting Linux. Default credentials: admin / ventoy, root / ventoy.'
+    echo 'Run after installing and booting Linux. Default credentials: user / ventoy, root / ventoy.'
     echo 'No arguments applies and verifies SSH, hostname, DHCP, kernel locking, disabled automatic updates, and matching software.'
     echo '--apply remains a compatible alias; --offline skips software downloads.'
     echo 'Software only: sudo ./ventoy-linux-setup.run --software'

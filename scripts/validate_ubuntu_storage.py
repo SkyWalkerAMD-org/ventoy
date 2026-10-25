@@ -18,7 +18,9 @@ def check_storage_binding(config):
     assert source.end() < early.index('--data \'{"state":"installing"}\'')
     namespace = {"__name__": "storage_fixture"}
     exec(compile(source[1], "ubuntu-storage.py", "exec"), namespace)
-    bind = namespace["bind_install_disk"]
+    def bind(path, disk):
+        with patch.dict(os.environ, VC_STORAGE_SIZES_MIB="5120 32768 65536 131072"):
+            return namespace["bind_install_disk"](path, disk)
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / "autoinstall.yaml"
 
@@ -47,7 +49,12 @@ def check_storage_binding(config):
                     assert len(disks) == 1 and disks[0]["path"] == "/dev/" + disk
                     assert disks[0]["ptable"] == "gpt"
                     assert ids["vc-root"]["device"] == disks[0]["id"]
-                    assert ids["vc-root"]["size"] == -1
+                    assert ids["vc-root"]["size"] == 128 * 1024**3
+                    assert ids["vc-home"]["size"] == -1
+                    assert ids["vc-linux-boot"]["size"] == 2 * 1024**3
+                    assert ids["vc-tmp"]["size"] == 5 * 1024**3
+                    assert ids["vc-swap"]["size"] == 32 * 1024**3
+                    assert ids["vc-var"]["size"] == 64 * 1024**3
                     assert ids["vc-root-format"]["fstype"] == "ext4"
                     assert ids["vc-root-mount"]["path"] == "/"
                     uefi = "UEFI boot required" in early
