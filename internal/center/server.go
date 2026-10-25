@@ -28,11 +28,13 @@ import (
 var webFiles embed.FS
 
 type Server struct {
-	config        Config
-	store         *Store
-	admin         string
-	ca            []byte
-	preparationMu sync.Mutex
+	config         Config
+	store          *Store
+	admin          string
+	ca             []byte
+	preparationMu  sync.Mutex
+	manualBundleMu sync.Mutex
+	manualBundle   []byte
 }
 type Media struct {
 	Path             string `json:"path"`

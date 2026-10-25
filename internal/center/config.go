@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-const Version = "0.3.0-alpha.29"
+const Version = "0.3.0-alpha.30"
 
 type Config struct {
 	Listen                   string         `json:"listen"`
@@ -24,6 +24,7 @@ type Config struct {
 	PackageDir               string         `json:"package_dir"`
 	SoftwareDir              string         `json:"software_dir,omitempty"`
 	SoftwareRPMMinEL         map[string]int `json:"software_rpm_min_el,omitempty"`
+	LinuxSetupPreload        bool           `json:"linux_setup_preload,omitempty"`
 	AdminTokenFile           string         `json:"admin_token_file"`
 	TLSCert                  string         `json:"tls_cert_file"`
 	TLSKey                   string         `json:"tls_key_file"`

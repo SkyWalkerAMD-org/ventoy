@@ -1,6 +1,10 @@
 # 普通 ISO 手动安装后的完整配置
 
-alpha.29 新增[安装后软件分发](node-software.md)：新版 setup 无参数运行时从中心自动获取适合本机的软件，`--apply` 完整配置也包含此步骤。旧 ISO 内置文件需替换为管理端下载的新版一次；之后软件更新不需要更换 setup。
+alpha.30 将包含[安装后软件分发](node-software.md)的新 setup 统一预置到普通手动安装和 PXE 自动安装结果。无参数运行 `/root/ventoy-linux-setup.run` 从中心获取适合本机的软件，`--apply` 执行完整配置。后续中心替换 RPM / DEB 不需要更换 setup。
+
+中心配置启用 `"linux_setup_preload": true` 后，生成的 Linux 专属任务与 PXE 菜单注入包包含当前 setup，安装收尾必须完成复制和 SHA-256 校验。普通手动入口绑定 `/api/linux-manual-setup?format=injection` 生成的当前注入包。升级中心后应重新生成并发布既有入口的注入包；已有准备文件不会在活动安装期间自动改写。若已校验的 E610 完整离线包缺失，生成失败，不会悄悄省略 setup。
+
+此更新通过 iVentoy 注入覆盖介质中的旧托管预置，不重建 ISO，也不改变内置 E610 驱动。脱离该 iVentoy 直接使用旧 ISO 时，仍是原来内置的版本。此前已安装的节点不自动替换文件，可使用管理端下载入口更新一次。
 
 从 alpha.24 起，普通 Linux ISO 可以绑定 **手动安装配置包预置注入文件**。安装器保留交互步骤，在安装收尾时将完整配置包复制到新系统的 `/root/ventoy-linux-setup.run`。进入硬盘系统后，由用户手动执行：
 

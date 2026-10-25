@@ -6,12 +6,13 @@ import (
 	"compress/gzip"
 	"crypto/sha256"
 	"embed"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
 )
 
-//go:embed assets/manual-preload/*.sh assets/manual-preload/*.py assets/manual-preload/finish-* assets/manual-preload/README.txt
+//go:embed assets/manual-preload/*.sh assets/manual-preload/*.py assets/manual-preload/finish-* assets/manual-preload/*.txt
 var manualPreloadAssets embed.FS
 
 // manualPreloadInjection adds installer completion hooks, without supplying
@@ -75,4 +76,34 @@ func manualPreloadInjection(launcher []byte) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// The automatic answer only copies this file; setup/software installation is
+// still explicitly invoked by the operator after booting the installed system.
+func (s *Server) addLinuxSetupPreload(profile string, files map[string]string) error {
+	if !s.config.LinuxSetupPreload {
+		return nil
+	}
+	p, err := resolveProfile(profile, "")
+	if err != nil || p.OS == "windows" {
+		return err
+	}
+	name := bootInjectionName(profile)
+	if name == "" {
+		return errors.New("Linux setup preload is not supported for this installer")
+	}
+	bundle, err := s.manualSetupBundle()
+	if err != nil {
+		return fmt.Errorf("Linux setup preload is required but unavailable: %w", err)
+	}
+	preload, err := manualPreloadInjection(manualSetupLauncher(bundle))
+	if err != nil {
+		return err
+	}
+	merged, err := mergeInjectionHooks([]byte(files[name]), preload, "ventoy-preload-chain/boot-hook.sh", "ventoy-preload-chain/setup-hook.sh")
+	if err != nil {
+		return err
+	}
+	files[name] = string(merged)
+	return nil
 }

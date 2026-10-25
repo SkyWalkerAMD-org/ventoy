@@ -53,6 +53,7 @@ type renderData struct {
 	PXEISO          string
 	PXECommand      string
 	OfflineMedia    bool
+	SetupPreload    bool
 }
 
 func render(name string, data renderData) (string, error) {
@@ -105,6 +106,7 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 		return nil, err
 	}
 	d := renderData{PrivateJob: j, Target: p, Base: s.config.PublicURL + "/bootstrap/" + j.ID, CA: string(s.ca), Partition: 3, OfflineMedia: debianDVD(p, j.ISO)}
+	d.SetupPreload = s.config.LinuxSetupPreload && p.OS != "windows"
 	d.InjectionName = bootInjectionName(p.ID)
 	if j.Machine.Firmware == "bios" {
 		d.Partition = 2
@@ -267,6 +269,9 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 		}
 	}
 	if err = s.addE610Media(j.ISO, p.ID, files); err != nil {
+		return nil, err
+	}
+	if err = s.addLinuxSetupPreload(p.ID, files); err != nil {
 		return nil, err
 	}
 	files["README.txt"], err = render("bundle.txt", d)

@@ -8,10 +8,10 @@
 
 从 alpha.29 起，不加参数运行新版 `ventoy-linux-setup.run` 会从中心软件目录安装 / 升级适合本机的软件。`--apply` 仍执行完整系统配置，并额外安装默认软件组；`--offline` 跳过软件下载。查看候选使用 `--list-software`，检查结果使用 `--check-software`。已安装相同或更高版本不会重复安装或降级；后续中心替换软件包后再次执行即可，无需重新生成 setup。
 
-在管理端下载 `ventoy-linux-setup.run`，以 root 或 sudo 运行（不用手动解压）：
+新版预置流程会在手动和 PXE 自动安装结束后将本文件放到 `/root/ventoy-linux-setup.run`，以 root 或 sudo 运行（不用手动解压或另行下载）。此前已安装的旧系统也可从管理端下载本文件：
 
 ```bash
-sudo bash ventoy-linux-setup.run --apply --hostname server01
+sudo bash /root/ventoy-linux-setup.run --apply --hostname server01
 ```
 
 不填写 `--hostname` 时保留安装时设置的合法主机名；默认 localhost 会改成带机器标识的名称。

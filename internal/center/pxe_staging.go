@@ -51,6 +51,9 @@ func (s *Server) renderPXEFiles(e PrivatePXEEntry) (map[string]string, error) {
 		if err = s.addE610Media(e.ISO, p.ID, files); err != nil {
 			return nil, err
 		}
+		if err = s.addLinuxSetupPreload(p.ID, files); err != nil {
+			return nil, err
+		}
 		return files, nil
 	}
 	client, err := render("pxe-client.py", d)
@@ -86,6 +89,9 @@ func (s *Server) renderPXEFiles(e PrivatePXEEntry) (map[string]string, error) {
 		files[inject] = content
 	}
 	if err = s.addE610Media(e.ISO, p.ID, files); err != nil {
+		return nil, err
+	}
+	if err = s.addLinuxSetupPreload(p.ID, files); err != nil {
 		return nil, err
 	}
 	return files, nil

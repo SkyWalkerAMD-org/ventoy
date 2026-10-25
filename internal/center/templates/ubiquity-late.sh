@@ -1,6 +1,8 @@
 #!/bin/sh
 set -eu
 umask 077
+{{if .SetupPreload}}/bin/sh /usr/local/lib/ventoy-preload/copy-to-target.sh /target
+{{end}}
 test -f "/target/boot/vmlinuz-$(uname -r)"
 test -d /target/usr/share/xsessions
 printf '%s' {{sh (b64 .UpdatePolicy)}} | base64 -d > /target/usr/local/sbin/ventoy-center-update-policy
