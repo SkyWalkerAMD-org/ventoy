@@ -11,6 +11,10 @@ node --check internal/center/web/app.js
 
 版本测试遍历全部 profile 的 UEFI / BIOS 配置（Windows 11 BIOS 应拒绝），核对单次安装状态流转和安装包校验和。Desktop 的模板结构检查与完整安装验收分别记录；结构测试通过不代表桌面版自动安装成功。Linux 自动安装核对默认启动目标为 `multi-user.target`。Linux CI 会执行 Debian guard 的隔离测试：用临时假 sysfs / 设备和命令替身验证 MAC 不符、序列号不符/重复、USB、RAID、固件不符、依赖缺失及授权拒绝均不会写入 partman 分区确认。
 
+alpha.33 增加 `TestCapacityTierLayout` 和 `scripts/validate_storage_layouts.py`：使用假 sysfs 执行实际容量函数及分区配方生成，覆盖各标称容量、档位边界、过小磁盘、不同容量的 RAID1 成员和拒绝重新绑定。导出后核对 660 个容量/模板/固件组合的固定分区及 home 余量；Kickstart 使用对应原生解析器，Subiquity 执行实际 YAML 绑定器，Debian 核对 MiB 到十进制 MB 的转换。此步骤不调用分区工具或安装授权接口。
+
+账户策略遍历所有 Linux profile，确认 `user` 和 root 使用同一已配置密码、root 密码未锁定及 SSH 密码策略已生成。手动 setup 回归覆盖旧 admin 完成标记迁移、新版重复执行不重置密码、保留密码选项，以及系统 UID 保护。实际控制台与 SSH 登录、安装后卷大小和正常重启另以隔离完整安装及物理节点证据记录。
+
 此测试只执行授权钩子，不执行安装器、真实块设备、磁盘分区或外部网络操作。保留旧接入任务测试用于兼容性；新建 `enroll: true` 必须拒绝。
 
 Ubuntu 重启收尾由 `scripts/validate_ubuntu_reboot.py` 检查：只有 Ubuntu Casper、overlay 根文件系统、精确挂载于 `/cdrom` 的只读 ISO 才写入运行时卸载配置；已安装系统、其他安装器、缺失挂载和可写介质均不修改。另检查重复执行、daemon-reload 失败、配置回读失败和符号链接保护。模板验证保证该步骤位于目标系统配置成功之后，仍使用安装器正常 `shutdown: reboot`，首次硬盘启动验证前不报告 installed。
