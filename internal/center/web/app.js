@@ -145,9 +145,10 @@ async function refreshSoftware(){
     $('#software-directory').textContent=s.directory||'尚未配置 software_dir';
     $('#software-warnings').textContent=(s.warnings||[]).join('；');
     const rows=(s.flat_files||[]).map(f=>['自动匹配',f.path,(f.size/1048576).toFixed(2)+' MiB']);
+    rows.push(...(s.archive_files||[]).map(f=>['仅传输到 /root/ventoy-tools',f.path,(f.size/1048576).toFixed(2)+' MiB']));
     rows.push(...s.groups.map(g=>[g.id,g.files.map(f=>f.path.split('/').pop()).join('、'),g.errors?.length?g.errors.join('；'):'专属默认组']));
-    if(!rows.length){empty($('#software-table'),s.enabled?'软件目录已就绪，等待上传':'尚未启用软件目录','放入 RPM / DEB 软件包后刷新即可，无需重启服务。');return;}
-    table($('#software-table'),['安装范围','软件包','大小 / 状态'],rows);
+    if(!rows.length){empty($('#software-table'),s.enabled?'软件目录已就绪，等待上传':'尚未启用软件目录','放入 RPM / DEB 软件包或 tar.gz 文件后刷新即可，无需重启服务。');return;}
+    table($('#software-table'),['处理方式 / 范围','文件','大小 / 状态'],rows);
   }catch(error){$('#software-warnings').textContent=error.message;}
 }
 function details(job){const root=$('#job-detail');const dl=el('dl',null,'detail-grid');const disks=job.storage_plan?.mode==='raid1-lvm'?'双盘 RAID1 + LVM：'+job.storage_plan.disk_serials.join('、'):job.machine.disk_serial;for(const [key,value] of [['任务编号',job.id],['节点',job.machine.name],['系统版本',jobSystem(job)],['目标磁盘',disks],['状态',states[job.state]],['到期时间',job.state==='draft'?'尚未授权':stamp(job.expires)]]){dl.append(el('dt',key),el('dd',value));}const timeline=el('ol',null,'timeline');job.events.forEach(e=>{const li=el('li');li.append(el('strong',states[e.state]),el('small',` · ${stamp(e.time)}`));if(e.message)li.append(el('p',e.message));timeline.append(li);});root.replaceChildren(dl,timeline);if(job.state==='enrolled')root.append(el('p','历史接入任务：此状态代表本地检查成功，中心连接需另行核对。','warning'));$('#detail-dialog').showModal();}

@@ -11,6 +11,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 sys.dont_write_bytecode = True
@@ -21,6 +22,92 @@ spec.loader.exec_module(client)
 
 
 class Boundaries(unittest.TestCase):
+    def test_archive_manifest(self):
+        target = dict(os='ubuntu', version='24.04', arch='amd64')
+        item = dict(path='ipmitool-1.8.19.tar.gz', size=10, sha256='0'*64)
+        manifest = dict(schema=1, target=target, group=None, archives=[item])
+        client.validate_manifest(manifest, target)
+        for key, value in [('path', '../app.tar.gz'), ('path', 'nested/app.tar.gz'),
+                           ('path', 'app.deb'), ('path', 'app.tar.gz\n'), ('size', 0),
+                           ('size', 2**40), ('sha256', 'bad')]:
+            bad = copy.deepcopy(manifest); bad['archives'][0][key] = value
+            with self.assertRaises(RuntimeError): client.validate_manifest(bad, target)
+        bad = copy.deepcopy(manifest); bad['archives'] *= 2
+        with self.assertRaises(RuntimeError): client.validate_manifest(bad, target)
+
+    @unittest.skipIf(sys.platform == 'win32', 'Linux file ownership and atomic replacement')
+    def test_archive_transfer_repeat_replace_and_protection(self):
+        # Includes a path-traversing tar member; delivery must preserve the raw
+        # bytes without ever extracting or executing anything from the archive.
+        import io, tarfile
+        stream = io.BytesIO()
+        with tarfile.open(fileobj=stream, mode='w:gz') as t:
+            entry = tarfile.TarInfo('../../must-not-be-extracted')
+            entry.size = 4; t.addfile(entry, io.BytesIO(b'data'))
+        payload = stream.getvalue()
+        class FakeClient:
+            calls = 0
+            fail = False
+            def download(self, item, dest):
+                self.calls += 1
+                Path(dest).write_bytes(payload)
+                if self.fail: raise RuntimeError('transfer interrupted')
+        api = FakeClient()
+        def item(data): return dict(path='ipmitool.tar.gz', size=len(data), sha256=hashlib.sha256(data).hexdigest())
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch.object(client, 'ARCHIVES', str(root/'files')), patch.object(client, 'STATE', str(root/'state')):
+                client.sync_archives(api, [item(payload)])
+                dest = root/'files/ipmitool.tar.gz'
+                self.assertEqual(dest.read_bytes(), payload)
+                self.assertEqual(dest.stat().st_mode & 0o777, 0o600)
+                self.assertEqual(sorted(x.name for x in (root/'files').iterdir()), ['ipmitool.tar.gz'])
+                client.verify_archives([item(payload)])
+                client.sync_archives(api, [item(payload)])
+                self.assertEqual(api.calls, 1)
+                old = payload; payload = b'new raw archive bytes'
+                api.fail = True
+                with self.assertRaises(RuntimeError): client.sync_archives(api, [item(payload)])
+                self.assertEqual(dest.read_bytes(), old)
+                api.fail = False
+                client.sync_archives(api, [item(payload)])
+                self.assertEqual(dest.read_bytes(), payload)
+                dest.write_bytes(b'user-modified')
+                with self.assertRaises(RuntimeError): client.verify_archives([item(payload)])
+                with self.assertRaises(RuntimeError): client.sync_archives(api, [item(payload)])
+                self.assertEqual(dest.read_bytes(), b'user-modified')
+                dest.unlink(); outside=root/'outside'; outside.write_bytes(payload); dest.symlink_to(outside)
+                with self.assertRaises(RuntimeError): client.sync_archives(api, [item(payload)])
+                self.assertEqual(outside.read_bytes(), payload)
+                dest.unlink(); (root/'files').rmdir(); (root/'files').symlink_to(root, target_is_directory=True)
+                with self.assertRaises(RuntimeError): client.sync_archives(api, [item(payload)])
+
+    @unittest.skipIf(sys.platform == 'win32', 'Linux filesystem delivery')
+    def test_archive_only_execution_and_readonly_check(self):
+        wanted = dict(os='ubuntu', version='24.04', arch='amd64')
+        payload = b'archive-only'
+        archive = dict(path='tools.tar.gz', size=len(payload), sha256=hashlib.sha256(payload).hexdigest())
+        manifest = dict(schema=1, target=wanted, group=None, archives=[archive])
+        class FakeClient:
+            def __init__(self, config): pass
+            def manifest(self, target): return manifest
+            def download(self, item, dest): Path(dest).write_bytes(payload)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); (root/'software-client.json').write_text('{"enabled": true}')
+            with patch.object(client, 'ARCHIVES', str(root/'files')), patch.object(client, 'STATE', str(root/'state')), \
+                 patch.object(client, 'HERE', str(root)), patch.object(client, 'target', return_value=wanted), \
+                 patch.object(client, 'Client', FakeClient), patch.object(client, 'installed', return_value={}), \
+                 patch.object(client, 'run', side_effect=AssertionError('unexpected package command')):
+                client.execute('--list-software')
+                self.assertFalse((root/'files').exists())
+                client.execute('--software')
+                report = json.loads((root/'state/last-result.json').read_text())
+                self.assertEqual((report['status'], report['packages'], report['archives']), ('verified', [], [archive]))
+                client.execute('--check-software')
+                client.execute('--software')
+                (root/'files/tools.tar.gz').unlink()
+                with self.assertRaises(RuntimeError): client.execute('--check-software')
+
     def test_manifest_boundaries(self):
         target = dict(os='ubuntu', version='22.04', arch='amd64')
         group = dict(id='auto/ubuntu/22.04/amd64/default', **target, files=[dict(path='app_1_amd64.deb', size=10, sha256='0'*64)])

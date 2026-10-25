@@ -17,6 +17,10 @@
 
 打开管理端“软件分发”，查看包清单并下载新版 setup。替换、新增或移除包后无需重启中心、iVentoy，也无需重新下载 setup；节点下一次执行时读取最新清单。
 
+alpha.32 同时分发 tools 根目录中的 `*.tar.gz`：这些文件原样保存到目标机的 `/root/ventoy-tools/`，只传输及校验 SHA-256，不解压、编译或执行。例如 `ipmitool-IPMITOOL_1_8_19.tar.gz` 会保留这个文件名。RPM / DEB 仍按系统匹配并自动安装，源码压缩包不会被当成已安装软件。
+
+未变化的压缩包校验后跳过下载；中心替换同名文件后，下一次运行原子替换节点上由 setup 管理的旧文件。节点文件被用户改动或同名文件不属于 setup 时保留并报错。中心删除文件不会删除节点已有副本。压缩包与软件包合计最多 256 个文件、8 GiB，单文件最多 4 GiB；目录中未完成的 `.part` 文件不发布。`--list-software` 列出两类文件但不传输，`--check-software` 同时回读软件版本与已分发压缩包摘要。
+
 ## 节点执行
 
 alpha.31 的预置流程在普通手动安装和 PXE 自动安装结束时，将新版文件放在 `/root/ventoy-linux-setup.run`，无需另行下载。安装器只复制并校验文件，不执行软件安装。已安装的旧系统不会被远程改写，可从管理端下载新版后替换一次。
@@ -38,7 +42,7 @@ sudo bash ventoy-linux-setup.run --check-software
 sudo ./ventoy-linux-setup.run --hostname server01
 ```
 
-`--offline` 不连接软件库。完整配置因驱动或网络需要重启时，软件安装请求会在原配置恢复服务完成检查后继续一次；正常后续重启不再从软件库更新。新增软件、升级软件都由用户主动再次运行 setup 触发。
+`--offline` 不连接软件库。从 alpha.32 起，附加网卡等待 DHCP、驱动等待重启等 `PENDING` 检查不会跳过用户请求的软件安装；已有网络可用时继续下载、安装并验证。软件失败明确报错并保留请求，用户再次运行或配置恢复服务可以重试；成功后清除请求，正常后续重启不再从软件库更新。新增软件、升级软件都由用户主动再次运行 setup 触发。
 
 ## 自动选择与升级
 
@@ -64,6 +68,8 @@ sudo ./ventoy-linux-setup.run --hostname server01
 依赖解析参考 [APT 官方手册](https://manpages.ubuntu.com/manpages/noble/man8/apt-get.8.html) 与 [DNF 官方命令参考](https://dnf.readthedocs.io/en/latest/command_ref.html)。
 
 ## 验证范围
+
+alpha.32 在 Ubuntu 24.04.3 双盘 RAID1/LVM 实机上直接无参数运行 setup，安装并检查 `fyhoc 1.1.24-1`、`fyhocsys-node 0.8.2-1`、`sckoct-fyh 1:1.1.8-1`；`fyhoc -V` 与依赖 `ipmitool -V` 实际执行成功。`ipmitool-IPMITOOL_1_8_19.tar.gz` 原样传到 `/root/ventoy-tools/`，与中心摘要一致且未解压。重复运行不再下载软件包或压缩包；SSH、DHCP、内核锁定及禁用自动更新复查通过，内核保持 `6.8.0-71-generic`。所有 54 个普通 Linux 入口及 52 个 PXE 入口已更新预置包并核对摘要；此处不代表全部发行版都重新做过实机安装。
 
 alpha.29 在 Ubuntu 24.04.3 隔离虚拟机中实际安装了 `fyhoc 1.1.24-1`、`fyhocsys-node 0.8.2-1`、`sckoct-fyh 1:1.1.8-1`，验证缺失依赖获取、第二次运行跳过、已安装版本回读及原有内核/更新策略。RPM 在隔离的 Rocky 9 根文件系统中使用真实 RPM / DNF 验证整组事务、仓库补齐依赖、原生版本排序、升级、不降级及失败时不进入安装事务。
 

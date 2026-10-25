@@ -26,6 +26,7 @@ const softwareMaxGroup = int64(8 << 30)
 
 var softwareVersionRE = regexp.MustCompile(`^[0-9]+(\.[0-9]+){0,2}$`)
 var softwareFileRE = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._+~-]{0,240}\.(deb|rpm)$`)
+var softwareArchiveRE = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._+~-]{0,240}\.tar\.gz$`)
 var softwareHashRE = regexp.MustCompile(`^[0-9a-f]{64}$`)
 var softwareELRE = regexp.MustCompile(`\.el([0-9]+)([._-]|$)`)
 
@@ -213,10 +214,25 @@ func (s *Server) softwareOverview(w http.ResponseWriter, r *http.Request) {
 		fail(w, 500, "Cannot read flat software directory")
 		return
 	}
-	respond(w, 200, map[string]any{"enabled": s.config.SoftwareDir != "", "directory": s.config.SoftwareDir, "groups": groups, "flat_files": flat, "warnings": warnings})
+	archives, err := s.softwareArchives()
+	if err != nil {
+		fail(w, 500, "Cannot read software archive directory")
+		return
+	}
+	respond(w, 200, map[string]any{"enabled": s.config.SoftwareDir != "", "directory": s.config.SoftwareDir, "groups": groups, "flat_files": flat, "archive_files": archives, "warnings": warnings})
 }
 
 func (s *Server) flatSoftware() ([]SoftwareFile, error) {
+	return s.softwareRootFiles(softwareFileRE)
+}
+
+// Root-level tar.gz files are distributed unchanged to every supported Linux
+// target. They are not installable packages and are never extracted/executed.
+func (s *Server) softwareArchives() ([]SoftwareFile, error) {
+	return s.softwareRootFiles(softwareArchiveRE)
+}
+
+func (s *Server) softwareRootFiles(pattern *regexp.Regexp) ([]SoftwareFile, error) {
 	files := []SoftwareFile{}
 	if s.config.SoftwareDir == "" {
 		return files, nil
@@ -226,7 +242,7 @@ func (s *Server) flatSoftware() ([]SoftwareFile, error) {
 		return nil, err
 	}
 	for _, entry := range entries {
-		if !softwareFileRE.MatchString(entry.Name()) {
+		if !pattern.MatchString(entry.Name()) {
 			continue
 		}
 		info, err := entry.Info()
@@ -242,18 +258,38 @@ func (s *Server) flatSoftware() ([]SoftwareFile, error) {
 }
 
 func (s *Server) sendSoftwareManifest(w http.ResponseWriter, target map[string]string, group *SoftwareGroup) {
+	archives, err := s.softwareArchives()
+	if err != nil {
+		fail(w, 409, "Cannot read software archives")
+		return
+	}
+	var total int64
+	count := len(archives)
+	for _, f := range archives {
+		total += f.Size
+	}
 	if group != nil {
 		group.RPMMinEL = s.config.SoftwareRPMMinEL
-		var total int64
+		count += len(group.Files)
 		for _, f := range group.Files {
 			total += f.Size
 		}
-		if len(group.Errors) > 0 || len(group.Files) > 256 || total > softwareMaxGroup {
+		if len(group.Errors) > 0 {
 			fail(w, 409, "Default software group is invalid or too large")
 			return
 		}
-		for i := range group.Files {
-			f, err := safeOpen(s.config.SoftwareDir, group.Files[i].Path, ".deb", ".rpm")
+	}
+	if count > 256 || total > softwareMaxGroup {
+		fail(w, 409, "Software packages and archives exceed 256 files or 8 GiB")
+		return
+	}
+	lists := [][]SoftwareFile{archives}
+	if group != nil {
+		lists = append(lists, group.Files)
+	}
+	for _, files := range lists {
+		for i := range files {
+			f, err := safeOpen(s.config.SoftwareDir, files[i].Path, ".deb", ".rpm", ".gz")
 			if err != nil {
 				fail(w, 409, "Software changed while reading manifest")
 				return
@@ -261,14 +297,15 @@ func (s *Server) sendSoftwareManifest(w http.ResponseWriter, target map[string]s
 			h := sha256.New()
 			n, err := io.Copy(h, io.LimitReader(f, softwareMaxFile+1))
 			f.Close()
-			if err != nil || n != group.Files[i].Size {
+			if err != nil || n != files[i].Size {
 				fail(w, 409, "Software changed while reading manifest")
 				return
 			}
-			group.Files[i].SHA256 = hex.EncodeToString(h.Sum(nil))
+			files[i].SHA256 = hex.EncodeToString(h.Sum(nil))
 		}
 	}
-	respond(w, 200, map[string]any{"schema": 1, "target": target, "group": group})
+	// Additive field: older clients continue receiving an unchanged package group.
+	respond(w, 200, map[string]any{"schema": 1, "target": target, "group": group, "archives": archives})
 }
 
 func (s *Server) softwareManifest(w http.ResponseWriter, r *http.Request) {
@@ -324,13 +361,13 @@ func (s *Server) softwareManifest(w http.ResponseWriter, r *http.Request) {
 func (s *Server) softwarePackage(w http.ResponseWriter, r *http.Request) {
 	name, expected := r.URL.Query().Get("path"), r.URL.Query().Get("sha256")
 	parts := strings.Split(name, "/")
-	flat := len(parts) == 1 && softwareFileRE.MatchString(name)
+	flat := len(parts) == 1 && (softwareFileRE.MatchString(name) || softwareArchiveRE.MatchString(name))
 	nested := len(parts) == 5 && parts[3] == "default" && softwareTarget(parts[0], parts[1], parts[2]) && softwareFileRE.MatchString(parts[4]) && filepath.Ext(name) == "."+softwareFamily(parts[0])
 	if (!flat && !nested) || !softwareHashRE.MatchString(expected) {
 		fail(w, 400, "Invalid software package request")
 		return
 	}
-	f, err := safeOpen(s.config.SoftwareDir, name, ".deb", ".rpm")
+	f, err := safeOpen(s.config.SoftwareDir, name, ".deb", ".rpm", ".gz")
 	if err != nil {
 		fail(w, 404, "Software package not found")
 		return

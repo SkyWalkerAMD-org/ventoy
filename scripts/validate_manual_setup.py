@@ -131,3 +131,62 @@ sleep() { :; }
             actual_calls = int((Path(temp) / 'calls').read_text())
             assert (result.returncode, actual_calls) == (expected, calls), (scenario, result.stderr)
     print('PASS: SSH reload readiness, permanent denial, check-only mode and authenticated identity')
+
+    # Run the actual completion path with only the software transaction mocked.
+    # A connected primary NIC must still permit software installation when a
+    # secondary NIC or driver is pending. Do not replace pending with success.
+    source = (ROOT / 'internal/center/assets/manual/install.sh').read_text(encoding='utf-8')
+    completion = source[source.index('[[ $(systemctl get-default) == multi-user.target ]]'):]
+    scenarios = [
+        # pending, mode, offline, request, software_rc, expected_rc, calls, request_after
+        (1, '--resume', 0, '1', 0, 3, 1, '0'),
+        (0, '--resume', 0, '1', 0, 0, 1, '0'),
+        (1, '--resume', 0, '1', 17, 17, 1, '1'),
+        (0, '--resume', 0, '1', 17, 17, 1, '1'),
+        (1, '--check', 0, '1', 0, 3, 0, '1'),
+        (0, '--check', 0, '1', 0, 0, 0, '1'),
+        (1, '--resume', 1, '1', 0, 3, 0, '1'),
+        (1, '--resume', 0, '0', 0, 3, 0, '0'),
+        (0, '--resume', 0, '0', 0, 0, 0, '0'),
+        (1, '--resume', 0, None, 0, 3, 0, None),
+    ]
+    for pending, mode, offline, request, software_rc, expected_rc, calls, request_after in scenarios:
+        with tempfile.TemporaryDirectory(prefix='manual-software-regression-') as temp:
+            state = Path(temp)
+            request_file = state / 'software-request'
+            if request is not None:
+                request_file.write_text(request + '\n')
+            mocks = r'''set -Eeuo pipefail
+die() { echo "$*" >&2; exit 1; }
+systemctl() { test "$*" = 'get-default'; echo multi-user.target; }
+software_action() {
+    test "$1" = --software
+    echo invoked >> "$state/calls"
+    return "$software_rc"
+}
+'''
+            code = mocks + '\nstate=' + shlex.quote(temp)
+            code += '\npending=%d\nmode=%s\noffline=%d\nsoftware_rc=%d\n' % (pending, mode, offline, software_rc)
+            code += completion
+            result = subprocess.run(['bash', '-c', code], capture_output=True, text=True)
+            actual_calls = len((state / 'calls').read_text().splitlines()) if (state / 'calls').exists() else 0
+            actual_request = request_file.read_text().strip() if request_file.exists() else None
+            assert (result.returncode, actual_calls, actual_request) == (expected_rc, calls, request_after), result
+            if software_rc and calls:
+                assert not (state / 'status').exists(), 'failed software transaction was reported as completed'
+                assert not any(line.startswith(('PENDING:', 'VERIFIED:')) for line in result.stdout.splitlines())
+            else:
+                status = (state / 'status').read_text()
+                assert status.startswith('pending ' if pending else 'verified '), status
+            # Once fulfilled, a normal boot/resume must not fetch software again,
+            # even when an unrelated check still remains pending.
+            if calls and software_rc == 0:
+                repeat = subprocess.run(['bash', '-c', code], capture_output=True, text=True)
+                assert repeat.returncode == expected_rc, repeat
+                assert len((state / 'calls').read_text().splitlines()) == 1
+            # Failure must leave the original explicit request available to retry.
+            if software_rc and calls:
+                retry = subprocess.run(['bash', '-c', code.replace('software_rc=17', 'software_rc=0')], capture_output=True, text=True)
+                assert retry.returncode == (3 if pending else 0), retry
+                assert request_file.read_text().strip() == '0'
+    print('PASS: pending system checks do not skip software; failure/retry, no repeat upgrade, offline and check-only modes')
