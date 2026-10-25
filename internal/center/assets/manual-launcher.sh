@@ -2,9 +2,14 @@
 # Ventoy Center complete manual-install configuration package.
 set -Eeuo pipefail
 umask 077
+if (($# == 0)); then set -- --software; fi
 if [[ ${1:---help} == --help || ${1:-} == -h ]]; then
     echo 'Usage: sudo bash ventoy-linux-setup.run --apply [--hostname NAME] [--offline] [--keep-passwords]'
     echo 'Run after installing and booting Linux. Default credentials: admin / ventoy, root / ventoy.'
+    echo '--apply also installs the matching default software group; --offline skips software downloads.'
+    echo 'Software only: sudo bash ventoy-linux-setup.run --software'
+    echo 'No arguments also installs the matching default software group.'
+    echo 'Inspect/verify: --list-software / --check-software'
     exit 0
 fi
 [[ $EUID == 0 ]] || { echo 'Run with root or sudo.' >&2; exit 1; }

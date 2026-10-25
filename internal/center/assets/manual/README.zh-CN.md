@@ -6,6 +6,8 @@
 
 ## 使用
 
+从 alpha.29 起，不加参数运行新版 `ventoy-linux-setup.run` 会从中心软件目录安装 / 升级适合本机的软件。`--apply` 仍执行完整系统配置，并额外安装默认软件组；`--offline` 跳过软件下载。查看候选使用 `--list-software`，检查结果使用 `--check-software`。已安装相同或更高版本不会重复安装或降级；后续中心替换软件包后再次执行即可，无需重新生成 setup。
+
 在管理端下载 `ventoy-linux-setup.run`，以 root 或 sudo 运行（不用手动解压）：
 
 ```bash

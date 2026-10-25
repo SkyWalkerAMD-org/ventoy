@@ -18,15 +18,21 @@ while (($#)); do
     shift
 done
 case "$mode" in
-    --apply|--resume|--check) ;;
+    --apply|--resume|--check|--software|--list-software|--check-software) ;;
     --help|-h)
         cat <<'HELP'
 sudo bash install.sh --apply [--hostname NAME] [--offline] [--keep-passwords]
 sudo bash /opt/ventoy-manual/current/install.sh --check
+sudo bash ventoy-linux-setup.run --software
+sudo bash ventoy-linux-setup.run --list-software
+sudo bash ventoy-linux-setup.run --check-software
 
 Installs E610 support when required; enables root/admin SSH password login;
 configures unconfigured wired NICs for DHCP and activates new profiles;
 locks the installed kernel, disables automatic updates, and verifies results.
+--apply also installs the controller's matching default software group once.
+--software installs that group alone; no account/network/hostname changes.
+Missing dependencies may be installed from this system's configured repositories.
 Default initial credentials: admin / ventoy, root / ventoy.
 Existing users and configured static networks are preserved. --keep-passwords
 retains existing account passwords (root must already have an unlocked password).
@@ -51,6 +57,24 @@ esac
 mkdir -p "$state"
 exec 7>"$state/lock"
 flock -n 7 || die 'Another setup/check is running.'
+software_action() {
+    local python= candidate
+    for candidate in python3 /usr/libexec/platform-python python2 python; do
+        if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c 'import ssl; ssl.create_default_context()' >/dev/null 2>&1; then
+            python=$candidate; break
+        fi
+    done
+    [[ -n $python ]] || die 'Software setup requires Python with verified TLS support (2.7.9+ or 3.x).'
+    "$python" "$here/software.py" "$1"
+}
+case "$mode" in
+    --software|--list-software|--check-software)
+        [[ $offline == 0 || $mode == --check-software ]] || die 'Software download is disabled by --offline.'
+        (cd "$here" && sha256sum --status -c SHA256SUMS) || die 'Package integrity check failed.'
+        exec > >(tee -a /var/log/ventoy-software.log) 2>&1
+        software_action "$mode"
+        exit $?;;
+esac
 if [[ $mode == --apply ]]; then
     (cd "$here" && sha256sum --status -c SHA256SUMS) || die 'Package integrity check failed.'
     # Keep a complete offline copy for automatic post-reboot continuation.
@@ -73,6 +97,7 @@ if [[ $mode == --apply ]]; then
     [[ -z "$name" ]] || printf '%s\n' "$name" > "$state/hostname-request"
     printf '%s\n' "$offline" > "$state/offline"
     printf '%s\n' "$keep_passwords" > "$state/keep-passwords"
+    printf '%s\n' "$((1 - offline))" > "$state/software-request"
     install -m 0644 "$dest/ventoy-manual-init.service" /etc/systemd/system/ventoy-manual-init.service
     if command -v restorecon >/dev/null; then
         restorecon -R /opt/ventoy-manual /etc/systemd/system/ventoy-manual-init.service
@@ -164,6 +189,12 @@ if ((pending)); then
     echo 'PENDING: settings saved; driver reboot, firmware enrollment, or DHCP lease is still required.'
     printf 'pending %s\n' "$(date -Is)" > "$state/status"
     exit 3
+fi
+if [[ $mode == --resume && $offline == 0 && -f "$state/software-request" && $(cat "$state/software-request") == 1 ]]; then
+    # Only a user invocation of --apply creates this request. Normal subsequent
+    # boots never fetch newly published software or upgrade existing packages.
+    software_action --software
+    printf '0\n' > "$state/software-request"
 fi
 printf 'verified boot=%s time=%s\n' "$(cat /proc/sys/kernel/random/boot_id)" "$(date -Is)" > "$state/status"
 echo 'VERIFIED: SSH, hostname, networking, kernel lock, automatic-update disablement, and E610 status.'
