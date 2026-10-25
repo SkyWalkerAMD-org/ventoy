@@ -23,7 +23,7 @@ function showLogin() { if (!$('#login-dialog').open) $('#login-dialog').showModa
 function closeDialog(event) { event.target.closest('dialog').close(); }
 $$('[data-close]').forEach(b => b.addEventListener('click', closeDialog));
 $('#login-dialog').addEventListener('cancel', event => event.preventDefault());
-function route() { const page = location.hash.slice(1) || 'overview'; const chosen = ['overview','machines','jobs','images','profiles','pxe'].includes(page) ? page : 'overview'; $$('.page').forEach(p => {p.hidden = p.id !== chosen;}); $$('[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === chosen)); $('#breadcrumb').textContent = {overview:'部署总览',machines:'目标机器',jobs:'安装任务',images:'镜像管理',profiles:'系统版本',pxe:'PXE 自动安装'}[chosen]; }
+function route() { const page = location.hash.slice(1) || 'overview'; const chosen = ['overview','machines','jobs','images','software','profiles','pxe'].includes(page) ? page : 'overview'; $$('.page').forEach(p => {p.hidden = p.id !== chosen;}); $$('[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === chosen)); $('#breadcrumb').textContent = {overview:'部署总览',machines:'目标机器',jobs:'安装任务',images:'镜像管理',software:'软件分发',profiles:'系统版本',pxe:'PXE 自动安装'}[chosen]; if(chosen==='software' && token) refreshSoftware(); }
 window.addEventListener('hashchange', route); route();
 function empty(target, title, description, action) { const box = el('div',null,'empty'); box.append(el('div','↗','empty-symbol'),el('h2',title),el('p',description)); if (action) {const b=el('button',action[0],'primary'); b.addEventListener('click',action[1]);box.append(b);} target.replaceChildren(box); }
 function table(target, headings, rows) { const t=el('table'); const head=el('thead'); const tr=el('tr'); headings.forEach(h=>tr.append(el('th',h))); head.append(tr); const body=el('tbody'); rows.forEach(row=>{const r=el('tr'); row.forEach(cell=>{const c=el('td'); if(cell instanceof Node)c.append(cell);else c.textContent=cell; r.append(c);});body.append(r);});t.append(head,body);target.replaceChildren(t); }
@@ -46,6 +46,7 @@ function renderAll() {
   $('#version').textContent=data.version;$('#count-machines').textContent=data.machines.length;$('#count-ready').textContent=data.jobs.filter(j=>j.state==='ready').length;$('#count-running').textContent=data.jobs.filter(j=>['installing','enrolling'].includes(j.state)).length;$('#count-done').textContent=data.jobs.filter(j=>['installed','enrolled'].includes(j.state)).length;
   renderJobs($('#recent-jobs'),data.jobs.slice(0,6));renderJobs($('#all-jobs'),data.jobs);
   renderMachines(); renderBoot(); renderImages(); renderProfiles(); renderPXE();
+  if(location.hash==='#software')refreshSoftware();
   const link=$('#iventoy-link');link.hidden=!data.iventoy_url;if(data.iventoy_url)link.href=data.iventoy_url;
   $('#warnings').hidden=!data.warnings.length;$('#warnings').textContent=data.warnings.join('；');
 }
@@ -136,6 +137,19 @@ $('#arm-form').addEventListener('submit',event=>{event.preventDefault();const f=
 async function downloadBundle(job){const response=await api(`/api/jobs/${job.id}/bundle`);const url=URL.createObjectURL(await response.blob());const a=el('a');a.href=url;a.download=`ventoy-${job.machine.name}-${job.id}.zip`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);notify('安装包已下载，请按包内 README 配置 iVentoy');}
 $('#download-linux-policy').addEventListener('click',async event=>{const b=event.currentTarget;b.disabled=true;try{const response=await api('/api/linux-update-policy');const url=URL.createObjectURL(await response.blob());const a=el('a');a.href=url;a.download='linux-update-policy.sh';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);notify('脚本已下载，请在手动安装完成的新系统中执行');}catch(error){notify(error.message);}finally{b.disabled=false;}});
 $('#download-linux-manual').addEventListener('click',async event=>{const b=event.currentTarget;b.disabled=true;try{const response=await api('/api/linux-manual-setup?format=run');const url=URL.createObjectURL(await response.blob());const a=el('a');a.href=url;a.download='ventoy-linux-setup.run';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);notify('完整配置包已下载；在新装系统中运行 sudo bash ventoy-linux-setup.run --apply');}catch(error){notify(error.message);}finally{b.disabled=false;}});
+$('#download-software-setup').addEventListener('click',()=>$('#download-linux-manual').click());
+$('#software-refresh').addEventListener('click',refreshSoftware);
+async function refreshSoftware(){
+  try{
+    const s=await(await api('/api/software')).json();
+    $('#software-directory').textContent=s.directory||'尚未配置 software_dir';
+    $('#software-warnings').textContent=(s.warnings||[]).join('；');
+    const rows=(s.flat_files||[]).map(f=>['自动匹配',f.path,(f.size/1048576).toFixed(2)+' MiB']);
+    rows.push(...s.groups.map(g=>[g.id,g.files.map(f=>f.path.split('/').pop()).join('、'),g.errors?.length?g.errors.join('；'):'专属默认组']));
+    if(!rows.length){empty($('#software-table'),s.enabled?'软件目录已就绪，等待上传':'尚未启用软件目录','放入 RPM / DEB 软件包后刷新即可，无需重启服务。');return;}
+    table($('#software-table'),['安装范围','软件包','大小 / 状态'],rows);
+  }catch(error){$('#software-warnings').textContent=error.message;}
+}
 function details(job){const root=$('#job-detail');const dl=el('dl',null,'detail-grid');const disks=job.storage_plan?.mode==='raid1-lvm'?'双盘 RAID1 + LVM：'+job.storage_plan.disk_serials.join('、'):job.machine.disk_serial;for(const [key,value] of [['任务编号',job.id],['节点',job.machine.name],['系统版本',jobSystem(job)],['目标磁盘',disks],['状态',states[job.state]],['到期时间',job.state==='draft'?'尚未授权':stamp(job.expires)]]){dl.append(el('dt',key),el('dd',value));}const timeline=el('ol',null,'timeline');job.events.forEach(e=>{const li=el('li');li.append(el('strong',states[e.state]),el('small',` · ${stamp(e.time)}`));if(e.message)li.append(el('p',e.message));timeline.append(li);});root.replaceChildren(dl,timeline);if(job.state==='enrolled')root.append(el('p','历史接入任务：此状态代表本地检查成功，中心连接需另行核对。','warning'));$('#detail-dialog').showModal();}
 $('#login-form').addEventListener('submit',async event=>{event.preventDefault();token=event.target.elements.token.value.trim();try{await refresh();sessionStorage.setItem('ventoy-token',token);$('#login-dialog').close();$('#login-error').textContent='';event.target.reset();}catch(error){$('#login-error').textContent=error.message;}});
 $('#logout').addEventListener('click',()=>{token='';sessionStorage.removeItem('ventoy-token');location.reload();});$('#refresh').addEventListener('click',()=>refresh().catch(e=>notify(e.message)));

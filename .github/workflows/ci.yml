@@ -33,6 +33,7 @@ jobs:
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_pxe.py "$RUNNER_TEMP/ventoy-template-fixtures"
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_raid.py "$RUNNER_TEMP/ventoy-template-fixtures"
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_manual_setup.py
+          "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_software.py
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_ubiquity_resolver.py
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_manual_preload.py
           for f in internal/center/assets/manual/*.sh; do bash -n "$f"; done
@@ -86,18 +87,20 @@ jobs:
           TARGET_IMAGE: ${{ matrix.image }}
         run: |
           docker run --rm -v "$PWD/scripts:/tests:ro" \
+            -v "$PWD/internal/center/assets/manual/software.py:/software.py:ro" \
             -v "$RUNNER_TEMP/policy-fixtures/ubuntu-22.04/uefi/linux-update-policy.sh:/policy.sh:ro" \
             "$TARGET_IMAGE" sh -ec '
               if command -v apt-get >/dev/null; then
                 apt-get update -qq
                 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 systemd
               else
-                dnf -y install python3 rpm-build
+                dnf -y install python3 rpm-build createrepo_c
               fi
               mkdir -p /run
               touch /run/ventoy-policy-disposable-root
               sh /tests/seed_policy_test_kernel.sh
               python3 /tests/validate_update_policy.py /policy.sh
+              python3 /tests/validate_software.py --native /software.py
             '
   linux-startup:
     needs: test

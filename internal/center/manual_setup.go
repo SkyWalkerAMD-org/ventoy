@@ -47,6 +47,7 @@ func manualSetupFiles(driverArchive []byte) (map[string][]byte, error) {
 	files["linux-update-policy.sh"] = []byte(policy)
 	files["safe-server-init.sh"] = []byte(serverInit)
 	files["VERSION"] = []byte(Version + "\n")
+	files["software-client.json"] = []byte("{\"schema\":1,\"enabled\":false}\n")
 	if err := addManualDrivers(files, driverArchive, e610ArchiveSHA); err != nil {
 		return nil, err
 	}
@@ -143,8 +144,8 @@ func manualSetupLauncher(bundle []byte) []byte {
 }
 
 func (s *Server) linuxManualSetup(w http.ResponseWriter, r *http.Request) {
-	// Only a fixed, release-pinned public driver artifact is read. No machine
-	// jobs, administrator secrets, or controller configuration enter the bundle.
+	// Only the release-pinned driver archive and narrowly scoped software client
+	// settings enter the bundle. Never include administrator or job credentials.
 	file, err := os.Open(filepath.Join(s.config.PackageDir, e610ArchiveName))
 	if err != nil {
 		http.Error(w, "完整配置包尚未准备好：服务器缺少已校验的 E610 驱动包", http.StatusConflict)
@@ -161,6 +162,7 @@ func (s *Server) linuxManualSetup(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Manual setup bundle validation failed", 500)
 		return
 	}
+	s.addSoftwareClient(files)
 	bundle, err := packManualSetup(files)
 	if err != nil {
 		http.Error(w, "Cannot build manual setup bundle", 500)

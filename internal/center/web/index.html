@@ -15,6 +15,7 @@
       <a href="#jobs" data-nav="jobs">↗ <span>安装任务</span></a>
       <a href="#pxe" data-nav="pxe">▤ <span>PXE 自动安装</span></a>
       <a href="#images" data-nav="images">▱ <span>镜像管理</span></a>
+      <a href="#software" data-nav="software">▣ <span>软件分发</span></a>
       <a href="#profiles" data-nav="profiles">☷ <span>系统版本</span></a>
     </nav>
     <div class="sidebar-bottom"><span class="dot"></span> 私有部署 · 局域网 PXE<br><small id="version">载入版本信息…</small></div>
@@ -43,6 +44,11 @@
         <div class="note"><span>↳</span><div><p>已绑定预置脚本的普通 Linux ISO，手动安装后会在新系统中放好完整配置包。进入硬盘系统后执行下面的命令，配置并检查 SSH、主机名、DHCP、内核锁定、禁用自动更新和 E610 驱动。</p><p><code>sudo bash /root/ventoy-linux-setup.run --apply --hostname server01</code></p><p>预置文件不会自动改动系统；执行前使用安装时创建的账户。执行后默认账户：admin / ventoy、root / ventoy。保留原有用户和静态网络；不填写主机名时沿用合法的现有名称。如需驱动重启，重启后自动继续检查。</p><button id="download-linux-manual">为已有系统下载完整配置包</button><button id="download-linux-policy">仅下载内核与更新策略脚本</button></div></div>
         <div class="media-browser panel"><div class="media-list"><div class="section-heading"><h2>镜像文件</h2><span id="image-count" class="muted"></span></div><div id="image-tree"></div></div><div id="image-detail" class="media-detail"></div></div>
         <div class="note"><span>↳</span><p>将镜像放入 iso_dir 的 CentOS、Rocky、Ubuntu、Debian 等目录后刷新。DHCP、TFTP 和 MAC 启动过滤规则在 iVentoy 中配置。</p></div>
+      </section>
+      <section id="software" class="page" hidden>
+        <div class="page-heading"><div><div class="eyebrow">NODE SOFTWARE</div><h1>软件分发</h1><p>节点运行 setup，自动获取适合本机的默认软件组。</p></div><button id="software-refresh">刷新软件目录</button></div>
+        <div class="note"><span>↳</span><div><p>服务器目录：<code id="software-directory">尚未加载</code></p><p>直接放入 RPM / DEB 即可。节点按包格式、架构和 RPM 的 EL 大版本筛选，安装前校验包内信息与依赖。缺少依赖时从本机已配置的软件源获取；不执行全系统升级，内核保持不变。上传时先使用 <code>.part</code> 后缀，完成后再改为正式文件名。</p><p>节点执行 <code>sudo bash ventoy-linux-setup.run</code> 即安装默认软件；<code>--list-software</code> 查看候选，<code>--check-software</code> 检查结果。完整配置使用 <code>--apply</code>，也会安装默认软件。不会设置后台软件更新任务。</p><p>需要按发行版单独指定软件时，可放入 <code>ubuntu/22.04/amd64/default/</code> 等目录；有对应专属组时优先使用该组。</p><p>旧 ISO 预置的 setup 不会自动升级，请下载下面的新版文件并复制到节点。</p><button id="download-software-setup">下载新版 ventoy-linux-setup.run</button></div></div>
+        <p id="software-warnings" class="muted"></p><div id="software-table" class="panel"></div>
       </section>
       <section id="pxe" class="page" hidden>
         <div class="page-heading"><div><div class="eyebrow">PXE INSTALL MENU</div><h1>选好系统，自动安装</h1><p>每个版本准备一次，客户端从网卡启动后选择对应的系统。</p></div><button class="primary" data-action="new-pxe">＋ 添加系统入口</button></div>

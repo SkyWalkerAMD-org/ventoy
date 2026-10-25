@@ -10,26 +10,29 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
-const Version = "0.3.0-alpha.28"
+const Version = "0.3.0-alpha.29"
 
 type Config struct {
-	Listen                   string `json:"listen"`
-	PublicURL                string `json:"public_url"`
-	DataDir                  string `json:"data_dir"`
-	ISODir                   string `json:"iso_dir"`
-	PackageDir               string `json:"package_dir"`
-	AdminTokenFile           string `json:"admin_token_file"`
-	TLSCert                  string `json:"tls_cert_file"`
-	TLSKey                   string `json:"tls_key_file"`
-	BootstrapCA              string `json:"bootstrap_ca_file"`
-	IVentoyURL               string `json:"iventoy_url"`
-	IVentoyRoot              string `json:"iventoy_root,omitempty"`
-	FYHOCSYSURL              string `json:"fyhocsys_url"`
-	LinuxInitialPasswordHash string `json:"linux_initial_password_hash,omitempty"`
-	LinuxAdminUsername       string `json:"linux_admin_username,omitempty"`
+	Listen                   string         `json:"listen"`
+	PublicURL                string         `json:"public_url"`
+	DataDir                  string         `json:"data_dir"`
+	ISODir                   string         `json:"iso_dir"`
+	PackageDir               string         `json:"package_dir"`
+	SoftwareDir              string         `json:"software_dir,omitempty"`
+	SoftwareRPMMinEL         map[string]int `json:"software_rpm_min_el,omitempty"`
+	AdminTokenFile           string         `json:"admin_token_file"`
+	TLSCert                  string         `json:"tls_cert_file"`
+	TLSKey                   string         `json:"tls_key_file"`
+	BootstrapCA              string         `json:"bootstrap_ca_file"`
+	IVentoyURL               string         `json:"iventoy_url"`
+	IVentoyRoot              string         `json:"iventoy_root,omitempty"`
+	FYHOCSYSURL              string         `json:"fyhocsys_url"`
+	LinuxInitialPasswordHash string         `json:"linux_initial_password_hash,omitempty"`
+	LinuxAdminUsername       string         `json:"linux_admin_username,omitempty"`
 }
 
 func randomID(n int) string {
@@ -94,11 +97,16 @@ func loadConfig(path string) (Config, error) {
 	if c.LinuxInitialPasswordHash != "" && !hashRE.MatchString(c.LinuxInitialPasswordHash) {
 		return c, errors.New("linux_initial_password_hash must be a SHA-512 crypt hash")
 	}
+	for name, major := range c.SoftwareRPMMinEL {
+		if !regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9+_.-]{0,120}$`).MatchString(name) || major < 7 || major > 99 {
+			return c, errors.New("invalid software_rpm_min_el compatibility rule")
+		}
+	}
 	if c.LinuxAdminUsername != "" && (!userRE.MatchString(c.LinuxAdminUsername) || c.LinuxAdminUsername == "root" || c.LinuxAdminUsername == "operator") {
 		return c, errors.New("linux_admin_username must be a valid non-root administrator name")
 	}
 	base, _ := filepath.Abs(filepath.Dir(path))
-	for _, p := range []*string{&c.DataDir, &c.ISODir, &c.PackageDir, &c.AdminTokenFile, &c.TLSCert, &c.TLSKey, &c.BootstrapCA, &c.IVentoyRoot} {
+	for _, p := range []*string{&c.DataDir, &c.ISODir, &c.PackageDir, &c.SoftwareDir, &c.AdminTokenFile, &c.TLSCert, &c.TLSKey, &c.BootstrapCA, &c.IVentoyRoot} {
 		if *p != "" && !filepath.IsAbs(*p) {
 			*p = filepath.Join(base, *p)
 		}
