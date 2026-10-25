@@ -33,11 +33,13 @@ for profile in root.iterdir():
         with tarfile.open(archives[0]) as t:
             names = t.getnames()
             assert len(names) == len(set(names))
-            # Debian has no original live hook; its finish-install hook copies
-            # directly. Other installers must preserve both chained hooks.
-            if not profile.name.startswith('debian-'):
+            # Ubuntu has a live boot hook to chain. Anaconda uses cmdline.d
+            # and dracut, while Debian uses finish-install directly.
+            if profile.name.startswith('ubuntu-'):
                 assert 'ventoy-preload-chain/boot-hook.sh' in names
                 assert 'ventoy-preload-chain/setup-hook.sh' in names
+            elif not profile.name.startswith('debian-'):
+                assert 'etc/cmdline.d/99-ventoy-center-ks.conf' in names
             assert 'ventoy-manual-preload/ventoy-linux-setup.run' in names
             for member in t.getmembers():
                 if member.name.endswith('.sh'):
