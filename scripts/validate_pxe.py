@@ -40,6 +40,11 @@ for profile, version in [("rhel-7", "RHEL7"), ("rhel-8", "RHEL8"), ("rhel-9", "R
             handler = makeVersion(version)
             parser = KickstartParser(handler, followIncludes=False)
             parser.readKickstart(str(folder / name))
+            if version == "RHEL7" and name == "selected.cfg":
+                networks = handler.network.network
+                assert len(networks) == 2 and not networks[0].device
+                assert networks[1].activate is False and networks[1].onboot is True
+                assert networks[1].bootProto == "dhcp" and networks[1].bindto == "mac"
             for script in handler.scripts:
                 shell(script.script)
     else:

@@ -22,8 +22,8 @@ SHA-256：e33d7b1ea7a9e2f38c8f693215dd85254c3a4fe446f93f563279715b68d07987
 - DVD 内的最小环境标识是 `minimal`，配置使用 `@^minimal` 和 `@core`；Rocky 保留其 `minimal-environment`。
 - CentOS 7 安装环境没有 `base64`。安装前脚本直接写入经过 shell 转义的 PEM CA，仍然验证控制器 HTTPS 证书。
 - 旧版 `lsblk` 对 VirtIO 磁盘可能不显示序列号。为空时读取该整盘的 `/sys/block/磁盘名/serial`，检查全部整盘并要求唯一匹配；不会退回“第一块盘”。
-- `operator` 是系统内置账户，不能当作普通管理员创建。默认改为 `deployadmin`；首次启动核对普通用户 UID 与可登录 shell 后才回传完成状态。
-- iVentoy 会在 udev 重命名网卡前加载驱动。CentOS 7 的早期 Kickstart 解析器把第一条网络指令转换为 `ip=ethN:dhcp`，可能一直等待已不存在的名字。先用只含 hostname 的网络指令，再用 `--device=MAC --bindto=mac --activate` 配置网卡，让 iVentoy 提供启动网络、Anaconda 按 MAC 接续网络。原始 DVD 解析器已在隔离环境验证，不生成错误的 `ip=` / `bootdev=` 或网络等待标记，生成的 ifcfg 保留 MAC、DHCP 和自动连接。
+- `operator` 是系统内置账户，不能当作普通管理员创建。早期模板使用 `deployadmin`，当前按用户选择默认使用 `admin`；首次启动核对普通用户 UID 与可登录 shell 后才回传完成状态。
+- iVentoy 会在 udev 重命名网卡前加载驱动。CentOS 7 的早期 Kickstart 解析器把第一条网络指令转换为 `ip=ethN:dhcp`，可能一直等待已不存在的名字。先用只含 hostname 的网络指令，再用 `--device=MAC --bindto=mac --no-activate --onboot=yes` 保存目标网卡的 DHCP 配置。安装期间保留 iVentoy 已建立的连接；重新激活该网卡会先丢失 IPv4，使正在使用的 iSCSI 安装介质超时，继而导致 Anaconda 的 `NetworkManager.GetDevices` 超时。原版解析器及 Anaconda 网络初始化函数已验证：不生成错误的 `ip=` / `bootdev=` 或等待标记，不重激活 live 连接，目标 ifcfg 保留 MAC、DHCP 和自动连接。此处理覆盖 CentOS 7.6、7.9 与 RHEL 7 模板。
 
 ## iVentoy 操作
 
@@ -31,7 +31,7 @@ SHA-256：e33d7b1ea7a9e2f38c8f693215dd85254c3a4fe446f93f563279715b68d07987
 
 仅验证网启时停在欢迎 / 语言页，不开始安装。若安装器报告现有磁盘 UUID 重复，应退出并单独核实存储；不要把这类存储错误当作 PXE 传输失败，也不要为通过启动检查而清盘。
 
-正式自动安装需要独立登记 MAC、目标整盘序列号及启动模式，核对并授权对应任务，再按 [iVentoy 文件准备流程](iventoy-files.md) 生成和绑定专属镜像 / Kickstart。不要将某台机器的任务脚本设为所有镜像的公共默认配置。
+当前可以直接选择 `ventoy-center → PXE-Auto → CentOS-7.9… → image.iso` 和自动安装脚本。一块可用内置盘按策略自动安装；多盘在控制台选择目标盘并输入 `yes`，或输入 `r`、两个盘号和 `yes` 重建双盘 RAID1 + LVM。脚本核对 MAC、磁盘序列号和存储成员后创建对应任务，不需要预先在后台登记。也保留 [iVentoy 文件准备流程](iventoy-files.md)中的专属任务方式；不能将某台机器的任务脚本设为所有镜像的公共默认配置。
 
 ### iVentoy 1.0.44 的 CentOS 7 脚本入口
 
@@ -47,6 +47,10 @@ CentOS 7.9 安装包现在额外生成 `centos7-iventoy.tar.gz`。它通过 [iVe
 兼容包仅为 CentOS 7.9 任务生成，仍需通过 MAC、磁盘序列号、现有 RAID/LVM 和一次性授权检查。旧任务的文件清单不会被自动覆盖；缺少兼容包时取消并清理旧任务，重新生成。此兼容入口已在下述实机环境完成安装验收。
 
 ## 验证边界
+
+### iVentoy 1.0.47 双盘 PXE-Auto 回归（2026-10-25）
+
+alpha.28 在 `.235` / Intel X710 上修复并复测 NetworkManager 重激活 PXE 连接导致的 iSCSI 超时。按 `r → 1 2 → yes`，清理已授权的 Q0Q/Q0R，完整安装双盘 RAID1 + LVM，自行重启到硬盘系统并回报 installed；另一次正常重启后所有检查再次通过。实际 root/admin 密码 SSH、sudo、DHCP、主机名、CLI、两组 RAID1 及两盘 EFI 引导文件、内核锁定与禁用自动更新均通过。仍使用 `3.10.0-1160.el7.x86_64`，本轮没有强制复位、BIOS 干预或实物拔盘；首次阵列同步继续在后台。完整原因、发布记录与证据见[当前进度](../development/progress.md)。以下为此前各轮验收的历史边界。
 
 2026-10-13，`0.3.0-alpha.2` 使用上述 DVD 和管理端实际生成的 Kickstart，在 KVM / QEMU 10.1、OVMF UEFI、2 vCPU、3 GiB RAM、24 GiB 新建虚拟磁盘上通过以下验证：
 

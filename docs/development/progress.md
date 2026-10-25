@@ -1,5 +1,17 @@
 # Ventoy Center 当前进度
 
+## alpha.28 CentOS 7.9 物理 PXE 网络修复（2026-10-25）
+
+在 `.235` 复现用户的 `r → 1 2 → yes` 失败：Anaconda 读取第二条 Kickstart 网络指令后，创建并激活新连接，先断开正在使用的 PXE 网卡 `eno2`。IPv4 丢失后 iSCSI 安装介质读取超时，随后 `nm_get_all_settings` 和 `NetworkManager.GetDevices` 报 `GLib.Error: Timeout was reached (24)`。这次错误发生在原生分区安装前，原因不是 RAID 成员校验。
+
+CentOS 7.6、7.9 和 RHEL 7 模板改用 `--no-activate --onboot=yes`：保留 live 安装器的现有连接，同时保存按 MAC 绑定的 DHCP 开机配置。第一条仅含 hostname 的网络指令继续保留，防止 dracut 等待 udev 重命名前的 ethN。用原版 CentOS 7.9 Anaconda 网络初始化函数对比验证：旧配置会调用连接激活，新配置保存 DHCP/ONBOOT 而不替换 live 连接。Go 测试与 vet、52 份安装模板、28 份账户策略、PXE 动态配置及 54 组 RAID 配置检查通过。
+
+现场已发布 alpha.28，iVentoy 保持 1.0.47 Pro。发布前确认失败安装器退出且物理机关机，关闭旧任务并清理其残留连接；只重启管理端，未重启 iVentoy。52 个自动入口、113 个 ISO 路径、文件指纹和原生绑定一致。备份与发布核验在服务器 `e610-pxe-media-20261023/centos7-physical-20261025/production-backup-20261025-094712/`、`production-alpha28.json`。
+
+修复后的任务 `2200e4c2ad39f80d012c785c` 从 LAN1 → iVentoy → `PXE-Auto → CentOS-7.9-x86_64-DVD-2009-Auto-24282e` 启动，按同样的 `r`、`1 2`、`yes` 完整安装，自行重启进入硬盘系统并回报 `installed`，没有进入 BIOS 或强制复位。首次启动的实际 root/admin 密码 SSH、sudo、DHCP、主机名、CLI、内核及更新策略均通过。两块 HFS480G3H2X069N（Q0Q/Q0R）构成 RAID1 `/boot` 和 RAID1 数据卷，数据卷承载 `vcvg/root`、`vcvg/swap`，两组阵列和两个 EFI 引导成员检查通过。系统为 CentOS Linux 7.9.2009，内核 `3.10.0-1160.el7.x86_64`，系统地址为 `192.168.1.52`。
+
+首次启动和第二次正常重启复查全部通过，证据为同目录 `fixed-boot1.json`、`fixed-boot2.json`；两个启动 ID 不同，第二次启动继续从 CentOS 本地 EFI 入口进入系统，没有失败的 systemd 单元。数据阵列首次同步约 18%，仍在后台，不能计为同步完成或实物拔盘验收。本轮物理网卡是 Intel X710，未增加 E610 实卡验证；CentOS 7.6 和 RHEL 7 仅增加模板与原版函数回归，不扩大为这两个版本的物理实装通过。
+
 ## alpha.27 Ubuntu 24.04.3 正常重启与手动 setup（2026-10-25）
 
 修复 Ubuntu Casper 安装完成时 `/cdrom` 仍被 live 根文件系统引用的卸载问题：在成功完成安装钩子后，为安装环境的 `cdrom.mount` 设置 `LazyUnmount=yes`，让系统在正常关机阶段解除挂载。仅接受 Ubuntu、overlay 根和只读 ISO 挂载，写入 `/run` 并回读 systemd 确认；不提前拔出介质、不强制重启，也不写入目标系统的启动配置。对照测试中原版出现 `/cdrom` 卸载失败及 SquashFS I/O 错误，修复后正常重启，未再出现这两类错误。
@@ -11,9 +23,9 @@
 
 两条路径的运行内核均为 `6.8.0-71-generic`。手动测试是隔离虚拟机，自动测试是 Intel X710 物理机；本轮没有 E610 实卡，也没有扩大为所有 Ubuntu 版本或 HWE 内核已通过。Go 测试/vet、52 份安装模板、28 份账户策略、54 组 RAID 配置，以及安装收尾、预置升级保护和 SSH 启动回归通过。
 
-证据在服务器 `e610-pxe-media-20261023/reboot-qa/`：`physical235/normal-reboot-proof.json`、`physical235/ubuntu24-raid-boot1.json`、`manual-pxe/manual-first-boot.json`、`manual-pxe/manual-fixed-apply.json`、`manual-pxe/manual-fixed-boot1.json`、`manual-pxe/manual-fixed-boot2.json` 和 `tests27b.log`。自动重启修复已以 alpha.26 先发布；alpha.27 的普通入口绑定待结束当前 CentOS 7.9 失败现场采集后刷新，不在活动网络镜像连接期间重启 iVentoy。
+证据在服务器 `e610-pxe-media-20261023/reboot-qa/`：`physical235/normal-reboot-proof.json`、`physical235/ubuntu24-raid-boot1.json`、`manual-pxe/manual-first-boot.json`、`manual-pxe/manual-fixed-apply.json`、`manual-pxe/manual-fixed-boot1.json`、`manual-pxe/manual-fixed-boot2.json` 和 `tests27b.log`。修复已合入 main（`d6120fe`），13 项 CI 全部通过。经用户明确授权，确认 `.235` 关机后关闭旧 CentOS 安装任务、清理其残留镜像连接，发布 alpha.27 并刷新 iVentoy。14 个 Ubuntu 普通安装入口已更新预置注入包；52 个自动入口、113 个 ISO 路径及内容指纹保持不变。部署备份为 `production-alpha27-20261025-091952/`，发布核验记录为 `production-alpha27.json`。
 
-用户另报告 `.235` 的 CentOS 7.9 在 Anaconda `networkInitialize → NetworkManager.GetDevices` 超时。该问题与 Ubuntu `/cdrom` 收尾不同，仍单独诊断；旧的隔离验收结果不能证明此次物理流程正常。
+用户另报告 `.235` 的 CentOS 7.9 在 Anaconda `networkInitialize → NetworkManager.GetDevices` 超时。该问题与 Ubuntu `/cdrom` 收尾不同，后续诊断、修复与物理复测见上方 alpha.28；旧的隔离验收结果不能替代此次物理流程。
 
 ## Ubuntu 24.04.3 实机 PXE 双盘回归（2026-10-24）
 

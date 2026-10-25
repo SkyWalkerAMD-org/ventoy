@@ -2,7 +2,7 @@
 
 局域网批量装机管理端。客户端在 BIOS / UEFI 的 Boot 菜单选择网卡，由 **iVentoy / PXE** 加载镜像和自动安装配置；本项目负责目标机器、安装任务、授权、安装包和进度回传。
 
-**当前代码：0.3.0-alpha.27，iVentoy 1.0.47 Pro；Linux CLI 装机优先。** 43 个需要适配的 Linux ISO 已直接内置 E610 驱动，普通手动安装与 PXE 自动安装复用同一成品，并在安装收尾自动持久化驱动。43 个成品的 86 项隔离安装与重启验收通过，物理 E610 验收范围另列。常规无桌面装机使用 Ubuntu Server / live-server、Debian 标准系统与 SSH，以及 CentOS / Rocky / AlmaLinux / RHEL 最小化环境，默认启动到命令行。本阶段只做直推装机，不修改 sckocstp / fyhocsys，也不创建新的自动接入任务。Windows 保留为次要支持。
+**当前代码：0.3.0-alpha.28，iVentoy 1.0.47 Pro；Linux CLI 装机优先。** 43 个需要适配的 Linux ISO 已直接内置 E610 驱动，普通手动安装与 PXE 自动安装复用同一成品，并在安装收尾自动持久化驱动。43 个成品的 86 项隔离安装与重启验收通过，物理 E610 验收范围另列。常规无桌面装机使用 Ubuntu Server / live-server、Debian 标准系统与 SSH，以及 CentOS / Rocky / AlmaLinux / RHEL 最小化环境，默认启动到命令行。本阶段只做直推装机，不修改 sckocstp / fyhocsys，也不创建新的自动接入任务。Windows 保留为次要支持。
 
 日常装机使用“PXE 选择系统版本 → 选择自动安装脚本 → 自动安装”。一块可用内置盘自动清空安装；多盘在 PXE 画面选盘并输入 `yes`，也可输入 `r`、两个盘号和 `yes`，重建双盘 RAID1 + LVM。旧存储必须完整落在所选两盘内，否则停止。日常安装无需先登记带外地址或创建专属任务。详见 [PXE 菜单安装](docs/deployment/pxe-menu.md)。
 
