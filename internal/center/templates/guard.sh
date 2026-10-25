@@ -38,6 +38,7 @@ fi
 {{end}}{{if eq .Machine.Firmware "uefi"}}[ -d /sys/firmware/efi ] || { echo 'UEFI boot required' >&2; exit 1; }
 {{else}}[ ! -d /sys/firmware/efi ] || { echo 'Legacy BIOS boot required' >&2; exit 1; }
 {{end}}
+{{.StorageSizing}}
 {{if eq .Target.Installer "autoinstall"}}# Refuse a kernel substitution before claiming the destructive task.
 python3 - <<'VC_UBUNTU_KERNEL'
 {{.UbuntuKernel}}
@@ -52,6 +53,7 @@ test -f /cdrom/casper/vmlinuz && test -d "/lib/modules/$(uname -r)" || { echo 'D
 dpkg-query -W -f='${db:Status-Status}' "linux-image-$(uname -r)" | grep -qx installed
 # Resolve the guarded short serial to the exact device before running Ubiquity.
 sed -i "s@/dev/ventoy-center-unverified@/dev/$disk@g" /tmp/ventoy-center-selected.cfg
+{{.StorageRecipe}}
 {{end}}
 # CentOS 7's installer omits base64; PEM is safe as a quoted shell literal.
 printf '%s' {{sh .CA}} > /tmp/ventoy-center-ca.crt

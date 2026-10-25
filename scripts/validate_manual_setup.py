@@ -77,6 +77,42 @@ if sys.platform != 'win32':
     # Exercise real login verification across an asynchronous sshd reload.
     # A correct-looking username with a failed SSH exit status is not success.
     source = (ROOT / 'internal/center/assets/manual/manual-ssh.sh').read_text(encoding='utf-8')
+    account = source[source.index('    # Older setup versions'):source.index('    cfg=/etc/ssh/sshd_config')]
+    for marker, keep, present, uid, ok, changed in [
+        ('', 0, 0, 1000, True, True),  # old admin marker must not skip user
+        (None, 0, 0, 1000, True, True),
+        ('user\n', 0, 1, 1000, True, False),
+        ('', 1, 0, 1000, False, False),
+        ('', 0, 1, 100, False, False),
+        ('', 1, 1, 1000, True, False),
+    ]:
+        with tempfile.TemporaryDirectory(prefix='manual-accounts-') as temp:
+            root=Path(temp);state=root/'state';state.mkdir();etc=root/'etc';etc.mkdir()
+            (etc/'sudoers.d').mkdir()
+            for file in ('passwd','shadow','group','gshadow'):(etc/file).write_text('existing-account-data\n')
+            if marker is not None:(state/'accounts-set').write_text(marker)
+            mocks=r'''set -Eeuo pipefail
+die() { echo "$*" >&2; exit 1; }
+getent() { if [[ $1 == passwd ]]; then [[ $present == 1 ]]; else return 0; fi; }
+useradd() { echo "$*" >> "$state/useradd"; }
+id() { echo "$uid"; }
+usermod() { echo "$*" >> "$state/usermod"; }
+visudo() { :; }
+chpasswd() { cat > "$state/password-input"; }
+restorecon() { :; }
+family=apt
+'''
+            import shlex
+            code=mocks+'\nstate='+shlex.quote(str(state))+'\nkeep=%d\npresent=%d\nuid=%d\n'%(keep,present,uid)
+            code+=account.replace('/etc/',str(etc)+'/')
+            result=subprocess.run(['bash','-c',code],capture_output=True,text=True)
+            assert (result.returncode==0)==ok,(marker,keep,present,uid,result.stderr)
+            passwords=state/'password-input'
+            assert passwords.exists()==changed
+            if changed:assert passwords.read_text()=='user:ventoy\nroot:ventoy\n'
+            if ok:assert (state/'accounts-set').read_text()=='user\n'
+            assert all((etc/f).read_text()=='existing-account-data\n' for f in ('passwd','shadow','group','gshadow'))
+    print('PASS: user/root password policy, old admin marker migration, keep-passwords and system-user protection')
     enable = 'enable_ssh() {' + source.split('enable_ssh() {', 1)[1].split('\n    if ! sshd -t', 1)[0]
     for family, enabled, active, expected in [('apt', 0, 0, ''), ('apt', 1, 0, 'enable ssh.service'),
                                               ('apt', 0, 1, 'enable ssh.service'), ('rpm', 0, 0, 'enable sshd.service')]:
@@ -95,7 +131,7 @@ systemctl() {
         result = subprocess.run(['bash', '-c', code], capture_output=True, text=True)
         assert result.returncode == 0 and result.stdout.strip() == expected, result
     print('PASS: existing socket activation retained; inactive and legacy service paths enabled')
-    start = source.index('    for user in root admin; do\n        # Some units reload')
+    start = source.index('    for user in root user; do\n        # Some units reload')
     end = source.index('\nelse\n    echo "SSH_CONFIG_VERIFIED', start)
     login_loop = source[start:end]
     scenarios = [

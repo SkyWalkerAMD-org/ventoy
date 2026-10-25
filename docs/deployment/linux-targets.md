@@ -67,7 +67,7 @@ Debian 创建任务前必须设置 `bootstrap_ca_file`，即使控制器使用�
 
 Linux 模板还会核对安装环境的发行版，Debian 使用安装器的 `/etc/lsb-release` 标识。Debian 默认预置不存在的磁盘路径，只有所有检查和 HTTPS 领取成功后才把真实磁盘及分区确认写入 debconf。失败时钩子保持阻塞，可从其他终端查看 `/var/log/ventoy-center-guard.log`；已领取的任务不能重复使用。
 
-安装完成后，首次启动脚本核对 hostname、发行版、版本、普通管理员账户和更新策略，成功回传 `installed`。当前新建表单默认管理员为 `admin`，现场另配置 `linux_admin_username` 强制后续 Linux 任务使用该名称；管理员及 root 初始密码由服务端统一策略提供。此状态不代表压测系统接入，也不代表全部驱动和业务软件健康。alpha.22 中配置了 root 密码的 Ubuntu / Debian 同时允许 SSH 密码登录，并在首次启动检查其生效；管理员公钥仍可使用。未配置 root 密码时，Ubuntu 的 SSH 密码认证继续由是否提供公钥决定。
+安装完成后，首次启动脚本核对 hostname、发行版、版本、普通管理员账户和更新策略，成功回传 `installed`。当前新建表单默认普通管理员为 `user`，现场另配置 `linux_admin_username` 强制后续 Linux 任务使用该名称；管理员及 root 初始密码由服务端统一策略提供。此状态不代表压测系统接入，也不代表全部驱动和业务软件健康。alpha.22 中配置了 root 密码的 Ubuntu / Debian 同时允许 SSH 密码登录，并在首次启动检查其生效；管理员公钥仍可使用。未配置 root 密码时，Ubuntu 的 SSH 密码认证继续由是否提供公钥决定。
 
 ## 实机验收记录
 

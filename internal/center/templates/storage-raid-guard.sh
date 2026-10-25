@@ -31,7 +31,7 @@ case "$vc_member" in ''|*[!a-zA-Z0-9_-]*) vc_storage_fail 'Invalid member name';
 [ "$(cat "/sys/block/$vc_member/ro")" = 0 ] && [ "$(cat "/sys/block/$vc_member/removable")" = 0 ] || vc_storage_fail 'Read-only or removable member'
 vc_path=$(readlink -f "/sys/block/$vc_member")
 case "$vc_path" in */usb*/*|*/session*/*|*/virtual/*) vc_storage_fail 'External or network member rejected';; */pci*/*) ;; *) vc_storage_fail 'Unknown member connection';; esac
-[ "$(cat "/sys/block/$vc_member/size")" -ge 50331648 ] || vc_storage_fail 'RAID member is smaller than 24 GiB'
+[ "$(cat "/sys/block/$vc_member/size")" -ge 234375000 ] || vc_storage_fail 'RAID member is smaller than 120 GB'
 printf '%s\n' "$vc_member" >> "$vc_selected"
 {{end}}
 [ "$(sed -n '1p' "$vc_selected")" != "$(sed -n '2p' "$vc_selected")" ] || vc_storage_fail 'RAID members resolve to the same disk'

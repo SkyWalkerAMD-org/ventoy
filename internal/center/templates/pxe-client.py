@@ -223,10 +223,10 @@ def choose_raid(inv, console):
             print('Choose two different disk numbers. Nothing has been erased.', file=console)
             continue
         members = [inv['disks'][int(n)-1] for n in numbers]
-        if any(d.get('location') != 'internal' or d['blocked'] not in allowed or d['size'] < 24 * 1024**3
+        if any(d.get('location') != 'internal' or d['blocked'] not in allowed or d['size'] < 120000000000
                or not re.match(r'^[A-Za-z0-9_.:/-]{1,120}$', d['serial'])
                or sum(x['serial'] == d['serial'] for x in inv['disks']) != 1 for d in members):
-            print('A selected member is unavailable, mounted, ambiguous, or smaller than 24 GiB.', file=console)
+            print('A selected member is unavailable, mounted, ambiguous, or smaller than 120 GB.', file=console)
             continue
         serials = [d['serial'] for d in members]
         for d in members:

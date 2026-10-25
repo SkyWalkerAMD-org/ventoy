@@ -2,7 +2,7 @@
 
 局域网批量装机管理端。客户端在 BIOS / UEFI 的 Boot 菜单选择网卡，由 **iVentoy / PXE** 加载镜像和自动安装配置；本项目负责目标机器、安装任务、授权、安装包和进度回传。
 
-**当前代码：0.3.0-alpha.32，iVentoy 1.0.47 Pro；Linux CLI 装机优先。** 43 个需要适配的 Linux ISO 已直接内置 E610 驱动，普通手动安装与 PXE 自动安装复用同一成品，并在安装收尾自动持久化驱动。43 个成品的 86 项隔离安装与重启验收通过，物理 E610 验收范围另列。常规无桌面装机使用 Ubuntu Server / live-server、Debian 标准系统与 SSH，以及 CentOS / Rocky / AlmaLinux / RHEL 最小化环境，默认启动到命令行。手动与自动安装均预置含软件分发功能的新版 setup，安装后可直接运行。Windows 保留为次要支持。
+**当前代码：0.3.0-alpha.33，iVentoy 1.0.47 Pro；Linux CLI 装机优先。** 43 个需要适配的 Linux ISO 已直接内置 E610 驱动，普通手动安装与 PXE 自动安装复用同一成品，并在安装收尾自动持久化驱动。43 个成品的 86 项隔离安装与重启验收通过，物理 E610 验收范围另列。常规无桌面装机使用 Ubuntu Server / live-server、Debian 标准系统与 SSH，以及 CentOS / Rocky / AlmaLinux / RHEL 最小化环境，默认启动到命令行。手动与自动安装均预置含软件分发功能的新版 setup，安装后可直接运行。Windows 保留为次要支持。
 
 安装完成后，运行新版 `sudo bash ventoy-linux-setup.run`，会从中心 `software_dir` 自动获取适合本机的 RPM / DEB 并安装或升级。包可直接集中存放，按架构和 EL 版本匹配；同一软件择新、同版本跳过、不降级。中心替换软件后再次执行即可。详见[节点软件分发](docs/deployment/node-software.md)。
 
@@ -29,6 +29,8 @@ E610 的精确内核驱动、ISO 制作工具和逐镜像验证记录见 [E610 I
 - Linux 安装前核对身份和磁盘、首次启动核对系统版本并回传安装状态。Debian 使用专门的安装环境保护脚本。
 - 同机 iVentoy 文件准备：独立镜像硬链接、安装脚本、持久清单、失败重试和任务结束后的受限清理。
 - Windows 安装前核对 MAC、磁盘序列号、磁盘编号和固件模式；需提前制作含所需可选组件的 WinPE。
+
+新装 Linux 默认普通账户为 `user / ventoy`，root 为 `root / ventoy`，支持系统控制台和 SSH 直接登录；BMC 管理网页使用独立账户。自动分区按磁盘容量档位分配 EFI、boot、tmp、swap、var、root，剩余给 home；双盘 RAID1 以较小成员盘计算。详见 [分区规则与登录策略](docs/deployment/pxe-menu.md)。普通手动安装仍由安装器选择分区及账户，进入系统后运行预置 setup 应用账户和系统策略。
 
 ## 当前边界
 

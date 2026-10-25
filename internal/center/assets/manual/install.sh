@@ -32,7 +32,7 @@ sudo bash ventoy-linux-setup.run --software
 sudo bash ventoy-linux-setup.run --list-software
 sudo bash ventoy-linux-setup.run --check-software
 
-Installs E610 support when required; enables root/admin SSH password login;
+Installs E610 support when required; enables root/user SSH password login;
 configures unconfigured wired NICs for DHCP and activates new profiles;
 locks the installed kernel, disables automatic updates, and verifies results.
 No arguments applies the full configuration and installs/verifies the matching
@@ -41,7 +41,7 @@ Root-level tar.gz files from the software library are copied and verified in
 /root/ventoy-tools without extraction or execution.
 --software installs that group alone; no account/network/hostname changes.
 Missing dependencies may be installed from this system's configured repositories.
-Default initial credentials: admin / ventoy, root / ventoy.
+Default initial credentials: user / ventoy, root / ventoy.
 Existing users and configured static networks are preserved. --keep-passwords
 retains existing account passwords (root must already have an unlocked password).
 Missing packages may be installed, but no system/kernel upgrade is performed.
@@ -152,7 +152,7 @@ if [[ $mode == --resume ]]; then
     if [[ -d /etc/cloud/cloud.cfg.d ]]; then
         printf 'preserve_hostname: true\n' > /etc/cloud/cloud.cfg.d/99-ventoy-manual-hostname.cfg
     fi
-    if [[ ! -e "$state/configured" ]]; then
+    if [[ ! -e "$state/configured" || ! -f "$state/accounts-set" || $(cat "$state/accounts-set") != user ]]; then
         if ! command -v python3 >/dev/null && ! command -v python >/dev/null && [[ ! -x /usr/libexec/platform-python ]]; then
             [[ $offline == 0 ]] || die 'Python is required for safe network parsing; install it from the OS media.'
             if [[ $family == apt ]]; then

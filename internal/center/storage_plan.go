@@ -51,8 +51,8 @@ func validateStoragePlan(plan *StoragePlan, disks []PXEDisk) error {
 				continue
 			}
 			matches++
-			if disk.Location != "internal" || disk.Size < 24<<30 {
-				return errors.New("RAID members must be internal disks of at least 24 GiB")
+			if disk.Location != "internal" || disk.Size < 120000000000 {
+				return errors.New("RAID members must be internal disks of at least 120 GB")
 			}
 			// The eventual installer guard independently verifies full LVM/MD
 			// membership before any destructive claim. Mounts, swap, external

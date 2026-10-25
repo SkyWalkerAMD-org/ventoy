@@ -11,6 +11,42 @@ import (
 
 func passwordPolicyHash() string { return "$6$policy$" + strings.Repeat("b", 86) }
 
+func TestLinuxUserAndRootPasswordPolicy(t *testing.T) {
+	for _, p := range profiles {
+		if p.OS == "windows" {
+			continue
+		}
+		s := &Server{config: Config{PublicURL: "https://controller.invalid", LinuxAdminUsername: "user", LinuxInitialPasswordHash: passwordPolicyHash()}}
+		r := JobRequest{OS: p.OS, Profile: p.ID, Username: "oldadmin"}
+		s.config.applyLinuxAccounts(&r)
+		if r.Username != "user" || r.RootPasswordHash != r.PasswordHash || r.PasswordHash != passwordPolicyHash() {
+			t.Fatal(p.ID, "user/root credential policy not applied")
+		}
+		j := PrivateJob{Job: Job{ID: "user-policy", OS: p.OS, Profile: p.ID, Machine: Machine{Name: "QA-USER", MAC: "52:54:00:25:01:01", DiskSerial: "QA-FIRST", Firmware: "uefi"}}, Request: r, Token: "fixture"}
+		files, err := s.renderFiles(j)
+		if err != nil {
+			t.Fatal(err)
+		}
+		name := map[string]string{"kickstart": "kickstart.cfg", "autoinstall": "user-data", "preseed": "preseed.cfg", "ubiquity": "preseed.cfg"}[p.Installer]
+		text := files[name]
+		if p.Installer == "ubiquity" {
+			for _, m := range regexp.MustCompile(`printf '%s' '([A-Za-z0-9+/=]+)'`).FindAllStringSubmatch(text, -1) {
+				text += decodeTemplateScript(t, m[1])
+			}
+		}
+		if strings.Count(text, passwordPolicyHash()) != 2 {
+			t.Fatal(p.ID, "both console accounts need the same unlocked password")
+		}
+		if !strings.Contains(files["root-ssh-policy.sh"], "'PermitRootLogin yes' 'PasswordAuthentication yes'") {
+			t.Fatal(p.ID, "root SSH password login missing")
+		}
+		want := map[string]string{"kickstart": "user --name=user", "autoinstall": "username: \"user\"", "preseed": "passwd/username string user", "ubiquity": "passwd/username string user"}[p.Installer]
+		if !strings.Contains(text, want) {
+			t.Fatal(p.ID, "default username missing", want)
+		}
+	}
+}
+
 func TestLinuxInitialPasswordTemplates(t *testing.T) {
 	for _, p := range profiles {
 		t.Run(p.ID, func(t *testing.T) {
@@ -103,12 +139,12 @@ func TestLinuxInitialPasswordTemplates(t *testing.T) {
 func TestExistingPXEUsesCurrentPasswordPolicy(t *testing.T) {
 	s, e := pxeFixture(t, "ubuntu-22.04")
 	s.config.LinuxInitialPasswordHash = passwordPolicyHash()
-	s.config.LinuxAdminUsername = "admin"
+	s.config.LinuxAdminUsername = "user"
 	ticket := pxeTicket(t, s, e, pxeInventory())
 	w := request(s, "POST", "/pxe/"+e.ID+"/install", e.Token, map[string]string{"ticket": ticket["ticket"], "disk_serial": "DISK-DEMO-001", "confirmation": "ERASE DISK-DEMO-001"})
 	mustCode(t, w, 200)
 	j := s.store.snapshot().Jobs[0]
-	if j.Request.PasswordHash != passwordPolicyHash() || j.Request.RootPasswordHash != passwordPolicyHash() || j.Request.Username != "admin" {
+	if j.Request.PasswordHash != passwordPolicyHash() || j.Request.RootPasswordHash != passwordPolicyHash() || j.Request.Username != "user" {
 		t.Fatal("existing menu kept old password")
 	}
 	files, err := s.renderPXEFiles(e)
@@ -153,7 +189,7 @@ func TestPasswordPolicyValidationAndMenuCreation(t *testing.T) {
 
 func TestLinuxAdminPolicyValidation(t *testing.T) {
 	s := fixture(t)
-	for _, name := range []string{"admin", "", "root", "operator", "Admin", "a;id", "admin\n"} {
+	for _, name := range []string{"user", "admin", "", "root", "operator", "Admin", "a;id", "admin\n"} {
 		c := s.config
 		c.LinuxAdminUsername = name
 		b, _ := json.Marshal(c)
@@ -162,7 +198,7 @@ func TestLinuxAdminPolicyValidation(t *testing.T) {
 			t.Fatal(err)
 		}
 		_, err := loadConfig(path)
-		valid := name == "admin" || name == ""
+		valid := name == "user" || name == "admin" || name == ""
 		if (err == nil) != valid {
 			t.Fatalf("username policy %q: %v", name, err)
 		}

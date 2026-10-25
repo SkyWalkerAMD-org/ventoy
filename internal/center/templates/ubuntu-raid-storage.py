@@ -5,6 +5,7 @@ import sys
 import tempfile
 import yaml
 
+{{.UbuntuSizes}}
 
 def bind_install_disks(config_path, first, second):
     if first == second or not all(re.fullmatch(r"[a-zA-Z0-9_-]+", name) for name in (first, second)):
@@ -19,6 +20,7 @@ def bind_install_disks(config_path, first, second):
                 "grub": {"reorder_uefi": False, "remove_duplicate_entries": False}}
     if storage != expected:
         raise ValueError("Storage changed before verified RAID binding")
+    sizes = storage_sizes()
     uefi = {{if eq .Machine.Firmware "uefi"}}True{{else}}False{{end}}
     actions = []
     for index, name in enumerate((first, second)):
@@ -49,13 +51,20 @@ def bind_install_disks(config_path, first, second):
         {"id": "vc-boot-fs", "type": "format", "volume": "vc-boot-md", "fstype": "ext4", "preserve": False},
         {"id": "vc-boot-mount", "type": "mount", "device": "vc-boot-fs", "path": "/boot"},
         {"id": "vc-vg", "type": "lvm_volgroup", "name": "vcvg", "devices": ["vc-data-md"], "preserve": False},
-        {"id": "vc-swap-lv", "type": "lvm_partition", "name": "swap", "volgroup": "vc-vg", "size": 2147483648, "preserve": False},
-        {"id": "vc-root-lv", "type": "lvm_partition", "name": "root", "volgroup": "vc-vg", "preserve": False},
-        {"id": "vc-swap-fs", "type": "format", "volume": "vc-swap-lv", "fstype": "swap", "preserve": False},
-        {"id": "vc-swap-mount", "type": "mount", "device": "vc-swap-fs", "path": "none"},
-        {"id": "vc-root-fs", "type": "format", "volume": "vc-root-lv", "fstype": "ext4", "preserve": False},
-        {"id": "vc-root-mount", "type": "mount", "device": "vc-root-fs", "path": "/"},
     ])
+    for name, mib in sizes:
+        volume = {"id": "vc-" + name + "-lv", "type": "lvm_partition", "name": name,
+                  "volgroup": "vc-vg", "preserve": False}
+        # Curtin consumes the VG's remaining extents only when size is omitted.
+        if mib is not None:
+            volume["size"] = mib * 1048576
+        actions.extend([
+            volume,
+            {"id": "vc-" + name + "-fs", "type": "format", "volume": volume["id"],
+             "fstype": "swap" if name == "swap" else "ext4", "preserve": False},
+            {"id": "vc-" + name + "-mount", "type": "mount", "device": "vc-" + name + "-fs",
+             "path": "none" if name == "swap" else "/" if name == "root" else "/" + name},
+        ])
     storage.pop("layout")
     storage["config"] = actions
     pending = None

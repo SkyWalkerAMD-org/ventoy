@@ -18,29 +18,31 @@ if [[ $mode == --apply ]]; then
             "$manager" -y --exclude='kernel*' install openssh-server openssh-clients sudo
         fi
     fi
-    [[ -e "$state/accounts-set" ]] || {
+    # Older setup versions marked completion for admin. Apply the new account
+    # once, preserving that existing user and its files rather than renaming it.
+    [[ -f "$state/accounts-set" && $(cat "$state/accounts-set") == user ]] || {
         backup=$(mktemp -d "$state/accounts-backup.XXXXXXXX")
         cp -p /etc/passwd /etc/shadow /etc/group /etc/gshadow "$backup/"
-        if ! getent passwd admin >/dev/null; then
-            [[ $keep == 0 ]] || die '--keep-passwords requires an existing admin account.'
-            useradd -m -s /bin/bash admin
+        if ! getent passwd user >/dev/null; then
+            [[ $keep == 0 ]] || die '--keep-passwords requires an existing user account.'
+            useradd -m -s /bin/bash user
         fi
-        uid=$(id -u admin)
-        ((uid >= 1000 && uid != 65534)) || die 'Existing admin is a system account; retained.'
+        uid=$(id -u user)
+        ((uid >= 1000 && uid != 65534)) || die 'Existing user is a system account; retained.'
         group=wheel; [[ $family != apt ]] || group=sudo
         getent group "$group" >/dev/null || groupadd "$group"
-        usermod -a -G "$group" admin
-        printf 'admin ALL=(ALL:ALL) ALL\n' > "$backup/sudoers.new"
+        usermod -a -G "$group" user
+        printf 'user ALL=(ALL:ALL) ALL\n' > "$backup/sudoers.new"
         visudo -cf "$backup/sudoers.new"
-        [[ ! -L /etc/sudoers.d/90-ventoy-manual-admin ]] || die 'Unexpected sudoers symlink.'
-        [[ ! -f /etc/sudoers.d/90-ventoy-manual-admin ]] || cp -p /etc/sudoers.d/90-ventoy-manual-admin "$backup/"
-        install -m 0440 "$backup/sudoers.new" /etc/sudoers.d/90-ventoy-manual-admin
-        if command -v restorecon >/dev/null; then restorecon /etc/sudoers.d/90-ventoy-manual-admin; fi
+        [[ ! -L /etc/sudoers.d/90-ventoy-manual-user ]] || die 'Unexpected sudoers symlink.'
+        [[ ! -f /etc/sudoers.d/90-ventoy-manual-user ]] || cp -p /etc/sudoers.d/90-ventoy-manual-user "$backup/"
+        install -m 0440 "$backup/sudoers.new" /etc/sudoers.d/90-ventoy-manual-user
+        if command -v restorecon >/dev/null; then restorecon /etc/sudoers.d/90-ventoy-manual-user; fi
         visudo -c
         if [[ $keep == 0 ]]; then
-            printf 'admin:ventoy\nroot:ventoy\n' | chpasswd
+            printf 'user:ventoy\nroot:ventoy\n' | chpasswd
         fi
-        touch "$state/accounts-set"
+        printf 'user\n' > "$state/accounts-set"
     }
     cfg=/etc/ssh/sshd_config
     [[ -f $cfg && ! -L $cfg ]] || die 'sshd_config must be a regular file.'
@@ -97,11 +99,11 @@ effective=$(sshd -T -C user=root,host=localhost,addr=127.0.0.1)
 grep -qx 'permitrootlogin yes' <<< "$effective" || die 'Effective root login policy is not yes.'
 grep -qx 'passwordauthentication yes' <<< "$effective" || die 'Effective password authentication is not yes.'
 port=$(awk '$1=="port" {print $2;exit}' <<< "$effective")
-for user in root admin; do
+for user in root user; do
     secret=$(getent shadow "$user" | cut -d: -f2)
     case "$secret" in ''|'!'*|'*'*) die "$user password is unavailable or locked.";; esac
 done
-sudo -l -U admin >/dev/null
+sudo -l -U user >/dev/null
 if [[ $keep == 0 ]]; then
     # Test actual password authentication; do not confuse sshd -T with a login.
     # /run is mounted noexec by the installed security policy on some systems.
@@ -114,7 +116,7 @@ if [[ $keep == 0 ]]; then
         awk -v host="[127.0.0.1]:$port" '{print host " " $1 " " $2}' "$key" >> "$scratch/known_hosts"
         awk '{print "127.0.0.1 " $1 " " $2}' "$key" >> "$scratch/known_hosts"
     done
-    for user in root admin; do
+    for user in root user; do
         # Some units reload with kill -HUP, which returns before sshd has
         # re-executed and read its new configuration. Still require a real
         # password login; allow that brief transition only during --apply.
