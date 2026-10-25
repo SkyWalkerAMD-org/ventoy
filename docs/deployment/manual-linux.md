@@ -1,6 +1,6 @@
 # 普通 ISO 手动安装后的完整配置
 
-alpha.30 将包含[安装后软件分发](node-software.md)的新 setup 统一预置到普通手动安装和 PXE 自动安装结果。无参数运行 `/root/ventoy-linux-setup.run` 从中心获取适合本机的软件，`--apply` 执行完整配置。后续中心替换 RPM / DEB 不需要更换 setup。
+alpha.31 将包含[安装后软件分发](node-software.md)的新 setup 统一预置到普通手动安装和 PXE 自动安装结果。无参数运行 `/root/ventoy-linux-setup.run` 即应用完整配置、安装匹配的软件组并自动检查；`--apply` 保留兼容，`--software` 仅安装或升级软件。后续中心替换 RPM / DEB 不需要更换 setup。
 
 中心配置启用 `"linux_setup_preload": true` 后，生成的 Linux 专属任务与 PXE 菜单注入包包含当前 setup，安装收尾必须完成复制和 SHA-256 校验。普通手动入口绑定 `/api/linux-manual-setup?format=injection` 生成的当前注入包。升级中心后应重新生成并发布既有入口的注入包；已有准备文件不会在活动安装期间自动改写。若已校验的 E610 完整离线包缺失，生成失败，不会悄悄省略 setup。
 
@@ -9,12 +9,14 @@ alpha.30 将包含[安装后软件分发](node-software.md)的新 setup 统一�
 从 alpha.24 起，普通 Linux ISO 可以绑定 **手动安装配置包预置注入文件**。安装器保留交互步骤，在安装收尾时将完整配置包复制到新系统的 `/root/ventoy-linux-setup.run`。进入硬盘系统后，由用户手动执行：
 
 ```bash
-sudo bash /root/ventoy-linux-setup.run --apply --hostname server01
+sudo /root/ventoy-linux-setup.run
+# 如需指定主机名：
+sudo /root/ventoy-linux-setup.run --hostname server01
 ```
 
 这套配置覆盖现有 Linux 家族：Ubuntu 20–26、Debian 10–13，以及 CentOS、Rocky、AlmaLinux、RHEL 7–10（x86_64）。不仅用于 Ubuntu / Debian。Windows 不在本轮 Linux 配置包范围内。
 
-**预置不等于已配置。** 运行前仍使用手动安装时创建的账户和网络设置，预置过程不改密码、不启用 SSH、不应用 DHCP 或更新策略，也不替用户选盘。`/var/lib/ventoy-center/manual-setup-preloaded` 中的 `PRELOADED_ONLY` 只证明文件已放入，不能当成配置验收通过。执行 `--apply` 后再查看下文的 `VERIFIED` / `PENDING`。
+**预置不等于已配置。** 运行前仍使用手动安装时创建的账户和网络设置，预置过程不改密码、不启用 SSH、不应用 DHCP 或更新策略，也不替用户选盘。`/var/lib/ventoy-center/manual-setup-preloaded` 中的 `PRELOADED_ONLY` 只证明文件已放入，不能当成配置验收通过。直接执行 setup 后再查看下文的 `VERIFIED` / `PENDING`。
 
 alpha.24 的普通 ISO 预置依赖 iVentoy 的注入绑定。alpha.25 的 E610 适配 ISO 已把驱动、原生安装完成钩子及配置包写入镜像：普通手动入口与 PXE-Auto 复用同一成品，E610 驱动随安装自动写入目标系统，配置包仍由用户安装后手动执行。原生已支持 E610 的镜像继续保留原驱动和普通预置绑定。未经适配、也未绑定注入的原 ISO 不会携带这些内容；管理端保留下载入口供已有系统使用。
 

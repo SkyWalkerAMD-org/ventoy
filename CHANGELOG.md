@@ -1,5 +1,11 @@
 # 开发记录
 
+## 0.3.0-alpha.31 — 2026-10-25
+
+- 直接运行 `./ventoy-linux-setup.run` 默认应用并检查 SSH、主机名、DHCP、内核锁定、禁用自动更新，以及匹配的中心软件安装；不再要求 `--apply`。
+- 保留 `--apply` 兼容用法，`--software` 仅安装软件；`--hostname`、`--offline`、`--keep-passwords` 可直接用于默认完整配置。
+- 更新普通 Linux 手动安装与 PXE 自动安装的预置包说明和运行提示；安装器继续只复制文件，进入系统后由用户执行。
+
 ## 0.3.0-alpha.30 — 2026-10-25
 
 - 将新版 setup 与软件分发客户端加入 Linux 普通手动安装和 PXE 自动安装的预置包；安装后直接运行 `/root/ventoy-linux-setup.run`。

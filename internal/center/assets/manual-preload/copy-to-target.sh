@@ -72,8 +72,8 @@ for name in README-ventoy-setup.txt README-ventoy-software.txt ventoy-linux-setu
     chmod 0600 "$target/root/$name"
 done
 printf '%s\n' 'PRELOADED_ONLY' "sha256=$(cut -d ' ' -f 1 setup.sha256)" \
-    'run=sudo bash /root/ventoy-linux-setup.run --apply' \
-    'software=sudo bash /root/ventoy-linux-setup.run' > "$status"
+    'run=sudo /root/ventoy-linux-setup.run' \
+    'software=sudo /root/ventoy-linux-setup.run --software' > "$status"
 chmod 0600 "$status"
 echo 'Ventoy setup preloaded in /root/ventoy-linux-setup.run; configuration has NOT been applied.'
 # Only the live installer's read-only ISO shutdown is prepared. This helper
