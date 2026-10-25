@@ -1,5 +1,13 @@
 # Ventoy Center 当前进度
 
+## E610 重复入口清理与 Ubuntu 软件检查（2026-10-25）
+
+现有 Linux 镜像覆盖核对为 43 个内置 E610 驱动成品、9 个原生支持版本，加上两个历史重复别名。CentOS 7.9 / Ubuntu 22.04.3 的普通与 E610 命名版本各自为同一 inode。按用户要求移除两个 E610 基础别名及其两个 PXE 自动入口后，现场为 109 个镜像路径、52 个不重复 Linux 基础路径、50 个自动入口。保留普通名称下的驱动适配成品，脚本、驱动、setup、其他原生绑定与历史任务不变；镜像外保留恢复备份。详见[当前清单](../deployment/image-catalog.md)。
+
+清理前等待用户的新一轮 Ubuntu 22.04.3 双盘安装完成；后台回报 installed，并经 SSH 核对 `.235` 的硬件身份、本地 LVM 根文件系统及无安装镜像挂载。用户确认 root 的 KVM 系统控制台和 SSH 登录可用。其随后执行 setup 已安装三个业务软件（含 fyhocsys-node 0.8.3）；APT 仅在补齐依赖时升级三个 GCC 运行库相关包，内核仍为 5.15.0-78，锁定和自动更新禁用均保持。附加网卡仍待 IPv4 租约，系统 PENDING 与软件成功分别记录，见[软件验证范围](../deployment/node-software.md#验证范围)。
+
+证据位于服务器 `e610-pxe-media-20261023/dedup-20261025/`：`plan.json`、`node-installed.json`、`node-policy-audit.json`、`stale-cleanup.json`、`result.json`。本轮未重新执行全量安装或增加 E610 实卡验收。
+
 ## alpha.33 容量分区、user/root 登录与软件升级（2026-10-25）
 
 Linux 自动安装改用[统一容量档位](../deployment/pxe-menu.md#默认分区容量alpha33)：EFI 1 GiB、boot 2 GiB 固定，480/512 GB 档的 tmp/swap/var/root 为 5/32/64/128 GiB，home 使用余量。更小容量按半档、四分之一档，大容量继续倍增；RAID1 以较小成员盘计算。单盘使用 GPT 直接分区，双盘保留 RAID1 boot、RAID1 数据及 LVM。容量不足在领取安装授权前停止。

@@ -1,10 +1,21 @@
 # 现场镜像清单
 
-核对日期：2026-10-24。现场为 iVentoy **1.0.47 专业版**、Ventoy Center **0.3.0-alpha.25**，实际运行目录为 `/home/ventoy-center/iventoy`，镜像根目录为其下的 `iso/`。
+核对日期：2026-10-25。现场为 iVentoy **1.0.47 专业版**、Ventoy Center **0.3.0-alpha.33**，实际运行目录为 `/home/ventoy-center/iventoy`，镜像根目录为其下的 `iso/`。
 
-当前为 **113 个路径：60 个基础系统路径、1 个 MemTest86 工具镜像、52 个有效 PXE 自动安装入口**。alpha.25 为 43 个缺少原生支持的 Linux ISO 内置 E610 驱动、原生安装收尾钩子与手动配置包；其中 41 个为新增适配，CentOS 7.9 与 Ubuntu 22.04.3 更新现有适配，两个历史 E610 别名复用对应成品。45 个基础路径及相应 PXE 入口使用同一份已验证镜像。9 个原生支持 E610 的 Linux ISO 保留原驱动与手动预置绑定；Windows 和工具镜像设置保留。
+当前为 **109 个路径：58 个基础系统路径、1 个 MemTest86 工具镜像、50 个有效 PXE 自动安装入口**。基础系统包括 52 个不重复的 Linux 镜像和 6 个 Windows 镜像。Linux 中 43 个已内置 E610 驱动、原生安装收尾钩子与手动配置包，9 个原生支持 E610，保留原驱动和当前预置绑定。所有现有自动入口均与对应基础镜像使用同一份文件内容。
 
-本轮增加 13 个自动入口：CentOS 7.6 / 8.0 / 8.4 / Stream 8，Rocky 10.0 / 8.6 / 8.7 / 8.9 / 9.1 / 9.3 / 9.4 / 9.5，以及 Ubuntu Desktop 22.04.4 CLI 启动入口。Desktop 仍含桌面软件，常规无桌面装机优先选择 Server。43 个成品已通过 86 项隔离安装与重启检查；当前没有 E610 实卡，不把它计为物理网口验收，具体见[当前进度](../development/progress.md)。
+2026-10-25 核对 CentOS 7.9 和 Ubuntu 22.04.3 各自的普通名称与 E610 名称：两者是同一 inode 的硬链接，内容完全相同。按用户要求移除下列两个基础别名及其两个 PXE-Auto 入口，菜单由 113 减为 109；普通名称保留的仍是 E610 适配成品。
+
+| 保留的基础入口 | 移除的重复基础入口 | 移除的自动入口编号 |
+| --- | --- | --- |
+| `CentOS/CentOS-7.9-x86_64-DVD-2009.iso` | `CentOS/CentOS-7.9-x86_64-E610-r2-DVD.iso` | `33523ae47b77e36178ca2ca2` |
+| `Ubuntu/ubuntu-22.04.3-live-server-amd64.iso` | `Ubuntu/ubuntu-22.04.3-live-server-amd64-E610.iso` | `750c70aa968061f129fd658b` |
+
+清理等待活动安装结束，并通过 SSH 核实 `.235` 已从硬盘启动、未挂载安装镜像后处理其旧连接。移除文件和脚本在 ISO 目录外保留恢复副本；50 个保留自动入口的脚本摘要、原生绑定、镜像身份以及全局配置核对一致，历史机器和任务记录保留。备份与验收位于 `/home/ventoy-center/e610-pxe-media-20261023/dedup-20261025/`（`plan.json`、`result.json`、`backup-20261025-135641Z/`）。这次清理减少菜单重复，不代表释放两份完整 ISO 的磁盘空间。
+
+9 个原生支持镜像为 Rocky 9.6 / 9.7 / 9.8 / 10.2，以及 Ubuntu Server 24.04.4 / 24.04.5 / 25.04 / 26.04 和 Ubuntu Desktop 26.04。43 个适配成品已通过 86 项隔离安装与重启检查；当前没有 E610 实卡，不把它计为所有版本的物理网口验收，具体见[当前进度](../development/progress.md)。Windows 和 MemTest86 不属于 Linux 驱动注入范围。
+
+alpha.25 曾增加 13 个自动入口：CentOS 7.6 / 8.0 / 8.4 / Stream 8，Rocky 10.0 / 8.6 / 8.7 / 8.9 / 9.1 / 9.3 / 9.4 / 9.5，以及 Ubuntu Desktop 22.04.4 CLI 启动入口。Desktop 仍含桌面软件，常规无桌面装机优先选择 Server。以下保留各次发布的历史计数与验证记录。
 
 原版镜像及其原权限、旧管理端、配置和绑定备份位于 `/home/ventoy-center/e610-pxe-media-20261023/production-backup-20261024-195208/`。菜单中的适配成品统一允许管理端账户读取，避免部分旧文件仅 root 可读导致无法创建自动入口。移除适配路径重复的外部手动注入绑定；驱动和配置包均已在 ISO 内。验收记录为同级任务目录的 `production-acceptance.json`、`production-postcheck.json`；逐 ISO 哈希与安装内核见 [E610 成品清单](https://github.com/SkyWalkerAMD-org/E610/blob/codex/e610-pxe-media/pxe-media/baked-catalog.json)。
 

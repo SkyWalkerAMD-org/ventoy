@@ -10,11 +10,11 @@
 
 配置统一 root 密码的 Ubuntu / Debian 新安装允许 root SSH 密码登录，初次启动后再次检查。Linux 自动安装设置主机名和启动网卡 DHCP，并预置 `safe-server-init`，用于安装后修改主机名及向未配置网卡补充 DHCP；保留现有网络配置与脚本的后端限制。
 
-新生成的 Linux 自动安装任务默认锁定内核，并关闭软件源自动刷新和无人值守升级。54 个 Linux 基础路径均提供[完整配置包预置](docs/deployment/manual-linux.md)：45 个适配路径（43 个成品及两个历史 E610 别名）已将配置包写入 ISO，另 9 个原生支持 E610 的镜像保留原驱动及预置绑定。手动安装后直接运行 `/root/ventoy-linux-setup.run`，配置并检查 SSH、主机名、DHCP、内核锁定和禁用自动更新，同时安装匹配的中心软件组；E610 驱动持久化独立于这个手动操作。Ubuntu Desktop 22.04.4 另有 CLI 启动的自动入口，但镜像仍含桌面软件，无桌面装机优先选择 Server。具体行为、检查与恢复见 [Linux 更新策略](docs/deployment/linux-update-policy.md)。
+新生成的 Linux 自动安装任务默认锁定内核，并关闭软件源自动刷新和无人值守升级。去重后的 52 个 Linux 基础路径均提供[完整配置包预置](docs/deployment/manual-linux.md)：43 个适配成品已将驱动和配置包写入 ISO，另 9 个原生支持 E610 的镜像保留原驱动及预置绑定。手动安装后直接运行 `/root/ventoy-linux-setup.run`，配置并检查 SSH、主机名、DHCP、内核锁定和禁用自动更新，同时安装匹配的中心软件组；E610 驱动持久化独立于这个手动操作。Ubuntu Desktop 22.04.4 另有 CLI 启动的自动入口，但镜像仍含桌面软件，无桌面装机优先选择 Server。具体行为、检查与恢复见 [Linux 更新策略](docs/deployment/linux-update-policy.md)。
 
 E610 的精确内核驱动、ISO 制作工具和逐镜像验证记录见 [E610 ISO Kit Release](https://github.com/SkyWalkerAMD-org/E610/releases/tag/v6.4.5-iso-kit-r1)。该工具包需配合用户自行提供的原版安装 ISO；此仓库保存管理端及安装策略源码。
 
-现场使用 **iVentoy 1.0.47 专业版**，运行目录 `/home/ventoy-center/iventoy`。18 个规划版本 ISO 已全部入库，目前共启用 52 个明确标注系统版本的自动安装入口，合计 113 个镜像路径（60 个基础系统路径、1 个 MemTest86 工具镜像、52 个自动入口）。CentOS 7.9 与 Ubuntu 22.04.3 的历史 E610 入口复用更新后的成品，没有再次制作重复版本。原版镜像在菜单外备份，专业版授权、原有机器/任务记录和未涉及入口设置保留。
+现场使用 **iVentoy 1.0.47 专业版**，运行目录 `/home/ventoy-center/iventoy`。18 个规划版本 ISO 已全部入库，目前共启用 50 个明确标注系统版本的自动安装入口，合计 109 个镜像路径（58 个基础系统路径、1 个 MemTest86 工具镜像、50 个自动入口）。CentOS 7.9 与 Ubuntu 22.04.3 已移除重复的 E610 命名基础入口及相应自动入口，保留普通名称下的同一份驱动适配成品。原版镜像和恢复备份在菜单外保存，专业版授权、原有机器/任务记录和未涉及入口设置保留。
 
 18 个规划标准版本均完成本轮隔离 QEMU/KVM 自动安装与两次硬盘启动验证。CentOS 7.9、Rocky 8.10、Rocky 9.2 和 Ubuntu Server 22.04.3 另有此前完整物理机验收；Ubuntu Server 24.04.3 已补齐物理 PXE 双盘安装后无人干预的正常硬盘启动，并完成普通 ISO 经真实隔离 iVentoy 的交互手动安装、正常重启、setup 配置和再次重启检查。物理与隔离结果分别记录，不能替代其他硬件或启动模式的验收。具体版本与证据见 [当前进度](docs/development/progress.md)和[现场镜像清单](docs/deployment/image-catalog.md)。
 
