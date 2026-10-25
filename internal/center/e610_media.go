@@ -156,6 +156,12 @@ func packInjection(files map[string]injectionFile) ([]byte, error) {
 
 // Chain original iVentoy hook before E610; never discard PXE or preload logic.
 func mergeMediaInjection(base, driver []byte) ([]byte, error) {
+	return mergeInjectionHooks(base, driver, "ventoy-e610/previous-live-hook.sh", "ventoy-e610/driver-live-hook.sh")
+}
+
+// Separate hook namespaces allow the automatic installer, driver and inert
+// setup preload to coexist. All other collisions must match byte-for-byte.
+func mergeInjectionHooks(base, driver []byte, previous, current string) ([]byte, error) {
 	files, err := readInjection(base)
 	if err != nil {
 		return nil, err
@@ -166,8 +172,6 @@ func mergeMediaInjection(base, driver []byte) ([]byte, error) {
 	}
 	if old, ok := files[liveInjectionHook]; ok {
 		if next, exists := addition[liveInjectionHook]; exists {
-			const previous = "ventoy-e610/previous-live-hook.sh"
-			const current = "ventoy-e610/driver-live-hook.sh"
 			for _, n := range []string{previous, current} {
 				if _, exists := files[n]; exists {
 					return nil, errors.New("reserved injection hook path")

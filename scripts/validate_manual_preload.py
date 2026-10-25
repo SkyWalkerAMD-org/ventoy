@@ -39,6 +39,7 @@ with tempfile.TemporaryDirectory(prefix='ventoy-preload-test-') as temp:
     run(src / 'copy-to-target.sh', target)
     assert (target / 'root/ventoy-linux-setup.run').read_bytes() == payload
     assert (target / 'root/ventoy-linux-setup.run').stat().st_mode & 0o777 == 0o700
+    assert (target / 'root/README-ventoy-software.txt').read_bytes() == (src / 'software-README.txt').read_bytes()
     assert {p.name: p.read_bytes() for p in (target / 'etc').iterdir()} == baseline
     assert not sentinel.exists()
     assert (target / 'var/lib/ventoy-center/manual-setup-preloaded').read_text().startswith('PRELOADED_ONLY\n')
@@ -108,6 +109,7 @@ with tempfile.TemporaryDirectory(prefix='ventoy-preload-test-') as temp:
         run(src / 'prepare-live.sh', live)
         assert hook.is_file(), kind
         assert (live / 'usr/local/lib/ventoy-preload/ventoy-linux-setup.run').read_bytes() == payload
+        assert (live / 'usr/local/lib/ventoy-preload/software-README.txt').read_bytes() == (src / 'software-README.txt').read_bytes()
         assert (live / 'usr/local/lib/ventoy-preload/ubuntu-reboot.sh').read_bytes() == helper.read_bytes()
         assert not (live / 'root').exists()
         assert not sentinel.exists()

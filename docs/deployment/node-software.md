@@ -19,11 +19,11 @@
 
 ## 节点执行
 
-先把管理端下载的新版 `ventoy-linux-setup.run` 放到节点。也可由管理员通过 SCP 推送该文件。旧 ISO 内预置的旧版 setup 需替换一次；新版本中心生成的完整包包含软件客户端。
+alpha.30 的预置流程在普通手动安装和 PXE 自动安装结束时，将新版文件放在 `/root/ventoy-linux-setup.run`，无需另行下载。安装器只复制并校验文件，不执行软件安装。已安装的旧系统不会被远程改写，可从管理端下载新版后替换一次。
 
 ```bash
 # 无参数：自动获取、选择、安装 / 升级适合本机的软件
-sudo bash ventoy-linux-setup.run
+sudo bash /root/ventoy-linux-setup.run
 
 # 同义命令；不重设账户、主机名、网络
 sudo bash ventoy-linux-setup.run --software

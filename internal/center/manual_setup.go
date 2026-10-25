@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"crypto/sha256"
 	"embed"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -143,29 +144,46 @@ func manualSetupLauncher(bundle []byte) []byte {
 	return append([]byte(strings.TrimRight(header, "\n")+"\n"), bundle...)
 }
 
-func (s *Server) linuxManualSetup(w http.ResponseWriter, r *http.Request) {
+func (s *Server) manualSetupBundle() ([]byte, error) {
 	// Only the release-pinned driver archive and narrowly scoped software client
 	// settings enter the bundle. Never include administrator or job credentials.
+	// Configuration, CA and download capability are immutable for this server's
+	// lifetime. Cache successful builds, but allow a missing archive to be added.
+	s.manualBundleMu.Lock()
+	defer s.manualBundleMu.Unlock()
+	if s.manualBundle != nil {
+		return s.manualBundle, nil
+	}
 	file, err := os.Open(filepath.Join(s.config.PackageDir, e610ArchiveName))
 	if err != nil {
-		http.Error(w, "完整配置包尚未准备好：服务器缺少已校验的 E610 驱动包", http.StatusConflict)
-		return
+		return nil, err
 	}
 	defer file.Close()
 	archive, err := io.ReadAll(io.LimitReader(file, 40<<20))
 	if err != nil {
-		http.Error(w, "Cannot read E610 driver archive", 500)
-		return
+		return nil, err
 	}
 	files, err := manualSetupFiles(archive)
 	if err != nil {
-		http.Error(w, "Manual setup bundle validation failed", 500)
-		return
+		return nil, err
 	}
 	s.addSoftwareClient(files)
 	bundle, err := packManualSetup(files)
 	if err != nil {
-		http.Error(w, "Cannot build manual setup bundle", 500)
+		return nil, err
+	}
+	s.manualBundle = bundle
+	return bundle, nil
+}
+
+func (s *Server) linuxManualSetup(w http.ResponseWriter, r *http.Request) {
+	bundle, err := s.manualSetupBundle()
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			http.Error(w, "完整配置包尚未准备好：服务器缺少已校验的 E610 驱动包", http.StatusConflict)
+		} else {
+			http.Error(w, "Manual setup bundle validation failed", 500)
+		}
 		return
 	}
 	if r.URL.Query().Get("format") == "injection" {

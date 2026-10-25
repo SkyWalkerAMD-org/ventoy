@@ -10,7 +10,7 @@ src=$(CDPATH= cd -- "$src" && pwd)
 [ "$root" != / ] && [ -f "$root/etc/os-release" ] || exit 1
 mkdir -p "$root/usr/local/lib/ventoy-preload"
 dest=$root/usr/local/lib/ventoy-preload
-for name in ventoy-linux-setup.run setup.sha256 copy-to-target.sh README.txt subiquity-launch.sh subiquity-legacy.py subiquity-desktop.sh finish-subiquity ubuntu-reboot.sh; do
+for name in ventoy-linux-setup.run setup.sha256 copy-to-target.sh README.txt software-README.txt subiquity-launch.sh subiquity-legacy.py subiquity-desktop.sh finish-subiquity ubuntu-reboot.sh; do
     cp -p "$src/$name" "$dest/$name"
 done
 if [ -d "$root/usr/share/anaconda/post-scripts" ]; then

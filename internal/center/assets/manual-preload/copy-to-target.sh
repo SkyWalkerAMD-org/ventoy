@@ -62,16 +62,18 @@ else
     trap - EXIT HUP INT TERM
 fi
 [ "$(sha256sum "$dest" | cut -d ' ' -f 1)" = "$(cut -d ' ' -f 1 setup.sha256)" ]
-for name in README-ventoy-setup.txt ventoy-linux-setup.run.sha256; do
+for name in README-ventoy-setup.txt README-ventoy-software.txt ventoy-linux-setup.run.sha256; do
     [ ! -e "$target/root/$name" ] && [ ! -L "$target/root/$name" ] || continue
     case "$name" in
-        README*) cp README.txt "$target/root/$name" ;;
+        README-ventoy-software.txt) cp software-README.txt "$target/root/$name" ;;
+        README-ventoy-setup.txt) cp README.txt "$target/root/$name" ;;
         *) cp setup.sha256 "$target/root/$name" ;;
     esac
     chmod 0600 "$target/root/$name"
 done
 printf '%s\n' 'PRELOADED_ONLY' "sha256=$(cut -d ' ' -f 1 setup.sha256)" \
-    'run=sudo bash /root/ventoy-linux-setup.run --apply' > "$status"
+    'run=sudo bash /root/ventoy-linux-setup.run --apply' \
+    'software=sudo bash /root/ventoy-linux-setup.run' > "$status"
 chmod 0600 "$status"
 echo 'Ventoy setup preloaded in /root/ventoy-linux-setup.run; configuration has NOT been applied.'
 # Only the live installer's read-only ISO shutdown is prepared. This helper
