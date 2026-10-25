@@ -22,6 +22,7 @@ from validate_ubuntu_storage import check_storage_binding
 from validate_ubuntu_injection import check_injection
 from validate_network_keyfiles import check_network_keyfiles
 from validate_install_failure import check_install_failure
+from validate_ubuntu_reboot import check_ubuntu_reboot
 
 
 def shell_check(source):
@@ -50,6 +51,7 @@ def decode_script(encoded):
 
 root = Path(sys.argv[1])
 check_update_policy_guard((root / "ubuntu-24.04" / "uefi" / "linux-update-policy.sh").read_text(encoding="utf-8"))
+check_ubuntu_reboot((root / "ubuntu-24.04" / "uefi" / "ubuntu-reboot.sh").read_text(encoding="utf-8"))
 count = 0
 kickstart_versions = KICKSTART_VERSIONS
 for profile, version in kickstart_versions.items():
@@ -85,6 +87,11 @@ for release in ("20.04", "22.04", "24.04", "24.10", "25.04", "26.04"):
         check_storage_binding(config)
         check_kernel_binding(config)
         check_install_failure(path.parent / "ubuntu-install-failed.py")
+        reboot_source = (path.parent / "ubuntu-reboot.sh").read_text(encoding="utf-8")
+        late = "\n".join(config["late-commands"])
+        assert base64.b64encode(reboot_source.encode()).decode() in late
+        assert late.index("systemctl enable ventoy-center-bootstrap.service") < late.index("/bin/sh /run/ventoy-center-ubuntu-reboot.sh")
+        assert config["shutdown"] == "reboot"
         if True:
             with tarfile.open(path.parent / "ubuntu-iventoy.tar.gz", "r:gz") as archive:
                 members = archive.getmembers()

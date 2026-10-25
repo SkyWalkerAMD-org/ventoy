@@ -77,6 +77,24 @@ if sys.platform != 'win32':
     # Exercise real login verification across an asynchronous sshd reload.
     # A correct-looking username with a failed SSH exit status is not success.
     source = (ROOT / 'internal/center/assets/manual/manual-ssh.sh').read_text(encoding='utf-8')
+    enable = 'enable_ssh() {' + source.split('enable_ssh() {', 1)[1].split('\n    if ! sshd -t', 1)[0]
+    for family, enabled, active, expected in [('apt', 0, 0, ''), ('apt', 1, 0, 'enable ssh.service'),
+                                              ('apt', 0, 1, 'enable ssh.service'), ('rpm', 0, 0, 'enable sshd.service')]:
+        mocks = '''set -e
+systemctl() {
+ case "$1" in
+  is-enabled) return "$enabled";;
+  is-active) return "$active";;
+  enable) echo "$*";;
+  *) exit 99;;
+ esac
+}
+'''
+        code = mocks + '\nfamily=' + family + '\nenabled=' + str(enabled) + '\nactive=' + str(active)
+        code += '\nservice=' + ('ssh' if family == 'apt' else 'sshd') + '\n' + enable + '\nenable_ssh\n'
+        result = subprocess.run(['bash', '-c', code], capture_output=True, text=True)
+        assert result.returncode == 0 and result.stdout.strip() == expected, result
+    print('PASS: existing socket activation retained; inactive and legacy service paths enabled')
     start = source.index('    for user in root admin; do\n        # Some units reload')
     end = source.index('\nelse\n    echo "SSH_CONFIG_VERIFIED', start)
     login_loop = source[start:end]

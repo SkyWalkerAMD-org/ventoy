@@ -2,7 +2,7 @@
 
 局域网批量装机管理端。客户端在 BIOS / UEFI 的 Boot 菜单选择网卡，由 **iVentoy / PXE** 加载镜像和自动安装配置；本项目负责目标机器、安装任务、授权、安装包和进度回传。
 
-**当前代码及现场管理端：0.3.0-alpha.25，iVentoy 1.0.47 Pro；Linux CLI 装机优先。** 43 个需要适配的 Linux ISO 已直接内置 E610 驱动，普通手动安装与 PXE 自动安装复用同一成品，并在安装收尾自动持久化驱动。43 个成品的 86 项隔离安装与重启验收通过，物理 E610 验收范围另列。常规无桌面装机使用 Ubuntu Server / live-server、Debian 标准系统与 SSH，以及 CentOS / Rocky / AlmaLinux / RHEL 最小化环境，默认启动到命令行。本阶段只做直推装机，不修改 sckocstp / fyhocsys，也不创建新的自动接入任务。Windows 保留为次要支持。
+**当前代码：0.3.0-alpha.27，iVentoy 1.0.47 Pro；Linux CLI 装机优先。** 43 个需要适配的 Linux ISO 已直接内置 E610 驱动，普通手动安装与 PXE 自动安装复用同一成品，并在安装收尾自动持久化驱动。43 个成品的 86 项隔离安装与重启验收通过，物理 E610 验收范围另列。常规无桌面装机使用 Ubuntu Server / live-server、Debian 标准系统与 SSH，以及 CentOS / Rocky / AlmaLinux / RHEL 最小化环境，默认启动到命令行。本阶段只做直推装机，不修改 sckocstp / fyhocsys，也不创建新的自动接入任务。Windows 保留为次要支持。
 
 日常装机使用“PXE 选择系统版本 → 选择自动安装脚本 → 自动安装”。一块可用内置盘自动清空安装；多盘在 PXE 画面选盘并输入 `yes`，也可输入 `r`、两个盘号和 `yes`，重建双盘 RAID1 + LVM。旧存储必须完整落在所选两盘内，否则停止。日常安装无需先登记带外地址或创建专属任务。详见 [PXE 菜单安装](docs/deployment/pxe-menu.md)。
 
@@ -14,7 +14,7 @@ E610 的精确内核驱动、ISO 制作工具和逐镜像验证记录见 [E610 I
 
 现场使用 **iVentoy 1.0.47 专业版**，运行目录 `/home/ventoy-center/iventoy`。18 个规划版本 ISO 已全部入库，目前共启用 52 个明确标注系统版本的自动安装入口，合计 113 个镜像路径（60 个基础系统路径、1 个 MemTest86 工具镜像、52 个自动入口）。CentOS 7.9 与 Ubuntu 22.04.3 的历史 E610 入口复用更新后的成品，没有再次制作重复版本。原版镜像在菜单外备份，专业版授权、原有机器/任务记录和未涉及入口设置保留。
 
-18 个规划标准版本均完成本轮隔离 QEMU/KVM 自动安装与两次硬盘启动验证。CentOS 7.9、Rocky 8.10、Rocky 9.2 和 Ubuntu Server 22.04.3 另有此前完整物理机验收；Ubuntu Server 24.04.3 新增物理 PXE 双盘 RAID1 + LVM 安装、两盘 EFI 入口分别启动与策略检查，中间进入过 BIOS，连续自动重启仍保留验收边界。物理与隔离结果分别记录，不能替代其他硬件或启动模式的验收。具体版本与证据见 [当前进度](docs/development/progress.md)和[现场镜像清单](docs/deployment/image-catalog.md)。
+18 个规划标准版本均完成本轮隔离 QEMU/KVM 自动安装与两次硬盘启动验证。CentOS 7.9、Rocky 8.10、Rocky 9.2 和 Ubuntu Server 22.04.3 另有此前完整物理机验收；Ubuntu Server 24.04.3 已补齐物理 PXE 双盘安装后无人干预的正常硬盘启动，并完成普通 ISO 经真实隔离 iVentoy 的交互手动安装、正常重启、setup 配置和再次重启检查。物理与隔离结果分别记录，不能替代其他硬件或启动模式的验收。具体版本与证据见 [当前进度](docs/development/progress.md)和[现场镜像清单](docs/deployment/image-catalog.md)。
 
 ## 已实现
 

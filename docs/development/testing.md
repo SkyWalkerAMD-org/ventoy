@@ -13,6 +13,10 @@ node --check internal/center/web/app.js
 
 此测试只执行授权钩子，不执行安装器、真实块设备、磁盘分区或外部网络操作。保留旧接入任务测试用于兼容性；新建 `enroll: true` 必须拒绝。
 
+Ubuntu 重启收尾由 `scripts/validate_ubuntu_reboot.py` 检查：只有 Ubuntu Casper、overlay 根文件系统、精确挂载于 `/cdrom` 的只读 ISO 才写入运行时卸载配置；已安装系统、其他安装器、缺失挂载和可写介质均不修改。另检查重复执行、daemon-reload 失败、配置回读失败和符号链接保护。模板验证保证该步骤位于目标系统配置成功之后，仍使用安装器正常 `shutdown: reboot`，首次硬盘启动验证前不报告 installed。
+
+alpha.26 使用 Ubuntu Server 24.04.3 的同一成品 ISO 做无硬盘 QEMU 对照：原始正常重启复现 `/cdrom` 卸载失败及随后介质弹出造成的 squashfs I/O 错误；应用运行时 `LazyUnmount=yes` 后两项消失，正常进入内核重启。两组均保留 Casper 原有的自动安装免按键标记，没有强制重启。根文件系统仍引用的部分 loop 设备会在最终关机阶段提示 busy，这不阻止重启；不据此声称所有关机警告均已消失。物理 PXE 连续重启结果单独记录在进度页。
+
 CentOS 7 guard 另有 14 个隔离用例：覆盖旧版 `lsblk` 的空序列号、内核 sysfs 回退、新版 VirtIO / SATA、跨设备重复序列号、错误 MAC / 版本 / 固件、USB / RAID 和授权失败。测试还模拟 `base64` 不可用，核对控制器 CA 完整保留，所有身份检查通过后才领取授权。
 
 共用的 Linux guard 另覆盖 Ubuntu SATA、重复序列号、RAID 和绑定失败，验证目标校验、写入绑定、单次领取的顺序。Ubuntu 模板验证还执行内嵌 Python 绑定器，检查展开 / 包裹的 autoinstall 配置、SATA / NVMe / VirtIO 路径、非法设备名、异常存储配置及原子替换失败，确保其他配置与失败前文件内容保留。

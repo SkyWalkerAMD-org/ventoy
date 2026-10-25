@@ -18,10 +18,39 @@ cd "$src"
 sha256sum -c setup.sha256 || exit 1
 mkdir -p "$target/root" "$target/var/lib/ventoy-center"
 dest=$target/root/ventoy-linux-setup.run
+status=$target/var/lib/ventoy-center/manual-setup-preloaded
+[ ! -L "$status" ] || exit 1
 if [ -e "$dest" ] || [ -L "$dest" ]; then
-    [ -f "$dest" ] && [ ! -L "$dest" ] && cmp -s ventoy-linux-setup.run "$dest" || {
+    [ -f "$dest" ] && [ ! -L "$dest" ] || {
         echo 'Ventoy preload: existing setup differs; retained' >&2; exit 1;
     }
+    if ! cmp -s ventoy-linux-setup.run "$dest"; then
+        # A baked ISO can contain an older, still inert managed preload. Only
+        # replace it when both ownership records match its actual contents and
+        # setup has never been applied. Preserve custom/unmarked files.
+        previous=$(sha256sum "$dest" | cut -d ' ' -f 1)
+        record=$target/root/ventoy-linux-setup.run.sha256
+        [ -f "$status" ] && [ "$(head -n 1 "$status")" = PRELOADED_ONLY ] &&
+            grep -Fxq "sha256=$previous" "$status" &&
+            [ -f "$record" ] && [ ! -L "$record" ] &&
+            [ "$(cat "$record")" = "$previous  ventoy-linux-setup.run" ] &&
+            [ ! -e "$target/var/lib/ventoy-center/manual-init" ] &&
+            [ ! -L "$target/var/lib/ventoy-center/manual-init" ] || {
+                echo 'Ventoy preload: existing setup differs; retained' >&2; exit 1;
+            }
+        backup=$dest.preload-backup.$previous
+        [ ! -e "$backup" ] && [ ! -L "$backup" ] || exit 1
+        ln "$dest" "$backup"
+        tmp=$(mktemp "$target/root/.ventoy-setup.XXXXXX")
+        trap 'rm -f "$tmp"' EXIT HUP INT TERM
+        cp ventoy-linux-setup.run "$tmp"
+        chmod 0700 "$tmp"
+        mv -f "$tmp" "$dest"
+        trap - EXIT HUP INT TERM
+        cp setup.sha256 "$record"
+        chmod 0600 "$record"
+        echo 'Ventoy preload: refreshed unused managed setup; previous copy retained.'
+    fi
 else
     tmp=$(mktemp "$target/root/.ventoy-setup.XXXXXX")
     trap 'rm -f "$tmp"' EXIT HUP INT TERM
@@ -41,9 +70,10 @@ for name in README-ventoy-setup.txt ventoy-linux-setup.run.sha256; do
     esac
     chmod 0600 "$target/root/$name"
 done
-status=$target/var/lib/ventoy-center/manual-setup-preloaded
-[ ! -L "$status" ] || exit 1
 printf '%s\n' 'PRELOADED_ONLY' "sha256=$(cut -d ' ' -f 1 setup.sha256)" \
     'run=sudo bash /root/ventoy-linux-setup.run --apply' > "$status"
 chmod 0600 "$status"
 echo 'Ventoy setup preloaded in /root/ventoy-linux-setup.run; configuration has NOT been applied.'
+# Only the live installer's read-only ISO shutdown is prepared. This helper
+# skips non-Casper installers and never applies the staged target setup.
+/bin/sh "$src/ubuntu-reboot.sh"

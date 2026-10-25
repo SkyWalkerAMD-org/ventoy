@@ -98,4 +98,6 @@ in-target /bin/sh /root/ventoy-center-late.sh
 rm -f /target/root/ventoy-center-late.sh
 uname -r > /target/var/lib/ventoy-center/kernel-policy/expected-release
 test -f "/target/boot/vmlinuz-$(uname -r)"
+printf '%s' {{sh (b64 .UbuntuReboot)}} | base64 -d > /run/ventoy-center-ubuntu-reboot.sh
+/bin/sh /run/ventoy-center-ubuntu-reboot.sh
 touch /run/ventoy-center-ubiquity-complete

@@ -16,6 +16,8 @@ alpha.24 的普通 ISO 预置依赖 iVentoy 的注入绑定。alpha.25 的 E610 
 
 ## 自动应用和检查
 
+alpha.27 保留 Ubuntu 已启用的 SSH socket 启动方式，避免首次执行 setup 时同时留下采用旧策略的 SSH 监听进程。Ubuntu 24.04.3 已通过真实隔离 iVentoy 交互手动安装、点击重启后进入硬盘系统、setup 配置及再次重启验收。普通 ISO 的完成钩子只为 live 安装介质准备正常卸载；目标系统配置仍需手动执行 setup。
+
 | 项目 | 应用方式 | 完成检查 |
 | --- | --- | --- |
 | SSH | 启用服务、root 密码登录、admin sudo；放行已启用防火墙中的 SSH 端口 | 检查有效配置，并实际以 root/admin 密码连接本机 SSH |
@@ -51,5 +53,7 @@ Secure Boot 首次使用外部签名驱动可能需要控制台 MOK 注册；未
 `/api/linux-manual-setup?format=injection` 生成 `ventoy-manual-preload.tar.gz`。将其绑定到普通 Linux ISO 的启动注入文件，不绑定自动安装答案。注入包包含经过校验的完整 `.run` 文件、Debian d-i 的 `finish-install.d`、Anaconda 的 `post-scripts` 和 Ubuntu 的安装收尾钩子。复制前后核验 SHA-256，不覆盖用户已有的内容不同的同名配置包；目标系统的 `/root/README-ventoy-setup.txt` 提供操作说明。启动配置只属于安装器环境，不会在已安装系统中启用自动执行 setup 的服务。
 
 Ubuntu 20.04.3 的 Subiquity 尚无原生 postinst 目录，因此在安装器的完成阶段增加复制回调，保留原交互流程；Ubuntu 26 桌面版保留原启动参数和全部内置完成钩子，只增加预置复制。两种兼容启动包装都不传入自动安装参数，不修改原始 snap 文件。
+
+更新预置绑定时，只有尚未执行的托管旧包才可刷新：`PRELOADED_ONLY`、原校验文件和实际 SHA-256 必须一致，且不存在 `manual-init` 已应用状态。旧文件以 `.preload-backup.<摘要>` 保留。用户修改、无标记或已应用的文件继续保护，不覆盖；介质内置 E610 驱动不受此更新影响。
 
 用户提供的 `safe-server-init` 保留为独立工具；本项目另加激活和检查封装。此处适配增加 Debian 10 范围，以及仅在 sysfs 确认永久地址未被修改时识别 networkd 的 `PermanentMACAddress`。原脚本未知配置保护仍保留；完整包的新增网卡激活行为不能解释为原脚本单独运行也会全局应用网络。

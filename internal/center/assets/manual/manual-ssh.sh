@@ -62,7 +62,17 @@ if [[ $mode == --apply ]]; then
         [[ ! -f /etc/cloud/cloud.cfg.d/99-ventoy-root-ssh.cfg ]] || cp -p /etc/cloud/cloud.cfg.d/99-ventoy-root-ssh.cfg "$backup/"
         printf 'disable_root: false\nssh_pwauth: true\n' > /etc/cloud/cloud.cfg.d/99-ventoy-root-ssh.cfg
     fi
-    if ! sshd -t || ! systemctl enable "$service.service" || ! systemctl start "$service.service" || ! systemctl reload "$service.service"; then
+    # Preserve an already enabled socket activation path. Enabling ssh.service
+    # as well creates the sshd alias and reloads systemd on Ubuntu 24.04; that
+    # can leave the socket-activated listener outside the unit's MainPID. A
+    # reload then updates only the new listener, leaving old login policy live.
+    enable_ssh() {
+        if [[ $family == apt ]] && systemctl is-enabled --quiet ssh.socket && systemctl is-active --quiet ssh.socket; then
+            return 0
+        fi
+        systemctl enable "$service.service"
+    }
+    if ! sshd -t || ! enable_ssh || ! systemctl start "$service.service" || ! systemctl reload "$service.service"; then
         cp -p "$backup/sshd_config" "$cfg"
         command -v restorecon >/dev/null && restorecon "$cfg"
         sshd -t && systemctl reload "$service.service" || true

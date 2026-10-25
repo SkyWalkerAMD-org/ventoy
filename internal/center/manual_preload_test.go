@@ -58,6 +58,10 @@ func TestManualPreloadPackage(t *testing.T) {
 	if string(files["ventoy-manual-preload/setup.sha256"]) != fmt.Sprintf("%x  ventoy-linux-setup.run\n", sha256.Sum256(payload)) {
 		t.Fatal("payload checksum mismatch")
 	}
+	reboot, err := templates.ReadFile("templates/ubuntu-reboot.sh")
+	if err != nil || !bytes.Equal(files["ventoy-manual-preload/ubuntu-reboot.sh"], bytes.ReplaceAll(reboot, []byte("\r\n"), []byte("\n"))) {
+		t.Fatal("manual and automatic installers must share the live ISO shutdown helper", err)
+	}
 	// An injection must not add unattended answers or run the configuration.
 	for name, b := range files {
 		if strings.HasSuffix(name, "/README.txt") {

@@ -47,6 +47,7 @@ type renderData struct {
 	SSHPolicy       string
 	ServerInit      string
 	UbuntuKernel    string
+	UbuntuReboot    string
 	PXEMenu         bool
 	PXESettings     string
 	PXEISO          string
@@ -208,6 +209,11 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 		}
 		if j.OS == "ubuntu" {
 			name = "user-data"
+			d.UbuntuReboot, err = render("ubuntu-reboot.sh", d)
+			if err != nil {
+				return nil, err
+			}
+			files["ubuntu-reboot.sh"] = d.UbuntuReboot
 		}
 		if j.OS == "debian" {
 			name = "preseed.cfg"

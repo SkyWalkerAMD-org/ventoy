@@ -21,6 +21,10 @@ with tempfile.TemporaryDirectory(prefix='ventoy-preload-test-') as temp:
     base = Path(temp)
     src = base / 'payload'
     shutil.copytree(ASSETS, src)
+    # Stub shutdown here: copy-hook tests must never reload the runner's systemd.
+    shutdown = base / 'shutdown-prepared'
+    helper = src / 'ubuntu-reboot.sh'
+    helper.write_text('#!/bin/sh\ntest -f "' + str(base / 'installed/var/lib/ventoy-center/manual-setup-preloaded') + '" || exit 98\ntouch "' + str(shutdown) + '"\n')
     sentinel = base / 'must-not-execute'
     payload = ('#!/bin/sh\ntouch ' + str(sentinel) + '\nexit 99\n').encode()
     (src / 'ventoy-linux-setup.run').write_bytes(payload)
@@ -38,10 +42,42 @@ with tempfile.TemporaryDirectory(prefix='ventoy-preload-test-') as temp:
     assert {p.name: p.read_bytes() for p in (target / 'etc').iterdir()} == baseline
     assert not sentinel.exists()
     assert (target / 'var/lib/ventoy-center/manual-setup-preloaded').read_text().startswith('PRELOADED_ONLY\n')
+    # Refresh a baked, unused managed package; never replace a user file or an
+    # already-applied setup. Keep the exact former bytes for recovery.
+    updated = payload + b'# updated managed setup\n'
+    (src / 'ventoy-linux-setup.run').write_bytes(updated)
+    (src / 'setup.sha256').write_text(hashlib.sha256(updated).hexdigest() + '  ventoy-linux-setup.run\n')
+    for kind in ('managed', 'applied', 'missing-record', 'stale-marker'):
+        upgrade = base / ('upgrade-' + kind)
+        shutil.copytree(target, upgrade)
+        if kind == 'applied':
+            (upgrade / 'var/lib/ventoy-center/manual-init').mkdir()
+        elif kind == 'missing-record':
+            (upgrade / 'root/ventoy-linux-setup.run.sha256').unlink()
+        elif kind == 'stale-marker':
+            (upgrade / 'var/lib/ventoy-center/manual-setup-preloaded').write_text('PRELOADED_ONLY\nsha256=wrong\n')
+        run(src / 'copy-to-target.sh', upgrade, ok=(kind == 'managed'))
+        assert (upgrade / 'root/ventoy-linux-setup.run').read_bytes() == (updated if kind == 'managed' else payload)
+        if kind == 'managed':
+            backup = upgrade / ('root/ventoy-linux-setup.run.preload-backup.' + hashlib.sha256(payload).hexdigest())
+            assert backup.read_bytes() == payload
+            assert (upgrade / 'root/ventoy-linux-setup.run.sha256').read_bytes() == (src / 'setup.sha256').read_bytes()
+            run(src / 'copy-to-target.sh', upgrade)  # Repeat remains idempotent.
+    assert not sentinel.exists()
+    (src / 'ventoy-linux-setup.run').write_bytes(payload)
+    (src / 'setup.sha256').write_text(hashlib.sha256(payload).hexdigest() + '  ventoy-linux-setup.run\n')
     (src / 'ventoy-linux-setup.run').write_bytes(payload + b'corruption')
+    assert shutdown.exists()
+    shutdown.unlink()
     run(src / 'copy-to-target.sh', target, ok=False)
+    assert not shutdown.exists()  # Failed staging must not prepare reboot.
     assert (target / 'root/ventoy-linux-setup.run').read_bytes() == payload
     (src / 'ventoy-linux-setup.run').write_bytes(payload)
+    helper.write_text('#!/bin/sh\nexit 97\n')
+    (target / 'root/ventoy-linux-setup.run').write_bytes(payload)
+    result = run(src / 'copy-to-target.sh', target, ok=False)
+    assert result.returncode == 97  # Shutdown preparation failures propagate.
+    helper.write_text('#!/bin/sh\nexit 0\n')
     (target / 'root/ventoy-linux-setup.run').write_bytes(b'custom setup')
     run(src / 'copy-to-target.sh', target, ok=False)
     assert (target / 'root/ventoy-linux-setup.run').read_bytes() == b'custom setup'
@@ -72,6 +108,7 @@ with tempfile.TemporaryDirectory(prefix='ventoy-preload-test-') as temp:
         run(src / 'prepare-live.sh', live)
         assert hook.is_file(), kind
         assert (live / 'usr/local/lib/ventoy-preload/ventoy-linux-setup.run').read_bytes() == payload
+        assert (live / 'usr/local/lib/ventoy-preload/ubuntu-reboot.sh').read_bytes() == helper.read_bytes()
         assert not (live / 'root').exists()
         assert not sentinel.exists()
         dropins = list((live / 'etc/systemd/system').glob('*.service.d/*.conf'))

@@ -1,5 +1,20 @@
 # Ventoy Center 当前进度
 
+## alpha.27 Ubuntu 24.04.3 正常重启与手动 setup（2026-10-25）
+
+修复 Ubuntu Casper 安装完成时 `/cdrom` 仍被 live 根文件系统引用的卸载问题：在成功完成安装钩子后，为安装环境的 `cdrom.mount` 设置 `LazyUnmount=yes`，让系统在正常关机阶段解除挂载。仅接受 Ubuntu、overlay 根和只读 ISO 挂载，写入 `/run` 并回读 systemd 确认；不提前拔出介质、不强制重启，也不写入目标系统的启动配置。对照测试中原版出现 `/cdrom` 卸载失败及 SquashFS I/O 错误，修复后正常重启，未再出现这两类错误。
+
+- **物理 PXE 自动安装**：`.235` 经 LAN1 → iVentoy 1.0.47 Pro → Ubuntu 24.04.3 自动脚本，选择 `r`、`1 2`、`yes`。任务 `bfc55ce64f8f2721a0e9a9ac` 安装完成后自行进入硬盘系统并回报 installed；本轮没有进入 BIOS 或强制复位。双盘 RAID1 + LVM、两盘 EFI 文件、root/admin 密码 SSH、sudo、主机名、DHCP、CLI、内核及更新策略检查通过。首次阵列同步仍在后台，不扩大为拔盘验收。
+- **普通 ISO 手动安装**：隔离网络命名空间内使用真实 iVentoy 1.0.47 和与生产相同的 Ubuntu ISO；没有自动答案或测试 Kickstart。逐页操作原生安装器，点击 Reboot Now 后自行从新硬盘启动。点击至新系统启动约 134 秒，没有外部复位。启动后先确认 `/root/ventoy-linux-setup.run` 只是预置、没有应用配置，随后执行 setup，再正常重启并核对实际登录和所有策略。
+- **手动 setup 补充修复**：Ubuntu 24.04 原有 SSH socket 已启用时保留该启动方式，避免额外启用 ssh.service、创建别名后遗留旧监听进程。已回退隔离机的账户/SSH 初始状态，验证新包首次应用、实际 root/admin SSH、管理员 sudo，以及再次重启后检查通过，始终只有一个 SSH 监听进程。
+- **预置包更新**：可以刷新 ISO 中尚未使用的旧托管 setup，但必须同时匹配 PRELOADED_ONLY 标记、原 SHA-256 记录及实际文件内容，且不存在已应用状态。保留旧包备份；用户修改、未标记或已应用的同名文件不替换。
+
+两条路径的运行内核均为 `6.8.0-71-generic`。手动测试是隔离虚拟机，自动测试是 Intel X710 物理机；本轮没有 E610 实卡，也没有扩大为所有 Ubuntu 版本或 HWE 内核已通过。Go 测试/vet、52 份安装模板、28 份账户策略、54 组 RAID 配置，以及安装收尾、预置升级保护和 SSH 启动回归通过。
+
+证据在服务器 `e610-pxe-media-20261023/reboot-qa/`：`physical235/normal-reboot-proof.json`、`physical235/ubuntu24-raid-boot1.json`、`manual-pxe/manual-first-boot.json`、`manual-pxe/manual-fixed-apply.json`、`manual-pxe/manual-fixed-boot1.json`、`manual-pxe/manual-fixed-boot2.json` 和 `tests27b.log`。自动重启修复已以 alpha.26 先发布；alpha.27 的普通入口绑定待结束当前 CentOS 7.9 失败现场采集后刷新，不在活动网络镜像连接期间重启 iVentoy。
+
+用户另报告 `.235` 的 CentOS 7.9 在 Anaconda `networkInitialize → NetworkManager.GetDevices` 超时。该问题与 Ubuntu `/cdrom` 收尾不同，仍单独诊断；旧的隔离验收结果不能证明此次物理流程正常。
+
 ## Ubuntu 24.04.3 实机 PXE 双盘回归（2026-10-24）
 
 用户本次使用 `PXE-Auto` 自动入口，在安装控制台依次输入 `r`、`1 2`、`yes`。这是双盘 RAID1 + LVM 自动安装，不是普通 ISO 手动安装。任务 `e5a6e60e9da47e9d7847d011` 于 `12:09:23Z` 开始安装；Curtin 的分区、目标系统安装和引导步骤均为 SUCCESS。

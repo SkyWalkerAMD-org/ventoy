@@ -142,4 +142,6 @@ autoinstall:
       WantedBy=multi-user.target
       VCUNIT
       curtin in-target --target=/target -- systemctl enable ventoy-center-bootstrap.service
+      printf '%s' {{sh (b64 .UbuntuReboot)}} | base64 -d > /run/ventoy-center-ubuntu-reboot.sh
+      /bin/sh /run/ventoy-center-ubuntu-reboot.sh
   shutdown: reboot

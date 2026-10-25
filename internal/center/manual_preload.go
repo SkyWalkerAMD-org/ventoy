@@ -17,9 +17,14 @@ var manualPreloadAssets embed.FS
 // manualPreloadInjection adds installer completion hooks, without supplying
 // unattended answers or executing the contained system configuration package.
 func manualPreloadInjection(launcher []byte) ([]byte, error) {
+	reboot, err := templates.ReadFile("templates/ubuntu-reboot.sh")
+	if err != nil {
+		return nil, err
+	}
 	files := map[string][]byte{
 		"ventoy-manual-preload/ventoy-linux-setup.run": launcher,
 		"ventoy-manual-preload/setup.sha256":           []byte(fmt.Sprintf("%x  ventoy-linux-setup.run\n", sha256.Sum256(launcher))),
+		"ventoy-manual-preload/ubuntu-reboot.sh":       bytes.ReplaceAll(reboot, []byte("\r\n"), []byte("\n")),
 	}
 	entries, err := manualPreloadAssets.ReadDir("assets/manual-preload")
 	if err != nil {
