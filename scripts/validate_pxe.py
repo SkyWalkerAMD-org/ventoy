@@ -266,8 +266,18 @@ if os.name == "posix":
         os.close(master)
         os.close(slave)
 
+# Filesystem input is explicit and cannot inject a storage recipe.
+for answer, wanted in [('', 'ext4'), ('1','ext4'), ('ext4','ext4'), ('2','xfs'), ('XFS','xfs')]:
+    with patch.object(client, 'prompt', return_value=answer):
+        assert client.choose_filesystem(io.StringIO()) == wanted
+for answers in (['q'], ['ntfs', 'ext4;reboot', 'bogus']):
+    with patch.object(client, 'prompt', side_effect=answers):
+        try: client.choose_filesystem(io.StringIO())
+        except RuntimeError: pass
+        else: raise AssertionError('Invalid filesystem accepted')
+
 # A failed confirmation must never issue or claim an install job.
-with patch.dict(client.SETTINGS, disk_policy="console"), patch.object(client, "boot_mac", return_value=mac), patch.object(client, "inventory", return_value=inv), patch.object(client.tempfile, "mkdtemp", return_value="/mock"), patch.object(client, "write"), patch.object(client, "api", return_value=dict(ticket="ticket", preset_disk="", disk_policy="console")) as request, patch.object(client, "reserve_console"), patch.object(client, "Console", return_value=io.StringIO()), patch.object(client, "prompt", side_effect=["1", "", "", ""]), patch.object(client.subprocess, "check_call") as execute, patch.object(client.os, "umask"):
+with patch.dict(client.SETTINGS, disk_policy="console"), patch.object(client, "boot_mac", return_value=mac), patch.object(client, "inventory", return_value=inv), patch.object(client.tempfile, "mkdtemp", return_value="/mock"), patch.object(client, "write"), patch.object(client, "api", return_value=dict(ticket="ticket", preset_disk="", disk_policy="console")) as request, patch.object(client, "reserve_console"), patch.object(client, "Console", return_value=io.StringIO()), patch.object(client, "prompt", side_effect=["", "1", "", "", ""]), patch.object(client.subprocess, "check_call") as execute, patch.object(client.os, "umask"):
     try:
         client.main()
     except RuntimeError as exc:
@@ -277,9 +287,10 @@ with patch.dict(client.SETTINGS, disk_policy="console"), patch.object(client, "b
     assert request.call_count == 1 and request.call_args[0][1] == "discover"
     execute.assert_called_once_with(["chvt", client.CONSOLE_VT])
 
-# Neither a valid preset nor the single-internal policy may open an input TTY.
+# Preset tasks retain their authorized filesystem without opening an input TTY.
+# Shared entries ask for a filesystem even when one internal disk is selected.
 # Changes before issuing or claiming the job must stop the installation.
-for scenario in ("automatic", "preset", "changed-before-issue", "changed-before-guard", "policy-mismatch", "target-mismatch", "multi-disk"):
+for scenario in ("automatic", "xfs", "preset", "changed-before-issue", "changed-before-guard", "policy-mismatch", "target-mismatch", "multi-disk"):
     calls, writes = [], {}
     def fake_api(work, endpoint, body):
         calls.append(endpoint)
@@ -288,6 +299,7 @@ for scenario in ("automatic", "preset", "changed-before-issue", "changed-before-
                         disk_policy="console" if scenario == "policy-mismatch" else "single-internal",
                         automatic_disk="WRONG-DISK" if scenario == "target-mismatch" else "DISK-ONE")
         assert body["disk_serial"] == "DISK-ONE" and body["confirmation"] == ""
+        assert body['filesystem'] == ('xfs' if scenario == 'xfs' else 'ext4')
         return dict(installer="autoinstall", config=selected_source, preinstall="test-guard", install_failure="pass\n")
     different = copy.deepcopy(inv)
     different["disks"].append(dict(external,location="internal",blocked="LVM"))
@@ -295,8 +307,8 @@ for scenario in ("automatic", "preset", "changed-before-issue", "changed-before-
     if scenario == "changed-before-issue": inventories[1] = different
     if scenario == "changed-before-guard": inventories[2] = different
     if scenario in ("multi-disk", "preset"): inventories = [different] * 3
-    with patch.dict(client.SETTINGS, disk_policy="single-internal"), patch.object(client, "boot_mac", return_value=mac), patch.object(client, "inventory", side_effect=inventories), patch.object(client.tempfile, "mkdtemp", return_value="/mock"), patch.object(client, "write", side_effect=lambda p, s: writes.update({p:s})), patch.object(client, "api", side_effect=fake_api), patch.object(client.subprocess, "check_call") as execute, patch.object(client.os, "unlink"), patch.object(client.os, "umask"), patch.object(client, "Console") as console, patch.object(client, "prompt") as prompt, patch.object(client, "reserve_console") as reserve:
-        if scenario not in ("automatic", "preset"):
+    with patch.dict(client.SETTINGS, disk_policy="single-internal"), patch.object(client, "boot_mac", return_value=mac), patch.object(client, "inventory", side_effect=inventories), patch.object(client.tempfile, "mkdtemp", return_value="/mock"), patch.object(client, "write", side_effect=lambda p, s: writes.update({p:s})), patch.object(client, "api", side_effect=fake_api), patch.object(client.subprocess, "check_call") as execute, patch.object(client.os, "unlink"), patch.object(client.os, "umask"), patch.object(client, "Console") as console, patch.object(client, "prompt", return_value="2" if scenario == "xfs" else "") as prompt, patch.object(client.subprocess, "call"), patch.object(client, "reserve_console") as reserve:
+        if scenario not in ("automatic", "xfs", "preset"):
             try:
                 client.main()
             except RuntimeError:
@@ -304,19 +316,20 @@ for scenario in ("automatic", "preset", "changed-before-issue", "changed-before-
             else:
                 raise AssertionError("unsafe unattended installation accepted")
             assert calls == (["discover", "install"] if scenario == "changed-before-guard" else ["discover"])
-            assert not execute.called
+            assert not any(c.args[0] == ['/bin/bash','/mock/preinstall.sh'] for c in execute.call_args_list)
         else:
             client.main()
             assert calls == ["discover", "install"]
-            execute.assert_called_once_with(["/bin/bash", "/mock/preinstall.sh"])
+            assert execute.call_args_list[-1].args[0] == ["/bin/bash", "/mock/preinstall.sh"]
             assert yaml.safe_load(writes["/autoinstall.yaml"]) == expected
             assert writes["/run/ventoy-center-install-failed.py"] == "pass\n"
-        console.assert_not_called()
-        prompt.assert_not_called()
-        reserve.assert_not_called()
+        if scenario in ('preset','policy-mismatch','target-mismatch','multi-disk'):
+            console.assert_not_called(); prompt.assert_not_called(); reserve.assert_not_called()
+        else:
+            console.assert_called_once(); prompt.assert_called_once(); reserve.assert_called_once()
 
 # The new policy requires no registration or pre-created job. Multiple disks
-# use the real chooser; single disks must not open a terminal. Confirming the
+# use the real chooser; single disks only ask for the filesystem. Confirming the
 # second disk must propagate that exact serial to the server and final guard.
 for scenario in ("single", "second", "blocked-first", "bad-choice", "cancel", "blank", "changed", "mismatch"):
     first = dict(inv['disks'][0])
@@ -332,12 +345,14 @@ for scenario in ("single", "second", "blocked-first", "bad-choice", "cancel", "b
                         automatic_disk='DISK-ONE' if scenario in ('single', 'mismatch') else '')
         assert body['disk_serial'] == ('DISK-ONE' if scenario == 'single' else 'SECOND')
         assert body['confirmation'] == ('' if scenario == 'single' else 'ERASE SECOND')
+        assert body['filesystem'] == 'ext4'
         return dict(installer='autoinstall', config=selected_source, preinstall='test-guard', install_failure='pass\n')
     answers = ['2', 'yes']
     if scenario == 'bad-choice': answers = ['', '99', '2', 'yes']
     if scenario == 'blocked-first': answers = ['1', '2', 'yes']
     if scenario == 'cancel': answers = ['2', 'no']
     if scenario == 'blank': answers = ['2', '', '', '']
+    answers = [''] + ([] if scenario == 'single' else answers)
     inventories = [local_inv] * 3
     if scenario == 'changed': inventories[1] = dict(local_inv, disks=[second])
     success = scenario in ('single', 'second', 'blocked-first', 'bad-choice')
@@ -352,7 +367,7 @@ for scenario in ("single", "second", "blocked-first", "bad-choice", "cancel", "b
             else: raise AssertionError('unsafe local selection accepted: ' + scenario)
             assert calls == ['discover'], (scenario, calls)
         if scenario == 'single':
-            console.assert_not_called(); prompt.assert_not_called()
+            console.assert_called_once(); prompt.assert_called_once()
 raid_inv = dict(inv, disks=[dict(inv['disks'][0], size=128*1024**3),
                            dict(inv['disks'][0], name='sdb', serial='SECOND', size=128*1024**3),
                            dict(inv['disks'][0], name='sdc', serial='KEEP', size=128*1024**3)])

@@ -38,6 +38,7 @@ type JobRequest struct {
 	Package          string          `json:"package"`
 	Connection       json.RawMessage `json:"connection,omitempty"`
 	StoragePlan      *StoragePlan    `json:"storage_plan,omitempty"`
+	Filesystem       string          `json:"filesystem,omitempty"`
 }
 
 type Event struct {
@@ -47,6 +48,7 @@ type Event struct {
 }
 type Job struct {
 	StoragePlan   *StoragePlan `json:"storage_plan,omitempty"`
+	Filesystem    string       `json:"filesystem,omitempty"`
 	ID            string       `json:"id"`
 	Machine       Machine      `json:"machine"`
 	OS            string       `json:"os"`
@@ -115,7 +117,14 @@ func validateJob(r JobRequest) error {
 		return err
 	}
 
-	if _, err := resolveProfile(r.Profile, r.OS); err != nil {
+	p, err := resolveProfile(r.Profile, r.OS)
+	if err != nil {
+		return err
+	}
+	if p.OS == "windows" && r.Filesystem != "" {
+		return errors.New("Linux filesystem selection does not apply to Windows")
+	}
+	if _, err := linuxFilesystem(r.Filesystem); err != nil {
 		return err
 	}
 	if !userRE.MatchString(r.Username) || r.Username == "root" {

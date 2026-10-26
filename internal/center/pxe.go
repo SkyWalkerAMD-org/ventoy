@@ -410,8 +410,17 @@ func (s *Server) pxeDiscover(w http.ResponseWriter, r *http.Request) {
 			return errors.New("PXE 客户端过旧，请刷新 iVentoy 后重新网启")
 		}
 		preset, automatic := "", ""
+		filesystem, err := linuxFilesystem(e.Request.Filesystem)
+		if err != nil {
+			return err
+		}
+		presetFilesystem := ""
 		if j != nil {
 			preset = j.Machine.DiskSerial
+			presetFilesystem, err = linuxFilesystem(j.Request.Filesystem)
+			if err != nil {
+				return err
+			}
 		} else {
 			automatic, err = automaticPXEDisk(inv, policy)
 			if err != nil {
@@ -429,7 +438,7 @@ func (s *Server) pxeDiscover(w http.ResponseWriter, r *http.Request) {
 		}
 		t := PXETicket{ID: randomID(24), EntryID: e.ID, Inventory: inv, DiskPolicy: policy, Expires: time.Now().UTC().Add(15 * time.Minute)}
 		st.PXETickets = append(kept, t)
-		response = map[string]any{"ticket": t.ID, "label": e.Label, "preset_disk": preset, "automatic_disk": automatic, "disk_policy": policy, "expires": t.Expires}
+		response = map[string]any{"ticket": t.ID, "label": e.Label, "preset_disk": preset, "automatic_disk": automatic, "disk_policy": policy, "filesystem": filesystem, "preset_filesystem": presetFilesystem, "expires": t.Expires}
 		return nil
 	})
 	if err != nil {
@@ -438,7 +447,7 @@ func (s *Server) pxeDiscover(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Header.Get("Accept") == "text/x-ventoy-preseed" {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		for _, key := range []string{"ticket", "preset_disk", "automatic_disk", "disk_policy"} {
+		for _, key := range []string{"ticket", "preset_disk", "automatic_disk", "disk_policy", "filesystem", "preset_filesystem"} {
 			fmt.Fprintf(w, "%s=%s\n", key, response[key])
 		}
 		return
@@ -464,12 +473,18 @@ func (s *Server) pxeInstall(w http.ResponseWriter, r *http.Request) {
 		DiskSerial   string       `json:"disk_serial"`
 		Confirmation string       `json:"confirmation"`
 		StoragePlan  *StoragePlan `json:"storage_plan,omitempty"`
+		Filesystem   string       `json:"filesystem,omitempty"`
 	}
 	if !decode(w, r, &req) {
 		return
 	}
+	filesystem, err := linuxFilesystem(req.Filesystem)
+	if err != nil {
+		failPXE(w, 400, err)
+		return
+	}
 	var payload map[string]string
-	err := s.store.update(func(st *State) error {
+	err = s.store.update(func(st *State) error {
 		e, err := s.authorizePXE(st, r.PathValue("id"), bearer(r))
 		if err != nil {
 			return err
@@ -517,6 +532,10 @@ func (s *Server) pxeInstall(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		if j != nil {
+			presetFilesystem, err := linuxFilesystem(j.Request.Filesystem)
+			if err != nil || presetFilesystem != filesystem {
+				return errors.New("Filesystem does not match the existing authorized task")
+			}
 			if req.StoragePlan != nil {
 				return errors.New("An existing single-disk task cannot authorize a two-disk rebuild")
 			}
@@ -524,6 +543,7 @@ func (s *Server) pxeInstall(w http.ResponseWriter, r *http.Request) {
 				return errors.New("目标盘与已有授权不匹配")
 			}
 			j.PXEEntryID = e.ID
+			j.Filesystem = filesystem
 		} else {
 			message := "PXE 控制台已确认清空磁盘 " + req.DiskSerial
 			serial := ""
@@ -570,10 +590,12 @@ func (s *Server) pxeInstall(w http.ResponseWriter, r *http.Request) {
 			s.config.applyLinuxAccounts(&jr)
 			jr.MachineID = m.ID
 			jr.StoragePlan = req.StoragePlan
+			jr.Filesystem = filesystem
 			now := time.Now().UTC()
 			job := PrivateJob{Job: Job{ID: randomID(12), Machine: m, OS: jr.OS, Profile: jr.Profile, ISO: jr.ISO, PXEEntryID: e.ID, Created: now, Expires: now.Add(24 * time.Hour), Events: []Event{}}, Request: jr, Token: randomID(32)}
-			addEvent(&job, "ready", message)
+			addEvent(&job, "ready", message+"; filesystem="+filesystem)
 			job.StoragePlan = jr.StoragePlan
+			job.Filesystem = filesystem
 			st.Jobs = append(st.Jobs, job)
 			j = &st.Jobs[len(st.Jobs)-1]
 		}

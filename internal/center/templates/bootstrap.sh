@@ -26,6 +26,7 @@ event() { request -H 'Content-Type: application/json' --data "{\"state\":\"$1\"}
 trap 'event failed >/dev/null 2>&1 || true' ERR
 [ "$(hostname | tr '[:lower:]' '[:upper:]')" = {{sh .Machine.Name}} ]
 {{.VersionCheck}}
+{{.FilesystemCheck}}
 {{if .RAIDSetup}}/bin/bash /usr/local/sbin/ventoy-center-raid --check
 {{end}}
 {{if .SSHPolicy}}# Check again after cloud-init; a locked account or overridden policy must
