@@ -53,7 +53,7 @@ sudo ./ventoy-linux-setup.run --hostname server01
 - 同一软件存在多个兼容版本时，使用原生 dpkg / RPM 比较选择最高版本。已安装相同或更新版本时跳过，不降级；新旧文件可暂时同时保留。同名、同版本、同架构但内容不同的重复包会停止并提示清理冲突。
 - 清单和文件 SHA-256 未变化、已安装版本检查通过时，不重复下载或安装。请正确提高包版本号；原地重打同版本包不视作升级。
 - 从服务器移除文件不会卸载节点已安装的软件，也不会设置后台定期软件更新。
-- `software_rpm_min_el` 是管理员明确声明的向上兼容规则。本次根据用户确认，`fyhocsys-node` 从 EL8 起向上兼容；不能用于低于其构建版本的 EL。规则只适用于包内同名软件，不会扩大到 `sckoct-fyh` 等其他包。
+- `software_rpm_min_el` 是带 `.elN` 标签 RPM 的向上兼容规则。原 `fyhocsys-node` EL8 构建包允许用于 EL8 及以上，不向 EL7 分发。用户于 2026-10-27 确认新版 `fyhocsys-node-0.8.4-1.x86_64.rpm` 已适配 EL7 及以上；这个通用包的文件名和包内版本均无 `.elN` 标签，现有分发与 setup 检查已允许 EL7 获取和安装，不受旧 EL8 标签规则限制。依赖仍由目标机包管理器检查；此声明不会扩大 `sckoct-fyh` 等其他包的适用范围。
 
 需要专属软件组时，可使用 `系统/版本/架构/default/`：如 `ubuntu/22.04/amd64/default/`、`debian/12/amd64/default/`、`rocky/9/x86_64/default/`。专属组优先于根目录自动组。Ubuntu 精确匹配 `VERSION_ID`；EL / Debian 优先精确版本，其次大版本。不自动借用另一个 Ubuntu 版本的软件组。
 
