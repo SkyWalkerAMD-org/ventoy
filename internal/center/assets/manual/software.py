@@ -35,7 +35,7 @@ RPM_IDS = ('centos', 'rocky', 'almalinux', 'rhel', 'ol', 'scientific', 'anolis')
 HASH = re.compile(r'^[0-9a-f]{64}$')
 NAME = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9.+_-]*$')
 FILENAME = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9._+~-]{0,240}\.(deb|rpm)$')
-ARCHIVE_NAME = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9._+~-]{0,240}\.tar\.gz$')
+ARCHIVE_NAME = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9._+~-]{0,240}\.(?:tar\.gz|tgz|zip)\Z')
 MAX_FILE = 4 * 1024**3
 MAX_TOTAL = 8 * 1024**3
 
@@ -146,7 +146,7 @@ def validate_manifest(manifest, wanted):
     seen, total = set(), 0
     for item in archives:
         path = item.get('path', '')
-        if (not ARCHIVE_NAME.match(path) or not path.endswith('.tar.gz') or '/' in path or path in seen or
+        if (not ARCHIVE_NAME.match(path) or '/' in path or path in seen or
                 not HASH.match(item.get('sha256', '')) or
                 not isinstance(item.get('size'), (int, type(MAX_FILE))) or not 0 < item['size'] <= MAX_FILE):
             raise RuntimeError('Invalid archive in manifest')
