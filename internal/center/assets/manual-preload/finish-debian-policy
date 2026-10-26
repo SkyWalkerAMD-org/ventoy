@@ -1,0 +1,7 @@
+#!/bin/sh
+# d-i calls post-base-installer after installing its kernel, before pkgsel.
+set -eu
+. /usr/share/debconf/confmodule
+db_set pkgsel/upgrade none
+db_set pkgsel/update-policy none
+/bin/sh /ventoy-manual-preload/target-update-policy.sh /target

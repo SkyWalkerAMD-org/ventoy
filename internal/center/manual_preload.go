@@ -15,8 +15,8 @@ import (
 //go:embed assets/manual-preload/*.sh assets/manual-preload/*.py assets/manual-preload/finish-* assets/manual-preload/*.txt
 var manualPreloadAssets embed.FS
 
-// manualPreloadInjection adds installer completion hooks, without supplying
-// unattended answers or executing the contained system configuration package.
+// manualPreloadInjection retains interactive installation and stages setup.
+// APT installers also receive the independently requested update policy.
 func manualPreloadInjection(launcher []byte) ([]byte, error) {
 	reboot, err := templates.ReadFile("templates/ubuntu-reboot.sh")
 	if err != nil {
@@ -26,6 +26,13 @@ func manualPreloadInjection(launcher []byte) ([]byte, error) {
 		"ventoy-manual-preload/ventoy-linux-setup.run": launcher,
 		"ventoy-manual-preload/setup.sha256":           []byte(fmt.Sprintf("%x  ventoy-linux-setup.run\n", sha256.Sum256(launcher))),
 		"ventoy-manual-preload/ubuntu-reboot.sh":       bytes.ReplaceAll(reboot, []byte("\r\n"), []byte("\n")),
+	}
+	for _, name := range []string{"linux-update-policy.sh", "ubuntu-kernel.py"} {
+		body, err := render(name, renderData{KernelPackages: kernelPackagePatterns()})
+		if err != nil {
+			return nil, err
+		}
+		files["ventoy-manual-preload/"+name] = []byte(body)
 	}
 	entries, err := manualPreloadAssets.ReadDir("assets/manual-preload")
 	if err != nil {
@@ -46,6 +53,8 @@ func manualPreloadInjection(launcher []byte) ([]byte, error) {
 			name = "usr/lib/dracut/hooks/pre-pivot/99-ventoy-manual-preload.sh"
 		case "finish-debian":
 			name = "usr/lib/finish-install.d/93ventoy-manual-preload"
+		case "finish-debian-policy":
+			name = "usr/lib/post-base-installer.d/93ventoy-update-policy"
 		}
 		files[name] = bytes.ReplaceAll(b, []byte("\r\n"), []byte("\n"))
 	}
