@@ -24,6 +24,8 @@ alpha.24 的普通 ISO 预置依赖 iVentoy 的注入绑定。alpha.25 的 E610 
 
 alpha.33 起，首次执行新版 setup 会补齐 `user` 账户和 sudo 权限，并设置 user/root 初始密码；旧版 admin 及其文件保留。root 的密码同时用于系统控制台和 SSH，不改变 BMC 网页账户。新版已完成账户配置后再次运行不会重置用户后来修改的密码；`--keep-passwords` 保留已有密码。
 
+Ubuntu Server 普通手动入口从 alpha.35 起默认使用官方 HTTPS 主源和安全源，24.10 / 25.04 使用 HTTPS 归档源。镜像源页面仍可手动修改。安装 EFI 引导程序所需的包可能需要从源下载，这属于安装依赖；内核锁定和禁止自动升级仍生效。若手动改回不可用的 HTTP 源，仍可能在下载引导包时遇到 `403 Forbidden`，应检查安装日志里的实际失败地址。
+
 ## 自动应用和检查
 
 alpha.27 保留 Ubuntu 已启用的 SSH socket 启动方式，避免首次执行 setup 时同时留下采用旧策略的 SSH 监听进程。Ubuntu 24.04.3 已通过真实隔离 iVentoy 交互手动安装、点击重启后进入硬盘系统、setup 配置及再次重启验收。普通 ISO 的完成钩子只为 live 安装介质准备正常卸载；目标系统配置仍需手动执行 setup。

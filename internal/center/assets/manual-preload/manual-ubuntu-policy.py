@@ -3,17 +3,29 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shlex
 import subprocess
 import tempfile
 
 
-def prepare(path, release, packages, lock):
+def ubuntu_version(path=Path('/etc/os-release')):
+    for line in path.read_text().splitlines():
+        key, separator, value = line.partition('=')
+        if key == 'VERSION_ID' and separator:
+            values = shlex.split(value, comments=True)
+            if len(values) == 1:
+                return values[0]
+    raise ValueError('Missing Ubuntu VERSION_ID; cannot select the installation mirror')
+
+
+def prepare(path, release, packages, lock, version):
     path = Path(path)
     marker = path.parent / 'run/ventoy-manual-policy-config.json'
     if path.exists() or path.is_symlink():
         if not path.is_symlink() and marker.is_file() and path.read_bytes() == marker.read_bytes():
             return
         raise RuntimeError('Existing installation answers require review; not replacing them')
+    archived = version in ('24.10', '25.04')
     config = {
         'version': 1,
         # '*' would also make refresh-installer interactive and override its
@@ -25,7 +37,18 @@ def prepare(path, release, packages, lock):
             'active-directory',
         ],
         'refresh-installer': {'update': False},
-        'apt': {'geoip': False, 'conf': 'APT::Periodic::Enable "0";\n'},
+        'apt': {
+            'geoip': False,
+            # Match the automatic installer: HTTP country mirrors can serve
+            # their indexes but reject bootloader deb downloads with 403.
+            # The mirror page stays interactive for explicitly chosen mirrors.
+            'preserve_sources_list': False,
+            'primary': [{'arches': ['default'], 'uri':
+                         'https://%s.ubuntu.com/ubuntu' % ('old-releases' if archived else 'archive')}],
+            'security': [{'arches': ['default'], 'uri':
+                          'https://%s.ubuntu.com/ubuntu' % ('old-releases' if archived else 'security')}],
+            'conf': 'APT::Periodic::Enable "0";\n',
+        },
     }
     # Share the automatic installer's media-kernel pin and UU blacklist.
     # No disk, identity, network, or automatic reboot answers are supplied.
@@ -54,5 +77,5 @@ if __name__ == '__main__':
     if not any(line.startswith('linux-image-' + release + '\t') and line.endswith('\tinstalled')
                for line in packages.splitlines()):
         packages += kernel.media_kernel_metadata(release)
-    prepare('/autoinstall.yaml', release, packages, kernel.lock_installer_kernel)
+    prepare('/autoinstall.yaml', release, packages, kernel.lock_installer_kernel, ubuntu_version())
     print('Ventoy manual install: interactive screens retained; media kernel pinned; automatic package upgrades blocked.')
