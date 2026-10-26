@@ -2,7 +2,6 @@ package center
 
 import (
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -276,11 +275,7 @@ func TestEveryProfileProducesInstallationBundle(t *testing.T) {
 							t.Fatal("missing preseed hooks")
 						}
 						for _, match := range encoded {
-							b, e := base64.StdEncoding.DecodeString(match[1])
-							if e != nil {
-								t.Fatal(e)
-							}
-							checkShell(t, "preseed-hook.sh", string(b))
+							checkShell(t, "preseed-hook.sh", decodeTemplateScript(t, match[1]))
 						}
 					}
 				}

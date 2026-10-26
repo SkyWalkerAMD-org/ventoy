@@ -122,7 +122,8 @@ switch_console() {
         printf '\033[12;%s]' "$1" >&9
     fi
 }
-choose_disk() {
+open_console() {
+    [ "${console_open:-}" != yes ] || return 0
     # d-i has no systemd/getty on VT9. Keep input separate from debconf and
     # from early_command's redirected stdin. cdebconf owns fd 3 and preserves
     # original stdio on 4-6; leave those descriptors intact for preseed loading.
@@ -133,6 +134,27 @@ choose_disk() {
     if command -v stty >/dev/null 2>&1; then stty sane <&8; fi
     switch_console 9
     printf '\nVentoy Center - PXE automatic installation\nSystem: %s\nBoot MAC: %s\n\n' {{sh .PXEISO}} "$mac" >&9
+}
+choose_filesystem() {
+    printf 'Filesystem for /, /tmp, /var and /home:\n1. ext4\n2. XFS\n/boot stays ext4; EFI stays FAT32.\n' >&9
+    fs_attempt=1
+    while [ "$fs_attempt" -le 3 ]; do
+        printf 'Select 1/ext4 or 2/xfs; Enter keeps %s; q cancels. Attempt %s/3: ' "$filesystem" "$fs_attempt" >&9
+        IFS= read -r fs_value <&8 || fail 'Console input closed; no filesystem selected'
+        fs_value=$(printf '%s' "$fs_value" | tr A-Z a-z)
+        case "$fs_value" in
+            '') return;;
+            1|ext4) filesystem=ext4; return;;
+            2|xfs) filesystem=xfs; return;;
+            q) fail 'Installation canceled at the console';;
+        esac
+        printf 'Invalid filesystem. No disk has been erased.\n' >&9
+        fs_attempt=$((fs_attempt + 1))
+    done
+    fail 'No valid filesystem selected after 3 attempts'
+}
+choose_disk() {
+    open_console
     printf 'Select the installation disk. Kernel will be locked; automatic updates disabled.\n' >&9
     index=1
     while [ "$index" -le "$disk_count" ]; do
@@ -246,6 +268,18 @@ case "$policy" in single-internal|single-or-console) ;; *) fail 'Disk policy cha
 printf '%s\n' "$ticket" | grep -Eq '^[0-9a-f]{48}$' || fail 'Invalid authorization ticket'
 confirmation=
 storage_plan=
+filesystem=$(sed -n 's/^filesystem=//p' "$work/response")
+filesystem=${filesystem:-ext4}
+if [ -n "$serial" ]; then
+    filesystem=$(sed -n 's/^preset_filesystem=//p' "$work/response")
+    filesystem=${filesystem:-ext4}
+else
+    case "$filesystem" in ext4|xfs) ;; *) fail 'Invalid default filesystem';; esac
+    open_console
+    choose_filesystem
+    printf 'Selected filesystem: %s\n' "$filesystem" >&9
+fi
+case "$filesystem" in ext4|xfs) ;; *) fail 'Invalid authorized filesystem';; esac
 if [ -z "$serial" ]; then
     if [ "$policy" = single-or-console ] && [ "$internal_count" -gt 1 ]; then
         [ -z "$automatic" ] || fail 'Controller and client selected different disks'
@@ -260,7 +294,7 @@ case "$serial" in ''|*[!A-Za-z0-9_.:/-]*) fail 'No authorized target disk';; esa
 [ "${#serial}" -le 120 ] || fail 'Invalid target serial'
 inventory > "$work/rechecked.json"
 cmp -s "$work/before.json" "$work/rechecked.json" || fail 'Hardware or mount state changed before authorization'
-printf '{"ticket":"%s","disk_serial":"%s","confirmation":"%s"%s}\n' "$ticket" "$serial" "$confirmation" "$storage_plan" > "$work/request.json"
+printf '{"ticket":"%s","disk_serial":"%s","confirmation":"%s","filesystem":"%s"%s}\n' "$ticket" "$serial" "$confirmation" "$filesystem" "$storage_plan" > "$work/request.json"
 api install
 inventory > "$work/rechecked.json"
 cmp -s "$work/before.json" "$work/rechecked.json" || fail 'Hardware or mount state changed while fetching configuration'
@@ -271,7 +305,7 @@ debconf-set-selections "$work/response"
 guard=$(debconf-get partman/early_command)
 [ -n "$guard" ] || fail 'Missing installation guard'
 sh -c "$guard"
-if [ -n "$confirmation" ]; then
+if [ "${console_open:-}" = yes ]; then
     printf '\nChecks passed. Automatic installation is starting.\n' >&9
     switch_console 1
     exec 8<&- 9>&-

@@ -39,6 +39,9 @@ fi
 {{else}}[ ! -d /sys/firmware/efi ] || { echo 'Legacy BIOS boot required' >&2; exit 1; }
 {{end}}
 {{.StorageSizing}}
+{{if eq .DataFilesystem "xfs"}}# Check formatter support before claiming the destructive task.
+command -v mkfs.xfs >/dev/null || { echo 'XFS formatter is unavailable; no installation will start' >&2; exit 1; }
+{{end}}
 {{if eq .Target.Installer "autoinstall"}}# Refuse a kernel substitution before claiming the destructive task.
 python3 - <<'VC_UBUNTU_KERNEL'
 {{.UbuntuKernel}}

@@ -209,6 +209,26 @@ def confirm_erase(console, message):
         print('Please type yes, no or q. Empty Enter does not confirm. Nothing has been erased.', file=console)
     raise RuntimeError('Erase confirmation did not match after 3 attempts; stopped')
 
+def choose_filesystem(console, default='ext4'):
+    if default not in ('ext4', 'xfs'):
+        raise RuntimeError('Invalid default filesystem')
+    print('Filesystem for /, /tmp, /var and /home:', file=console)
+    print('  1. ext4\n  2. XFS\n/boot stays ext4; EFI stays FAT32.', file=console)
+    for attempt in range(1, 4):
+        print('Select 1/ext4 or 2/xfs; Enter keeps %s; q cancels. Attempt %d/3:' % (default, attempt), file=console)
+        console.flush()
+        value = prompt(console).lower()
+        if value == 'q':
+            raise RuntimeError('Installation canceled at the console')
+        if value == '':
+            return default
+        if value in ('1', 'ext4'):
+            return 'ext4'
+        if value in ('2', 'xfs'):
+            return 'xfs'
+        print('Invalid filesystem. No disk has been erased.', file=console)
+    raise RuntimeError('No valid filesystem selected after 3 attempts')
+
 def choose_raid(inv, console):
     allowed = ('', 'Existing LVM/RAID: prepare storage separately')
     for attempt in range(1, 4):
@@ -335,18 +355,30 @@ def main():
         serial = automatic_disk(inv, policy)
         if info.get('automatic_disk', '') != serial:
             raise RuntimeError('Controller and client selected different disks; stopped')
+    if info['preset_disk']:
+        # A ready management task has already authorized its filesystem. Never
+        # silently change its layout through a shared menu entry.
+        filesystem = info.get('preset_filesystem') or 'ext4'
+        if filesystem not in ('ext4', 'xfs'):
+            raise RuntimeError('Invalid authorized filesystem')
+        print('Ventoy Center: authorized task filesystem = ' + filesystem)
+    else:
+        reserve_console()
+        console = Console()
+        subprocess.check_call(['chvt', CONSOLE_VT])
+        print('\nVentoy Center - ' + SETTINGS['iso'], file=console)
+        filesystem = choose_filesystem(console, info.get('filesystem', 'ext4'))
+        print('Selected filesystem: ' + filesystem, file=console)
+        console.flush()
     if serial and info.get('automatic_disk'):
         print('Ventoy Center: installing %s on the only internal disk, SERIAL=%s' % (SETTINGS['iso'], serial))
     elif not serial and policy in ('console', 'single-or-console'):
         # Keep installer UI and keyboard input separate. No dependency on the
         # caller having a controlling terminal (Subiquity runs as a service).
-        reserve_console()
-        console = Console()
-        subprocess.check_call(['chvt', CONSOLE_VT])
         serial, confirmation, storage_plan = choose(inv,info,console)
     if inventory(mac) != inv:
         raise RuntimeError('Hardware or mount state changed before installation')
-    body = dict(ticket=info['ticket'], disk_serial=serial, confirmation=confirmation)
+    body = dict(ticket=info['ticket'], disk_serial=serial, confirmation=confirmation, filesystem=filesystem)
     if storage_plan:
         body['storage_plan'] = storage_plan
     result = api(work, 'install', body)

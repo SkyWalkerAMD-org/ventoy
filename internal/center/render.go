@@ -37,6 +37,8 @@ type renderData struct {
 	StorageSizing   string
 	StorageGuard    string
 	StorageRecipe   string
+	DataFilesystem  string
+	FilesystemCheck string
 	RAIDSetup       string
 	InstallFailure  string
 	FailureShell    string
@@ -59,6 +61,9 @@ type renderData struct {
 }
 
 func render(name string, data renderData) (string, error) {
+	if data.DataFilesystem == "" {
+		data.DataFilesystem = "ext4"
+	}
 	functions := template.FuncMap{
 		// Debian 10's installer BusyBox omits base64. Encode shell metacharacters
 		// and line breaks for its built-in printf without requiring a new binary.
@@ -71,7 +76,7 @@ func render(name string, data renderData) (string, error) {
 		"yaml": func(s string) string { b, _ := json.Marshal(s); return string(b) },
 		"xml":  func(s string) string { var b bytes.Buffer; xml.EscapeText(&b, []byte(s)); return b.String() },
 		"b64":  func(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) },
-		// Ubiquity passes success_command as one /bin/sh -c argument. The
+		// Ubiquity and Debian preseed pass hooks as one /bin/sh -c argument. The
 		// nested policy scripts can exceed Linux's per-argument size limit.
 		"b64gz": func(s string) (string, error) {
 			var b bytes.Buffer
@@ -108,6 +113,14 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 		return nil, err
 	}
 	d := renderData{PrivateJob: j, Target: p, Base: s.config.PublicURL + "/bootstrap/" + j.ID, CA: string(s.ca), Partition: 3, OfflineMedia: debianDVD(p, j.ISO)}
+	if p.OS != "windows" {
+		d.DataFilesystem, err = linuxFilesystem(j.Request.Filesystem)
+		if err != nil {
+			return nil, err
+		}
+	} else if j.Request.Filesystem != "" {
+		return nil, fmt.Errorf("Linux filesystem selection does not apply to Windows")
+	}
 	d.SetupPreload = s.config.LinuxSetupPreload && p.OS != "windows"
 	d.InjectionName = bootInjectionName(p.ID)
 	if j.Machine.Firmware == "bios" {
@@ -150,6 +163,11 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 		}
 		files["injection/ventoy-center/ca.crt"] = d.CA
 	} else {
+		d.FilesystemCheck, err = render("filesystem-check.sh", d)
+		if err != nil {
+			return nil, err
+		}
+		files["filesystem-check.sh"] = d.FilesystemCheck
 		d.StorageSizing, err = render("storage-sizing.sh", d)
 		if err != nil {
 			return nil, err

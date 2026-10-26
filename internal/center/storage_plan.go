@@ -15,6 +15,19 @@ type StoragePlan struct {
 
 const storageRAID1LVM = "raid1-lvm"
 
+// An omitted value keeps existing jobs and older PXE clients on ext4.
+// This allowlist also prevents template/recipe injection through the API.
+func linuxFilesystem(value string) (string, error) {
+	switch value {
+	case "", "ext4":
+		return "ext4", nil
+	case "xfs":
+		return "xfs", nil
+	default:
+		return "", errors.New("Linux filesystem must be ext4 or xfs")
+	}
+}
+
 func validateStorageShape(plan *StoragePlan) error {
 	if plan == nil {
 		return nil

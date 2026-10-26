@@ -363,6 +363,9 @@ func (s *Server) createJob(w http.ResponseWriter, r *http.Request) {
 		digest = hex.EncodeToString(h.Sum(nil))
 	}
 	j := PrivateJob{Job: Job{ID: randomID(12), OS: req.OS, Profile: req.Profile, ISO: req.ISO, State: "draft", Created: time.Now().UTC(), Enroll: req.Enroll, Package: req.Package, PackageSHA256: digest, Events: []Event{}}, Request: req}
+	if p.OS != "windows" {
+		j.Filesystem, _ = linuxFilesystem(req.Filesystem)
+	}
 	err = s.store.update(func(state *State) error {
 		found := false
 		for _, m := range state.Machines {

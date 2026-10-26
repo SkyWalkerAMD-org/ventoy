@@ -61,7 +61,7 @@ def bind_install_disks(config_path, first, second):
         actions.extend([
             volume,
             {"id": "vc-" + name + "-fs", "type": "format", "volume": volume["id"],
-             "fstype": "swap" if name == "swap" else "ext4", "preserve": False},
+             "fstype": "swap" if name == "swap" else {{yaml .DataFilesystem}}, "preserve": False},
             {"id": "vc-" + name + "-mount", "type": "mount", "device": "vc-" + name + "-fs",
              "path": "none" if name == "swap" else "/" if name == "root" else "/" + name},
         ])

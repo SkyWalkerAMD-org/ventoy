@@ -281,7 +281,7 @@ func TestPXEDebianNativeProtocol(t *testing.T) {
 				}
 				fields[key] = value
 			}
-			if len(fields) != 4 || fields["disk_policy"] != pxeLocalSelection || fields["automatic_disk"] != "DISK-DEMO-001" {
+			if len(fields) != 6 || fields["filesystem"] != "ext4" || fields["preset_filesystem"] != "" || fields["disk_policy"] != pxeLocalSelection || fields["automatic_disk"] != "DISK-DEMO-001" {
 				t.Fatal("Native disk selection did not match the shared policy", fields)
 			}
 			body := map[string]string{"ticket": fields["ticket"], "disk_serial": fields["automatic_disk"]}

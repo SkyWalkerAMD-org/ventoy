@@ -60,7 +60,7 @@ def bind_install_disk(config_path, disk):
             {"id": volume, "type": "partition", "device": "vc-disk", "number": number,
              "size": -1 if mib is None else mib * 1048576, "wipe": "superblock", "preserve": False},
             {"id": volume + "-format", "type": "format", "volume": volume,
-             "fstype": "swap" if name == "swap" else "ext4", "preserve": False},
+             "fstype": "swap" if name == "swap" else {{yaml .DataFilesystem}}, "preserve": False},
             {"id": volume + "-mount", "type": "mount", "device": volume + "-format",
              "path": "none" if name == "swap" else "/" if name == "root" else "/" + name},
         ])

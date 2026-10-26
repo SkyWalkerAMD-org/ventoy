@@ -61,6 +61,10 @@ done
 {{else}}[ ! -d /sys/firmware/efi ] || { echo 'Legacy BIOS boot required' >&2; exit 1; }
 {{end}}
 {{.StorageSizing}}
+{{if eq .DataFilesystem "xfs"}}# Use the installer's signed XFS component, before any disk write claim.
+anna-install partman-xfs
+command -v mkfs.xfs >/dev/null || { echo 'XFS formatter is unavailable' >&2; exit 1; }
+{{end}}
 # BusyBox wget is not sufficient: require the signed installer package with TLS.
 anna-install wget-udeb
 wget --version | grep -q 'GNU Wget'

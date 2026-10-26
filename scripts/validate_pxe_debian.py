@@ -22,7 +22,7 @@ def check_debian_client(wrapper):
     source = debian_client_source(wrapper)
     if os.name == "nt":
         return
-    for scenario in ("single", "usb", "multiple", "second-blocked", "unknown", "mounted", "swap", "readonly", "raid", "preset", "changed", "mismatch", "select-second", "bad-choice", "cancel", "blank", "blocked-choice", "local-changed", "local-mismatch", "legacy-multiple", "no-stty", "raid-pair", "raid-duplicate", "raid-cancel", "raid-small", "raid-readonly"):
+    for scenario in ("single", "xfs", "bad-fs", "cancel-fs", "usb", "multiple", "second-blocked", "unknown", "mounted", "swap", "readonly", "raid", "preset", "changed", "mismatch", "select-second", "bad-choice", "cancel", "blank", "blocked-choice", "local-changed", "local-mismatch", "legacy-multiple", "no-stty", "raid-pair", "raid-duplicate", "raid-cancel", "raid-small", "raid-readonly"):
         with tempfile.TemporaryDirectory(prefix="vc-debian-") as directory:
             root = Path(directory)
             devices = root / "devices/pci0000:00"
@@ -110,6 +110,10 @@ fi''',
             if scenario=='raid-cancel':answers='r\n1 2\nno\n'
             if scenario=='raid-duplicate':answers='r\n1 1\n1 1\n1 1\n'
             if scenario in ('raid-small','raid-readonly'):answers='r\n1 2\n1 2\n1 2\n'
+            answers = '\n' + answers
+            if scenario == 'xfs': answers='2\n'
+            if scenario == 'bad-fs': answers='ntfs\next4;reboot\nbogus\n'
+            if scenario == 'cancel-fs': answers='q\n'
             (root/'console-in').write_text(answers)
             script=script.replace('8</dev/tty9 9>/dev/tty9', '8<"%s" 9>"%s"' % (root/'console-in',root/'console-out'))
             automatic = '' if multi and scenario not in ('usb','preset','local-mismatch') else 'FIRST'
@@ -121,7 +125,7 @@ fi''',
             result=subprocess.run(['/bin/sh','-c',runner],text=True,capture_output=True,env=env,timeout=15)
             inv=json.loads((root/'discover.json').read_text())
             assert inv['disks'][0]['serial']=='FIRST' and inv['disks'][0]['model']=='Model "quoted"', inv
-            success=scenario in ('single','usb','preset','multiple','second-blocked','select-second','bad-choice','no-stty','raid-pair')
+            success=scenario in ('single','xfs','usb','preset','multiple','second-blocked','select-second','bad-choice','no-stty','raid-pair')
             assert (result.returncode==0)==success, (scenario,result.stdout,result.stderr)
             assert (root/'guard-passed').exists()==success, scenario
             if success:
@@ -130,6 +134,7 @@ fi''',
                 assert (root/'original-error').read_text()=='preserved-error\n', scenario
                 # Inventory runs multiple times; the last disk must never overwrite the preset serial.
                 installed=json.loads((root/'install.json').read_text())
+                assert installed['filesystem'] == ('xfs' if scenario == 'xfs' else 'ext4')
                 assert installed['disk_serial']==('SECOND' if scenario in ('select-second','bad-choice') else 'FIRST')
                 if scenario=='raid-pair':
                     assert installed['confirmation']=='ERASE RAID1 FIRST SECOND'

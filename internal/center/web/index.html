@@ -76,6 +76,8 @@
     <label>目标机器<select name="machine_id" required></select></label>
     <label>系统与版本<select name="profile" required></select></label>
     <label class="span-2">ISO 镜像<select name="iso" required></select></label>
+    <label data-linux>数据文件系统<select name="filesystem"><option value="ext4">ext4（默认）</option><option value="xfs">XFS</option></select></label>
+    <p class="span-2" data-linux>所选格式用于 /、/tmp、/var、/home；/boot 保持 ext4，EFI 保持 FAT32。</p>
     <p id="profile-hint" class="span-2"></p>
     <p class="span-2" data-linux>默认锁定内核并关闭自动更新。Ubuntu 在安装阶段固定镜像内核；Debian 首次从所选安装源取得内核后锁定。</p>
     <label>本地管理员用户名<input name="username" value="user" required></label>
