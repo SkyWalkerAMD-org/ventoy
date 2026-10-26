@@ -5,10 +5,44 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
 )
+
+func TestDebianLateCommandArgumentBudget(t *testing.T) {
+	// preseed_command logs the entire hook as a single logger argument before
+	// execution. RAID + root SSH + the real CA crossed Linux's 128 KiB limit.
+	for _, profile := range []string{"debian-10", "debian-11", "debian-12", "debian-13"} {
+		for _, fs := range []string{"ext4", "xfs"} {
+			s := &Server{config: Config{PublicURL: "https://controller.invalid"}, ca: []byte(strings.Repeat("certificate-fixture\n", 140))}
+			hash := "$6$test$" + strings.Repeat("a", 86)
+			j := PrivateJob{Job: Job{ID: strings.Repeat("a", 24), OS: "debian", Profile: profile, PXEEntryID: "test", Machine: Machine{Name: "QA-FS", MAC: "52:54:00:25:01:01", DiskSerial: "QA-FIRST", Firmware: "uefi"}}, Request: JobRequest{Username: "user", PasswordHash: hash, RootPasswordHash: hash, Filesystem: fs, StoragePlan: &StoragePlan{Mode: storageRAID1LVM, DiskSerials: []string{"QA-FIRST", "QA-SECOND"}}}, Token: strings.Repeat("b", 64)}
+			files, err := s.renderFiles(j)
+			if err != nil {
+				t.Fatal(profile, fs, err)
+			}
+			for _, line := range strings.Split(strings.ReplaceAll(files["preseed.cfg"], "\\\n", " "), "\n") {
+				if strings.HasPrefix(line, "d-i preseed/late_command string ") && len(line) >= 120*1024 {
+					t.Fatalf("%s %s: preseed logger/exec argument too large: %d", profile, fs, len(line))
+				}
+			}
+		}
+	}
+	// Preserve the complete payload, including literal shell metacharacters.
+	script := "#!/bin/sh\n" + strings.Repeat("printf '%s\\n' 'literal $HOME and 中文'\n", 5000)
+	for _, profile := range []string{"debian-12", "debian-13"} {
+		text, err := render("preseed.cfg", renderData{Target: Profile{ID: profile}, DebianLate: script})
+		if err != nil {
+			t.Fatal(err)
+		}
+		match := regexp.MustCompile(`printf '%s' '([A-Za-z0-9+/=]+)' \| base64 -d \| gzip -dc`).FindStringSubmatch(text)
+		if len(match) != 2 || decodeTemplateScript(t, match[1]) != script {
+			t.Fatal("compressed late hook did not preserve its payload", profile)
+		}
+	}
+}
 
 func TestPXEFilesystemSelection(t *testing.T) {
 	for _, fs := range []string{"", "ext4", "xfs"} {

@@ -76,7 +76,7 @@ func render(name string, data renderData) (string, error) {
 		"yaml": func(s string) string { b, _ := json.Marshal(s); return string(b) },
 		"xml":  func(s string) string { var b bytes.Buffer; xml.EscapeText(&b, []byte(s)); return b.String() },
 		"b64":  func(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) },
-		// Ubiquity passes success_command as one /bin/sh -c argument. The
+		// Ubiquity and Debian preseed pass hooks as one /bin/sh -c argument. The
 		// nested policy scripts can exceed Linux's per-argument size limit.
 		"b64gz": func(s string) (string, error) {
 			var b bytes.Buffer

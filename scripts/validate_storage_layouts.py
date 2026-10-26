@@ -116,6 +116,10 @@ def validate(folder, capacity, expected, raid, filesystem='ext4'):
             assert handler.clearpart.drives==(['nvme0n1','sdb'] if raid else ['nvme0n1'])
             assert handler.clearpart.disklabel=='gpt'
         else:
+            preseed = (folder/'preseed.cfg').read_text().replace('\\\n', ' ')
+            for hook in preseed.splitlines():
+                if hook.startswith('d-i preseed/late_command string '):
+                    assert len(hook.encode()) < 120 * 1024, 'Debian preseed logger/exec argument too large'
             line=next(x.split(' string ',1)[1] for x in native.splitlines() if x.startswith('d-i partman-auto/expert_recipe string '))
             parts=[x.strip() for x in line.split('::',1)[1].split(' .') if x.strip()]
             found=set()
