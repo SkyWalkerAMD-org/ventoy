@@ -27,8 +27,27 @@ const softwareMaxGroup = int64(8 << 30)
 var softwareVersionRE = regexp.MustCompile(`^[0-9]+(\.[0-9]+){0,2}$`)
 var softwareFileRE = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._+~-]{0,240}\.(deb|rpm)$`)
 var softwareArchiveRE = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._+~-]{0,240}\.(tar\.gz|tgz|zip)$`)
+var softwareCopyRE = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._+~-]{0,247}$`)
 var softwareHashRE = regexp.MustCompile(`^[0-9a-f]{64}$`)
 var softwareELRE = regexp.MustCompile(`\.el([0-9]+)([._-]|$)`)
+
+// The tools root is a distribution directory. Non-package files are copied
+// without execution. Keep upload scratch files and the generated setup out.
+func softwareCopyName(name string) bool {
+	if !softwareCopyRE.MatchString(name) || softwareArchiveRE.MatchString(name) {
+		return false
+	}
+	lower := strings.ToLower(name)
+	if strings.HasPrefix(lower, "ventoy-linux-setup.run") {
+		return false
+	}
+	for _, suffix := range []string{".deb", ".rpm", ".part", ".partial", ".tmp", ".download", ".crdownload", ".swp", ".bak", "~"} {
+		if strings.HasSuffix(lower, suffix) {
+			return false
+		}
+	}
+	return true
+}
 
 // Flat uploads follow standard RPM/DEB filenames. Native package metadata is
 // independently checked on the node before installation; extensions alone do
@@ -219,20 +238,29 @@ func (s *Server) softwareOverview(w http.ResponseWriter, r *http.Request) {
 		fail(w, 500, "Cannot read software archive directory")
 		return
 	}
-	respond(w, 200, map[string]any{"enabled": s.config.SoftwareDir != "", "directory": s.config.SoftwareDir, "groups": groups, "flat_files": flat, "archive_files": archives, "warnings": warnings})
+	copies, err := s.softwareCopies()
+	if err != nil {
+		fail(w, 500, "Cannot read software copy directory")
+		return
+	}
+	respond(w, 200, map[string]any{"enabled": s.config.SoftwareDir != "", "directory": s.config.SoftwareDir, "groups": groups, "flat_files": flat, "archive_files": archives, "copy_files": copies, "warnings": warnings})
 }
 
 func (s *Server) flatSoftware() ([]SoftwareFile, error) {
-	return s.softwareRootFiles(softwareFileRE)
+	return s.softwareRootFiles(softwareFileRE.MatchString)
 }
 
 // Root-level tar.gz, tgz and zip files are distributed unchanged to every supported Linux
 // target. They are not installable packages and are never extracted/executed.
 func (s *Server) softwareArchives() ([]SoftwareFile, error) {
-	return s.softwareRootFiles(softwareArchiveRE)
+	return s.softwareRootFiles(softwareArchiveRE.MatchString)
 }
 
-func (s *Server) softwareRootFiles(pattern *regexp.Regexp) ([]SoftwareFile, error) {
+func (s *Server) softwareCopies() ([]SoftwareFile, error) {
+	return s.softwareRootFiles(softwareCopyName)
+}
+
+func (s *Server) softwareRootFiles(match func(string) bool) ([]SoftwareFile, error) {
 	files := []SoftwareFile{}
 	if s.config.SoftwareDir == "" {
 		return files, nil
@@ -242,7 +270,7 @@ func (s *Server) softwareRootFiles(pattern *regexp.Regexp) ([]SoftwareFile, erro
 		return nil, err
 	}
 	for _, entry := range entries {
-		if !pattern.MatchString(entry.Name()) {
+		if entry.IsDir() || !match(entry.Name()) {
 			continue
 		}
 		info, err := entry.Info()
@@ -263,9 +291,14 @@ func (s *Server) sendSoftwareManifest(w http.ResponseWriter, target map[string]s
 		fail(w, 409, "Cannot read software archives")
 		return
 	}
+	copies, err := s.softwareCopies()
+	if err != nil {
+		fail(w, 409, "Cannot read software copy files")
+		return
+	}
 	var total int64
-	count := len(archives)
-	for _, f := range archives {
+	count := len(archives) + len(copies)
+	for _, f := range append(append([]SoftwareFile{}, archives...), copies...) {
 		total += f.Size
 	}
 	if group != nil {
@@ -280,16 +313,16 @@ func (s *Server) sendSoftwareManifest(w http.ResponseWriter, target map[string]s
 		}
 	}
 	if count > 256 || total > softwareMaxGroup {
-		fail(w, 409, "Software packages and archives exceed 256 files or 8 GiB")
+		fail(w, 409, "Software packages and copy files exceed 256 files or 8 GiB")
 		return
 	}
-	lists := [][]SoftwareFile{archives}
+	lists := [][]SoftwareFile{archives, copies}
 	if group != nil {
 		lists = append(lists, group.Files)
 	}
 	for _, files := range lists {
 		for i := range files {
-			f, err := safeOpen(s.config.SoftwareDir, files[i].Path, ".deb", ".rpm", ".gz", ".tgz", ".zip")
+			f, err := openSoftwareFile(s.config.SoftwareDir, files[i].Path)
 			if err != nil {
 				fail(w, 409, "Software changed while reading manifest")
 				return
@@ -305,7 +338,20 @@ func (s *Server) sendSoftwareManifest(w http.ResponseWriter, target map[string]s
 		}
 	}
 	// Additive field: older clients continue receiving an unchanged package group.
-	respond(w, 200, map[string]any{"schema": 1, "target": target, "group": group, "archives": archives})
+	respond(w, 200, map[string]any{"schema": 1, "target": target, "group": group, "archives": archives, "copy_files": copies})
+}
+
+// Callers validate names against a package group or the flat distribution rules.
+// The extension may be empty; safeOpen still confines access to the open root.
+func openSoftwareFile(dir, name string) (*os.File, error) {
+	info, err := os.Lstat(filepath.Join(dir, filepath.FromSlash(name)))
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("not a regular software file")
+	}
+	return safeOpen(dir, name, filepath.Ext(name))
 }
 
 func (s *Server) softwareManifest(w http.ResponseWriter, r *http.Request) {
@@ -361,13 +407,13 @@ func (s *Server) softwareManifest(w http.ResponseWriter, r *http.Request) {
 func (s *Server) softwarePackage(w http.ResponseWriter, r *http.Request) {
 	name, expected := r.URL.Query().Get("path"), r.URL.Query().Get("sha256")
 	parts := strings.Split(name, "/")
-	flat := len(parts) == 1 && (softwareFileRE.MatchString(name) || softwareArchiveRE.MatchString(name))
+	flat := len(parts) == 1 && (softwareFileRE.MatchString(name) || softwareArchiveRE.MatchString(name) || softwareCopyName(name))
 	nested := len(parts) == 5 && parts[3] == "default" && softwareTarget(parts[0], parts[1], parts[2]) && softwareFileRE.MatchString(parts[4]) && filepath.Ext(name) == "."+softwareFamily(parts[0])
 	if (!flat && !nested) || !softwareHashRE.MatchString(expected) {
 		fail(w, 400, "Invalid software package request")
 		return
 	}
-	f, err := safeOpen(s.config.SoftwareDir, name, ".deb", ".rpm", ".gz", ".tgz", ".zip")
+	f, err := openSoftwareFile(s.config.SoftwareDir, name)
 	if err != nil {
 		fail(w, 404, "Software package not found")
 		return

@@ -36,6 +36,7 @@ HASH = re.compile(r'^[0-9a-f]{64}$')
 NAME = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9.+_-]*$')
 FILENAME = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9._+~-]{0,240}\.(deb|rpm)$')
 ARCHIVE_NAME = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9._+~-]{0,240}\.(?:tar\.gz|tgz|zip)\Z')
+COPY_NAME = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9._+~-]{0,247}\Z')
 MAX_FILE = 4 * 1024**3
 MAX_TOTAL = 8 * 1024**3
 
@@ -137,21 +138,30 @@ class Client(object):
             raise RuntimeError('Package checksum mismatch: ' + item['path'])
 
 
+def copy_name(name):
+    return (bool(COPY_NAME.match(name)) and not ARCHIVE_NAME.match(name) and
+            not name.lower().startswith('ventoy-linux-setup.run') and
+            not name.lower().endswith(('.deb', '.rpm', '.part', '.partial', '.tmp',
+                                       '.download', '.crdownload', '.swp', '.bak', '~')))
+
+
 def validate_manifest(manifest, wanted):
     if manifest.get('schema') != 1 or manifest.get('target') != wanted:
         raise RuntimeError('Software manifest target/schema mismatch')
     archives = manifest.get('archives', [])
-    if not isinstance(archives, list) or len(archives) > 256:
-        raise RuntimeError('Invalid archive list')
+    copies = manifest.get('copy_files', [])
+    if not isinstance(archives, list) or not isinstance(copies, list) or len(archives) + len(copies) > 256:
+        raise RuntimeError('Invalid copy file list')
     seen, total = set(), 0
-    for item in archives:
-        path = item.get('path', '')
-        if (not ARCHIVE_NAME.match(path) or '/' in path or path in seen or
-                not HASH.match(item.get('sha256', '')) or
-                not isinstance(item.get('size'), (int, type(MAX_FILE))) or not 0 < item['size'] <= MAX_FILE):
-            raise RuntimeError('Invalid archive in manifest')
-        seen.add(path)
-        total += item['size']
+    for items, match in ((archives, ARCHIVE_NAME.match), (copies, copy_name)):
+        for item in items:
+            path = item.get('path', '')
+            if (not match(path) or '/' in path or path in seen or
+                    not HASH.match(item.get('sha256', '')) or
+                    not isinstance(item.get('size'), (int, type(MAX_FILE))) or not 0 < item['size'] <= MAX_FILE):
+                raise RuntimeError('Invalid copy file in manifest')
+            seen.add(path)
+            total += item['size']
     if total > MAX_TOTAL:
         raise RuntimeError('Software files exceed 8 GiB')
     group = manifest.get('group')
@@ -168,8 +178,8 @@ def validate_manifest(manifest, wanted):
     if group.get('id') != prefix and not flat:
         raise RuntimeError('Invalid software group identifier')
     files = group.get('files', [])
-    if not isinstance(files, list) or not 0 < len(files) or len(files) + len(archives) > 256:
-        raise RuntimeError('Default group and archives must contain 1..256 files')
+    if not isinstance(files, list) or not 0 < len(files) or len(files) + len(archives) + len(copies) > 256:
+        raise RuntimeError('Default group and copy files must contain 1..256 files')
     ext = '.deb' if wanted['os'] in ('ubuntu', 'debian') else '.rpm'
     for item in files:
         path = item.get('path', '')
@@ -426,7 +436,7 @@ def sync_archives(client, items):
         name = item['path']
         dest = os.path.join(ARCHIVES, name)
         if archive_matches(item):
-            print('ARCHIVE_VERIFIED: %s (unchanged; no download)' % dest)
+            print('FILE_VERIFIED: %s (unchanged; no download)' % dest)
         else:
             previous = records.get(name)
             if os.path.lexists(dest) and (not previous or not archive_matches(previous)):
@@ -447,7 +457,7 @@ def sync_archives(client, items):
             finally:
                 if os.path.exists(temp):
                     os.unlink(temp)
-            print('ARCHIVE_SAVED: %s (SHA-256 verified; not extracted or executed)' % dest)
+            print('FILE_SAVED: %s (SHA-256 verified; not extracted or executed)' % dest)
         records[name] = item
         save_json(records, 'archive-state.json')
 
@@ -460,7 +470,7 @@ def verify_archives(items):
         for item in items:
             if not archive_matches(item):
                 raise RuntimeError('Archive missing or changed: ' + item['path'])
-        print('ARCHIVES_VERIFIED: %s files in %s' % (len(items), ARCHIVES))
+        print('FILES_VERIFIED: %s files in %s' % (len(items), ARCHIVES))
 
 
 def execute(mode):
@@ -483,7 +493,7 @@ def execute(mode):
     client = Client(config)
     manifest = client.manifest(wanted)
     group = manifest['group']
-    archives = manifest.get('archives', [])
+    archives = manifest.get('archives', []) + manifest.get('copy_files', [])
     if group is None and not archives:
         print('SKIPPED: no default software group for %(os)s %(version)s %(arch)s.' % wanted)
         return
@@ -492,7 +502,7 @@ def execute(mode):
     for f in files:
         print('  %s  %s bytes  sha256=%s' % (f['path'].split('/')[-1], f['size'], f['sha256']))
     for f in archives:
-        print('  ARCHIVE (copy only): %s  %s bytes  sha256=%s' % (f['path'], f['size'], f['sha256']))
+        print('  FILE (copy only): %s  %s bytes  sha256=%s' % (f['path'], f['size'], f['sha256']))
     if mode == '--list-software':
         return
     # Immutable manifest hashes plus native installed versions allow repeat runs
