@@ -40,6 +40,10 @@ default software group. --apply remains a compatible alias for this default.
 Root-level archives and standalone tools from the software library are copied
 and verified in /root/ventoy-tools without extraction or execution.
 --software installs that group alone; no account/network/hostname changes.
+The current persistent hostname is preserved unless --hostname NAME is given.
+An explicit hostname is applied once; later administrator changes are retained.
+Interactive full setup asks for a hostname; Enter keeps the current name.
+Boot recovery and non-interactive runs do not prompt.
 Missing dependencies may be installed from this system's configured repositories.
 Default initial credentials: user / ventoy, root / ventoy.
 Existing users and configured static networks are preserved. --keep-passwords
@@ -83,8 +87,33 @@ case "$mode" in
         software_action "$mode"
         exit $?;;
 esac
+choose_hostname() {
+    # Read only during an explicit interactive full setup. Boot recovery and
+    # software-only/check modes must never wait for console input.
+    if [[ -z "$name" && -t 0 && -t 1 ]]; then
+        printf 'Current hostname: %s\n' "$(cat /etc/hostname)"
+        local attempt
+        for attempt in 1 2 3; do
+            read -r -p 'New hostname (Enter to keep current): ' name || {
+                echo 'Hostname entry canceled; setup has not been applied.' >&2; exit 2;
+            }
+            [[ -n "$name" ]] || return 0
+            name=${name,,}
+            _si_hostname_valid "$name" && return 0
+            echo 'Invalid hostname. Use letters, digits, dots and hyphens; no IP address or localhost.' >&2
+        done
+        echo 'No valid hostname entered; setup has not been applied.' >&2
+        exit 2
+    fi
+    [[ -n "$name" ]] || return 0
+    name=${name,,}
+    _si_hostname_valid "$name" || { echo 'Invalid --hostname; setup has not been applied.' >&2; exit 2; }
+}
 if [[ $mode == --apply ]]; then
     (cd "$here" && sha256sum --status -c SHA256SUMS) || die 'Package integrity check failed.'
+    # Load only helper functions; hostname validation does not change the host.
+    source "$here/safe-server-init.sh"
+    choose_hostname
     # Keep a complete offline copy for automatic post-reboot continuation.
     release=$(sha256sum "$here/SHA256SUMS" | cut -c1-16)
     dest=/opt/ventoy-manual/$release
@@ -102,7 +131,15 @@ if [[ $mode == --apply ]]; then
     ln -sfn "$dest" /opt/ventoy-manual/current.new
     mv -Tf /opt/ventoy-manual/current.new /opt/ventoy-manual/current
     args=(--resume)
-    [[ -z "$name" ]] || printf '%s\n' "$name" > "$state/hostname-request"
+    # This is a one-time request, not a permanent hostname policy. Older
+    # releases left hostname-request behind forever; never replay that file.
+    if [[ -n "$name" ]]; then
+        printf '%s\n' "$name" > "$state/hostname-pending"
+    else
+        # A new invocation choosing to keep the name cancels an unfinished
+        # older request. Only --resume retries a still-pending explicit name.
+        rm -f -- "$state/hostname-pending"
+    fi
     printf '%s\n' "$offline" > "$state/offline"
     printf '%s\n' "$keep_passwords" > "$state/keep-passwords"
     printf '%s\n' "$((1 - offline))" > "$state/software-request"
@@ -140,15 +177,20 @@ if [[ $mode == --resume ]]; then
     # The driver step never unloads a live NIC driver or upgrades the kernel.
     rc=0; bash "$here/e610-driver.sh" --apply "$here/e610" || rc=$?
     case "$rc" in 0) ;; 3) pending=1;; *) die "E610 preparation failed (exit $rc); see log.";; esac
+    # The current persistent hostname belongs to the administrator. The saved
+    # hostname is an observation only; setup and boot recovery must not undo a
+    # later hostnamectl/safe-server-init change, even after an earlier failure.
     name=$(cat /etc/hostname)
-    [[ ! -f "$state/hostname" ]] || name=$(cat "$state/hostname")
-    [[ ! -f "$state/hostname-request" ]] || name=$(cat "$state/hostname-request")
-    name=${name,,}
-    case "$name" in ''|localhost|localhost.localdomain) name=linux-$(cut -c1-8 /etc/machine-id);; esac
-    if [[ ! -f "$state/hostname" || $(cat /etc/hostname) != "$name" || $(hostname) != "$name" ]]; then
+    [[ ! -f "$state/hostname-pending" ]] || name=$(cat "$state/hostname-pending")
+    case "${name,,}" in ''|localhost|localhost.localdomain) name=linux-$(cut -c1-8 /etc/machine-id);; esac
+    if [[ -f "$state/hostname-pending" || $(cat /etc/hostname) != "$name" || $(hostname) != "$name" ]]; then
         bash "$here/safe-server-init.sh" hostname "$name" --update-hosts
     fi
+    [[ $(hostname) == "$(cat /etc/hostname)" ]] || die 'Hostname verification failed.'
     cat /etc/hostname > "$state/hostname"
+    # Consume only after the name was applied and verified. Retire the legacy
+    # sticky request as well, without using it as a source for a new name.
+    rm -f -- "$state/hostname-pending" "$state/hostname-request"
     if [[ -d /etc/cloud/cloud.cfg.d ]]; then
         printf 'preserve_hostname: true\n' > /etc/cloud/cloud.cfg.d/99-ventoy-manual-hostname.cfg
     fi
@@ -185,7 +227,7 @@ if [[ $mode == --resume ]]; then
     fi
 fi
 [[ -f "$state/configured" ]] || die 'Initial configuration has not completed.'
-[[ $(cat /etc/hostname) == "$(cat "$state/hostname")" && $(hostname) == "$(cat "$state/hostname")" ]] || die 'Hostname verification failed.'
+[[ -s /etc/hostname && $(hostname) == "$(cat /etc/hostname)" ]] || die 'Hostname verification failed.'
 sh "$here/linux-update-policy.sh" --check
 bash "$here/manual-ssh.sh" --check "$keep_passwords"
 rc=0; bash "$here/manual-network.sh" --check || rc=$?

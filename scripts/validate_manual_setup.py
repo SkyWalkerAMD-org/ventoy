@@ -67,6 +67,7 @@ with tempfile.TemporaryDirectory() as temp:
 print('PASS: permanent MAC matching, unknown configuration protection, driver archive boundaries')
 
 if sys.platform != 'win32':
+    subprocess.run([sys.executable, str(ROOT / 'scripts/validate_hostname.py')], check=True)
     driver = (ROOT / 'internal/center/assets/manual/e610-driver.sh').read_text(encoding='utf-8')
     verify = 'verify() {' + driver.split('verify() {', 1)[1].split('if [[ $mode == --check ]]', 1)[0]
     code = 'set -e; kver=test; native_support() { return 1; };\n' + verify
