@@ -27,7 +27,13 @@ class Boundaries(unittest.TestCase):
         item = dict(path='ipmitool-1.8.19.tar.gz', size=10, sha256='0'*64)
         manifest = dict(schema=1, target=target, group=None, archives=[item])
         client.validate_manifest(manifest, target)
+        for name in ('onload-7.1.3.202.tgz', 'onload-8.1.3.40.tgz', 'exanic-software.zip'):
+            supported = copy.deepcopy(manifest); supported['archives'][0]['path'] = name
+            client.validate_manifest(supported, target)
         for key, value in [('path', '../app.tar.gz'), ('path', 'nested/app.tar.gz'),
+                           ('path', '../app.tgz'), ('path', 'nested/app.zip'),
+                           ('path', 'app.tgz.part'), ('path', 'app.zip.part'),
+                           ('path', 'app.zip\n'), ('path', 'app.tgz\n'),
                            ('path', 'app.deb'), ('path', 'app.tar.gz\n'), ('size', 0),
                            ('size', 2**40), ('sha256', 'bad')]:
             bad = copy.deepcopy(manifest); bad['archives'][0][key] = value
@@ -86,8 +92,9 @@ class Boundaries(unittest.TestCase):
     def test_archive_only_execution_and_readonly_check(self):
         wanted = dict(os='ubuntu', version='24.04', arch='amd64')
         payload = b'archive-only'
-        archive = dict(path='tools.tar.gz', size=len(payload), sha256=hashlib.sha256(payload).hexdigest())
-        manifest = dict(schema=1, target=wanted, group=None, archives=[archive])
+        archives = [dict(path=name, size=len(payload), sha256=hashlib.sha256(payload).hexdigest())
+                    for name in ('tools.tar.gz', 'onload.tgz', 'exanic.zip')]
+        manifest = dict(schema=1, target=wanted, group=None, archives=archives)
         class FakeClient:
             def __init__(self, config): pass
             def manifest(self, target): return manifest
@@ -102,7 +109,8 @@ class Boundaries(unittest.TestCase):
                 self.assertFalse((root/'files').exists())
                 client.execute('--software')
                 report = json.loads((root/'state/last-result.json').read_text())
-                self.assertEqual((report['status'], report['packages'], report['archives']), ('verified', [], [archive]))
+                self.assertEqual((report['status'], report['packages'], report['archives']), ('verified', [], archives))
+                self.assertEqual(sorted(p.name for p in (root/'files').iterdir()), ['exanic.zip', 'onload.tgz', 'tools.tar.gz'])
                 client.execute('--check-software')
                 client.execute('--software')
                 (root/'files/tools.tar.gz').unlink()

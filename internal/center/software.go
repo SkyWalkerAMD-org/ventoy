@@ -26,7 +26,7 @@ const softwareMaxGroup = int64(8 << 30)
 
 var softwareVersionRE = regexp.MustCompile(`^[0-9]+(\.[0-9]+){0,2}$`)
 var softwareFileRE = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._+~-]{0,240}\.(deb|rpm)$`)
-var softwareArchiveRE = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._+~-]{0,240}\.tar\.gz$`)
+var softwareArchiveRE = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._+~-]{0,240}\.(tar\.gz|tgz|zip)$`)
 var softwareHashRE = regexp.MustCompile(`^[0-9a-f]{64}$`)
 var softwareELRE = regexp.MustCompile(`\.el([0-9]+)([._-]|$)`)
 
@@ -226,7 +226,7 @@ func (s *Server) flatSoftware() ([]SoftwareFile, error) {
 	return s.softwareRootFiles(softwareFileRE)
 }
 
-// Root-level tar.gz files are distributed unchanged to every supported Linux
+// Root-level tar.gz, tgz and zip files are distributed unchanged to every supported Linux
 // target. They are not installable packages and are never extracted/executed.
 func (s *Server) softwareArchives() ([]SoftwareFile, error) {
 	return s.softwareRootFiles(softwareArchiveRE)
@@ -289,7 +289,7 @@ func (s *Server) sendSoftwareManifest(w http.ResponseWriter, target map[string]s
 	}
 	for _, files := range lists {
 		for i := range files {
-			f, err := safeOpen(s.config.SoftwareDir, files[i].Path, ".deb", ".rpm", ".gz")
+			f, err := safeOpen(s.config.SoftwareDir, files[i].Path, ".deb", ".rpm", ".gz", ".tgz", ".zip")
 			if err != nil {
 				fail(w, 409, "Software changed while reading manifest")
 				return
@@ -367,7 +367,7 @@ func (s *Server) softwarePackage(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, "Invalid software package request")
 		return
 	}
-	f, err := safeOpen(s.config.SoftwareDir, name, ".deb", ".rpm", ".gz")
+	f, err := safeOpen(s.config.SoftwareDir, name, ".deb", ".rpm", ".gz", ".tgz", ".zip")
 	if err != nil {
 		fail(w, 404, "Software package not found")
 		return

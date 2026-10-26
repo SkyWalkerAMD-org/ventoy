@@ -159,7 +159,10 @@ func TestSoftwareSymlinkEscape(t *testing.T) {
 
 func TestSoftwareArchivesAreSeparateFromPackages(t *testing.T) {
 	s := softwareFixture(t)
-	addSoftware(t, s, "ipmitool-1.8.19.tar.gz", "archive bytes")
+	archives := []string{"exanic-software.zip", "ipmitool-1.8.19.tar.gz", "onload-8.1.3.40.tgz"}
+	for _, name := range archives {
+		addSoftware(t, s, name, "archive bytes")
+	}
 	addSoftware(t, s, "incomplete.tar.gz.part", "not yet published")
 	addSoftware(t, s, "other.gz", "not an archive")
 	addSoftware(t, s, "app_1_amd64.deb", "deb fixture")
@@ -173,8 +176,13 @@ func TestSoftwareArchivesAreSeparateFromPackages(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &m); err != nil {
 			t.Fatal(err)
 		}
-		if len(m.Archives) != 1 || m.Archives[0].Path != "ipmitool-1.8.19.tar.gz" {
+		if len(m.Archives) != len(archives) {
 			t.Fatal(w.Body.String())
+		}
+		for i, name := range archives {
+			if m.Archives[i].Path != name {
+				t.Fatal("archive missing from manifest", name)
+			}
 		}
 		if strings.Contains(target, "ubuntu") {
 			if m.Group == nil || len(m.Group.Files) != 1 || !strings.HasSuffix(m.Group.Files[0].Path, ".deb") {
@@ -183,24 +191,25 @@ func TestSoftwareArchivesAreSeparateFromPackages(t *testing.T) {
 		} else if m.Group != nil {
 			t.Fatal("archive-only target must not pretend to have installable packages")
 		}
-		file := m.Archives[0]
-		url := "/software/v1/package?path=" + file.Path + "&sha256=" + file.SHA256
-		mustCode(t, request(s, "GET", url, "", nil), 401)
-		download := request(s, "GET", url, s.softwareToken(), nil)
-		mustCode(t, download, 200)
-		if download.Body.String() != "archive bytes" {
-			t.Fatal("archive changed during transfer")
+		for _, file := range m.Archives {
+			url := "/software/v1/package?path=" + file.Path + "&sha256=" + file.SHA256
+			mustCode(t, request(s, "GET", url, "", nil), 401)
+			download := request(s, "GET", url, s.softwareToken(), nil)
+			mustCode(t, download, 200)
+			if download.Body.String() != "archive bytes" {
+				t.Fatal("archive changed during transfer")
+			}
+			addSoftware(t, s, file.Path, "replacement")
+			mustCode(t, request(s, "GET", url, s.softwareToken(), nil), 409)
+			addSoftware(t, s, file.Path, "archive bytes")
 		}
-		addSoftware(t, s, file.Path, "replacement")
-		mustCode(t, request(s, "GET", url, s.softwareToken(), nil), 409)
-		addSoftware(t, s, file.Path, "archive bytes")
 	}
 	overview := request(s, "GET", "/api/software", s.admin, nil)
 	mustCode(t, overview, 200)
-	if !strings.Contains(overview.Body.String(), `"archive_files":[{"path":"ipmitool-1.8.19.tar.gz"`) {
+	if !strings.Contains(overview.Body.String(), `"archive_files":[{"path":"exanic-software.zip"`) {
 		t.Fatal("archive missing from management view")
 	}
-	for _, path := range []string{"../secret.tar.gz", "other.gz", "nested/archive.tar.gz", "incomplete.tar.gz.part"} {
+	for _, path := range []string{"../secret.tar.gz", "../secret.tgz", "../secret.zip", "other.gz", "nested/archive.tar.gz", "nested/archive.tgz", "nested/archive.zip", "incomplete.tar.gz.part", "incomplete.tgz.part", "incomplete.zip.part", "archive.zip%0A"} {
 		mustCode(t, request(s, "GET", "/software/v1/package?path="+path+"&sha256="+strings.Repeat("0", 64), s.softwareToken(), nil), 400)
 	}
 	outside := filepath.Join(t.TempDir(), "private.tar.gz")
