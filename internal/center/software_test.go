@@ -209,7 +209,7 @@ func TestSoftwareArchivesAreSeparateFromPackages(t *testing.T) {
 	if !strings.Contains(overview.Body.String(), `"archive_files":[{"path":"exanic-software.zip"`) {
 		t.Fatal("archive missing from management view")
 	}
-	for _, path := range []string{"../secret.tar.gz", "../secret.tgz", "../secret.zip", "other.gz", "nested/archive.tar.gz", "nested/archive.tgz", "nested/archive.zip", "incomplete.tar.gz.part", "incomplete.tgz.part", "incomplete.zip.part", "archive.zip%0A"} {
+	for _, path := range []string{"../secret.tar.gz", "../secret.tgz", "../secret.zip", "nested/archive.tar.gz", "nested/archive.tgz", "nested/archive.zip", "incomplete.tar.gz.part", "incomplete.tgz.part", "incomplete.zip.part", "archive.zip%0A"} {
 		mustCode(t, request(s, "GET", "/software/v1/package?path="+path+"&sha256="+strings.Repeat("0", 64), s.softwareToken(), nil), 400)
 	}
 	outside := filepath.Join(t.TempDir(), "private.tar.gz")
@@ -219,5 +219,61 @@ func TestSoftwareArchivesAreSeparateFromPackages(t *testing.T) {
 	if err := os.Symlink(outside, filepath.Join(s.config.SoftwareDir, "escape.tar.gz")); err == nil {
 		mustCode(t, request(s, "GET", "/software/v1/manifest?os=ubuntu&version=24.04&arch=amd64", s.softwareToken(), nil), 409)
 		mustCode(t, request(s, "GET", "/software/v1/package?path=escape.tar.gz&sha256="+strings.Repeat("0", 64), s.softwareToken(), nil), 404)
+	}
+}
+
+func TestSoftwareCopyFilesAndLegacyManifest(t *testing.T) {
+	s := softwareFixture(t)
+	names := []string{"centos_opt_static", "driver.tar.xz", "ubuntu-optimize.sh.x"}
+	for _, name := range names {
+		addSoftware(t, s, name, "copy only; do not execute")
+	}
+	addSoftware(t, s, "onload.tgz", "archive")
+	addSoftware(t, s, "app_1_amd64.deb", "deb")
+	ignored := []string{".hidden", "tool.part", "tool.partial", "tool.tmp", "tool.download", "tool.crdownload", "tool.swp", "tool.bak", "tool~", "ventoy-linux-setup.run", "ventoy-linux-setup.run.sha256"}
+	for _, name := range ignored {
+		addSoftware(t, s, name, "not published")
+	}
+	addSoftware(t, s, "extra/nested-tool", "not published")
+	endpoint := "/software/v1/manifest?os=ubuntu&version=22.04&arch=amd64"
+	w := request(s, "GET", endpoint, s.softwareToken(), nil)
+	mustCode(t, w, 200)
+	var m struct {
+		Group    SoftwareGroup  `json:"group"`
+		Archives []SoftwareFile `json:"archives"`
+		Copies   []SoftwareFile `json:"copy_files"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &m); err != nil {
+		t.Fatal(err)
+	}
+	if len(m.Copies) != len(names) || len(m.Archives) != 1 || len(m.Group.Files) != 1 {
+		t.Fatal("legacy archive/package lists must remain unchanged", w.Body.String())
+	}
+	for i, file := range m.Copies {
+		if file.Path != names[i] {
+			t.Fatal("unexpected copy file", file.Path)
+		}
+		url := "/software/v1/package?path=" + file.Path + "&sha256=" + file.SHA256
+		mustCode(t, request(s, "GET", url, "", nil), 401)
+		download := request(s, "GET", url, s.softwareToken(), nil)
+		mustCode(t, download, 200)
+		if download.Body.String() != "copy only; do not execute" {
+			t.Fatal("file changed in transfer")
+		}
+		addSoftware(t, s, file.Path, "new file")
+		mustCode(t, request(s, "GET", url, s.softwareToken(), nil), 409)
+	}
+	for _, name := range append(ignored, "../secret", "extra/nested-tool", "tool%0A", "tool%5Cother") {
+		mustCode(t, request(s, "GET", "/software/v1/package?path="+name+"&sha256="+strings.Repeat("0", 64), s.softwareToken(), nil), 400)
+	}
+	overview := request(s, "GET", "/api/software", s.admin, nil)
+	mustCode(t, overview, 200)
+	if !strings.Contains(overview.Body.String(), `"copy_files":[{"path":"centos_opt_static"`) {
+		t.Fatal("raw tools missing from overview")
+	}
+	// A symlink cannot turn an excluded setup into a published raw tool.
+	if err := os.Symlink(filepath.Join(s.config.SoftwareDir, "ventoy-linux-setup.run"), filepath.Join(s.config.SoftwareDir, "alias")); err == nil {
+		mustCode(t, request(s, "GET", endpoint, s.softwareToken(), nil), 409)
+		mustCode(t, request(s, "GET", "/software/v1/package?path=alias&sha256="+strings.Repeat("0", 64), s.softwareToken(), nil), 404)
 	}
 }

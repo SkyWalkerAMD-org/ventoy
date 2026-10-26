@@ -146,8 +146,9 @@ async function refreshSoftware(){
     $('#software-warnings').textContent=(s.warnings||[]).join('；');
     const rows=(s.flat_files||[]).map(f=>['自动匹配',f.path,(f.size/1048576).toFixed(2)+' MiB']);
     rows.push(...(s.archive_files||[]).map(f=>['仅传输到 /root/ventoy-tools',f.path,(f.size/1048576).toFixed(2)+' MiB']));
+    rows.push(...(s.copy_files||[]).map(f=>['仅传输到 /root/ventoy-tools',f.path,(f.size/1048576).toFixed(2)+' MiB']));
     rows.push(...s.groups.map(g=>[g.id,g.files.map(f=>f.path.split('/').pop()).join('、'),g.errors?.length?g.errors.join('；'):'专属默认组']));
-    if(!rows.length){empty($('#software-table'),s.enabled?'软件目录已就绪，等待上传':'尚未启用软件目录','放入 RPM / DEB 软件包或 tar.gz 文件后刷新即可，无需重启服务。');return;}
+    if(!rows.length){empty($('#software-table'),s.enabled?'软件目录已就绪，等待上传':'尚未启用软件目录','放入 RPM / DEB 软件包、压缩包或独立工具后刷新即可，无需重启服务。');return;}
     table($('#software-table'),['处理方式 / 范围','文件','大小 / 状态'],rows);
   }catch(error){$('#software-warnings').textContent=error.message;}
 }

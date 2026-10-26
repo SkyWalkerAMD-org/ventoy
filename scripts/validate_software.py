@@ -22,6 +22,24 @@ spec.loader.exec_module(client)
 
 
 class Boundaries(unittest.TestCase):
+    def test_copy_file_manifest(self):
+        wanted = dict(os='ubuntu', version='22.04', arch='amd64')
+        item = dict(path='centos_opt_static', size=10, sha256='0'*64)
+        manifest = dict(schema=1, target=wanted, group=None, copy_files=[item])
+        client.validate_manifest(manifest, wanted)
+        for name in ('ubuntu-optimize.sh.x', 'driver.tar.xz', 'README.txt'):
+            good = copy.deepcopy(manifest); good['copy_files'][0]['path'] = name
+            client.validate_manifest(good, wanted)
+        for name in ('../tool', 'dir/tool', 'tool\\x', '.hidden', 'tool\n', 'app.deb', 'app.rpm',
+                     'onload.tgz', 'app.tar.gz', 'app.zip', 'tool.part', 'tool.partial',
+                     'tool.tmp', 'tool.download', 'tool.crdownload', 'tool.swp', 'tool.bak', 'tool~',
+                     'ventoy-linux-setup.run', 'ventoy-linux-setup.run.sha256'):
+            bad = copy.deepcopy(manifest); bad['copy_files'][0]['path'] = name
+            with self.assertRaises(RuntimeError): client.validate_manifest(bad, wanted)
+        for count in (2, 257):
+            bad = copy.deepcopy(manifest); bad['copy_files'] *= count
+            with self.assertRaises(RuntimeError): client.validate_manifest(bad, wanted)
+
     def test_archive_manifest(self):
         target = dict(os='ubuntu', version='24.04', arch='amd64')
         item = dict(path='ipmitool-1.8.19.tar.gz', size=10, sha256='0'*64)
@@ -94,7 +112,9 @@ class Boundaries(unittest.TestCase):
         payload = b'archive-only'
         archives = [dict(path=name, size=len(payload), sha256=hashlib.sha256(payload).hexdigest())
                     for name in ('tools.tar.gz', 'onload.tgz', 'exanic.zip')]
-        manifest = dict(schema=1, target=wanted, group=None, archives=archives)
+        copies = [dict(path=name, size=len(payload), sha256=hashlib.sha256(payload).hexdigest())
+                  for name in ('centos_opt_static', 'ubuntu-optimize.sh.x')]
+        manifest = dict(schema=1, target=wanted, group=None, archives=archives, copy_files=copies)
         class FakeClient:
             def __init__(self, config): pass
             def manifest(self, target): return manifest
@@ -109,9 +129,18 @@ class Boundaries(unittest.TestCase):
                 self.assertFalse((root/'files').exists())
                 client.execute('--software')
                 report = json.loads((root/'state/last-result.json').read_text())
-                self.assertEqual((report['status'], report['packages'], report['archives']), ('verified', [], archives))
-                self.assertEqual(sorted(p.name for p in (root/'files').iterdir()), ['exanic.zip', 'onload.tgz', 'tools.tar.gz'])
+                self.assertEqual((report['status'], report['packages'], report['archives']), ('verified', [], archives + copies))
+                self.assertEqual(sorted(p.name for p in (root/'files').iterdir()), ['centos_opt_static', 'exanic.zip', 'onload.tgz', 'tools.tar.gz', 'ubuntu-optimize.sh.x'])
                 client.execute('--check-software')
+                client.execute('--software')
+                manifest['archives'] = []
+                client.execute('--software')
+                client.execute('--check-software')
+                (root/'files/ubuntu-optimize.sh.x').write_bytes(b'user changed tool')
+                with self.assertRaises(RuntimeError): client.execute('--software')
+                self.assertEqual((root/'files/ubuntu-optimize.sh.x').read_bytes(), b'user changed tool')
+                (root/'files/ubuntu-optimize.sh.x').write_bytes(payload)
+                manifest['archives'] = archives
                 client.execute('--software')
                 (root/'files/tools.tar.gz').unlink()
                 with self.assertRaises(RuntimeError): client.execute('--check-software')

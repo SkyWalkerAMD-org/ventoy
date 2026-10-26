@@ -37,8 +37,8 @@ configures unconfigured wired NICs for DHCP and activates new profiles;
 locks the installed kernel, disables automatic updates, and verifies results.
 No arguments applies the full configuration and installs/verifies the matching
 default software group. --apply remains a compatible alias for this default.
-Root-level tar.gz, tgz and zip files from the software library are copied and verified in
-/root/ventoy-tools without extraction or execution.
+Root-level archives and standalone tools from the software library are copied
+and verified in /root/ventoy-tools without extraction or execution.
 --software installs that group alone; no account/network/hostname changes.
 Missing dependencies may be installed from this system's configured repositories.
 Default initial credentials: user / ventoy, root / ventoy.
