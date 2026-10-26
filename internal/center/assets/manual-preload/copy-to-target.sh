@@ -75,7 +75,8 @@ printf '%s\n' 'PRELOADED_ONLY' "sha256=$(cut -d ' ' -f 1 setup.sha256)" \
     'run=sudo /root/ventoy-linux-setup.run' \
     'software=sudo /root/ventoy-linux-setup.run --software' > "$status"
 chmod 0600 "$status"
-echo 'Ventoy setup preloaded in /root/ventoy-linux-setup.run; configuration has NOT been applied.'
+/bin/sh "$src/target-update-policy.sh" "$target"
+echo 'Ventoy setup preloaded; run it after installation for SSH, DHCP and software.'
 # Only the live installer's read-only ISO shutdown is prepared. This helper
 # skips non-Casper installers and never applies the staged target setup.
 /bin/sh "$src/ubuntu-reboot.sh"

@@ -4,8 +4,9 @@ Run the full setup and automatic checks: sudo /root/ventoy-linux-setup.run
 To install/update only the center's matching software, add --software.
 See /root/README-ventoy-software.txt for package selection and checks.
 
-The installer copied this package into the installed system. No setup policy
-has been applied by the preload hook. After booting the installed system, run:
+The installer copied this package into the installed system. On Ubuntu/Debian,
+kernel locking and APT automatic-update protection are applied before first boot.
+The rest of setup is not run by this hook. After booting the installed system, run:
 
   sudo /root/ventoy-linux-setup.run
 

@@ -21,6 +21,11 @@ with tempfile.TemporaryDirectory(prefix='ventoy-preload-test-') as temp:
     base = Path(temp)
     src = base / 'payload'
     shutil.copytree(ASSETS, src)
+    # Full setup is inert, but a separately tested APT policy now runs in the
+    # target. Stub it here so this copy-hook test never configures its runner.
+    (src / 'target-update-policy.sh').write_text('#!/bin/sh\ntest -f "$1/root/ventoy-linux-setup.run"\n')
+    for name in ('linux-update-policy.sh', 'ubuntu-kernel.py'):
+        (src / name).write_text('# rendered policy is supplied by Go\n')
     # Stub shutdown here: copy-hook tests must never reload the runner's systemd.
     shutdown = base / 'shutdown-prepared'
     helper = src / 'ubuntu-reboot.sh'
@@ -114,9 +119,17 @@ with tempfile.TemporaryDirectory(prefix='ventoy-preload-test-') as temp:
         assert not (live / 'root').exists()
         assert not sentinel.exists()
         dropins = list((live / 'etc/systemd/system').glob('*.service.d/*.conf'))
-        assert bool(dropins) == (kind in ('subiquity20', 'desktop26'))
+        assert bool(dropins) == (kind in ('subiquity', 'subiquity20', 'desktop26'))
         for dropin in dropins:
             assert '--autoinstall' not in dropin.read_text()
+        if kind in ('subiquity', 'subiquity20'):
+            guard = live / 'etc/systemd/system/snap.subiquity.subiquity-server.service.d/80-ventoy-manual-update-policy.conf'
+            assert 'ExecStartPre=' in guard.read_text()
+            # The automatic hook may have run first. Never replace its answers.
+            guard.unlink()
+            (live / 'ventoy-center-selected.cfg').write_text('existing automatic answers')
+            run(src / 'prepare-live.sh', live)
+            assert not guard.exists()
     assert not sentinel.exists()
 
     # A pre-postinst.d installer must not announce completion/reboot readiness
@@ -159,4 +172,4 @@ with tempfile.TemporaryDirectory(prefix='ventoy-preload-test-') as temp:
                 sys.modules.pop(name, None)
             else:
                 sys.modules[name] = old
-print('PASS: inert preload, checksum, repeat, existing-file and symlink protection; installer hook staging')
+print('PASS: inert full setup, checksum, repeat, existing-file protection, separate update policy and interactive hook staging')

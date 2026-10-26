@@ -22,6 +22,12 @@ Debian / Ubuntu 的持久设置包括：
 
 ## 普通 ISO 手动安装
 
+alpha.34 修复普通入口在运行 setup 前缺少更新保护的问题。更新注入绑定后，Ubuntu Server 使用原生 Subiquity 交互配置：保留语言、键盘、网络、软件源、存储、账户、SSH 等手动页面，不提供磁盘或账户答案；默认跳过安装器自身更新，安装前固定实际启动的介质内核，并用 APT 排除配置阻止安装收尾的无人值守包升级。不能使用 `interactive-sections: ['*']`，因为它会重新启用交互式安装器更新检查。
+
+Debian d-i 在基础系统和内核安装完成后、进入 pkgsel 前固定内核并设置 `pkgsel/upgrade=none`。Ubuntu/Debian 的完成钩子在首次启动前应用并检查持久 APT 策略。完整 setup 仍只预置、不自动执行，手动安装创建的账户、密码、网络和分区保持用户选择。Debian netinst 的首次内核仍来自软件源，不能据 ISO 名称保证历史版本。Ubuntu Desktop 当前仅在收尾应用持久策略；本次 Server 安装前保护不能扩展为 Desktop 全流程验收。
+
+这些设置阻止自动升级和周期刷新，不禁止安装器为用户勾选的 SSH 等组件下载软件与依赖，也不禁止手动 `apt update`。更新索引、安装依赖和升级 Linux 内核是不同操作；应以包日志和内核基线确认，不能仅凭安装器显示“updating packages”判断。
+
 alpha.23 可在“镜像管理”下载 [Linux 手动安装完整配置包](manual-linux.md)，一次应用 SSH、主机名、DHCP、驱动、内核与更新策略，并自动检查。所有支持的 Linux 家族均使用此入口。
 
 若只需要内核锁定和禁用自动更新，点击“仅下载内核与更新策略脚本”。安装完毕、启动进入新系统后执行：
@@ -31,7 +37,7 @@ sudo sh linux-update-policy.sh --apply
 sudo sh linux-update-policy.sh --check
 ```
 
-脚本默认只检查，必须带 `--apply` 才修改配置。它锁定执行时已安装的内核，不会把手动安装过程中已更新的内核降回 ISO 内核。若需要保持 ISO 原内核，请在手动安装器中跳过在线更新；要由部署系统强制保证，应使用新生成的专属自动安装任务。
+独立下载的策略脚本默认只检查，必须带 `--apply` 才修改配置。它锁定执行时已安装的内核，不会把以前手动安装过程中已更新的内核降回 ISO 内核。未绑定 alpha.34 手动注入包的旧入口仍需在安装器中跳过在线更新；安装后才运行 setup 无法追回安装阶段的变化。
 
 脚本不会删除软件源、内核或用户数据。手动执行 `apt update` 和安装非内核软件仍可用；以后更新内核或安装系统安全补丁需要管理员安排维护。普通 ISO 不会因为加入 iVentoy 目录就自动执行此脚本。
 
@@ -46,6 +52,8 @@ sudo sh linux-update-policy.sh --check
 3. 对照前述服务清单解除 mask，再按实际需要启用更新 timer / service。不要将所有列出的互斥 dnf-automatic 变体同时启用。
 
 ## 验证范围
+
+2026-10-26，alpha.34 补充普通手动路径的安装阶段验证：Ubuntu Server 22.04.3 / 24.04.3 在线手动安装并正常重启后，分别保持 `5.15.0-78-generic` / `6.8.0-71-generic`；无人值守升级的 dpkg 日志为空。Debian DVD 12.15.0 验证原生安装钩子，硬盘启动为 `6.1.0-50-amd64`。三者均在完整 setup 尚未运行时通过持久策略检查。测试方式与发布状态见[当前进度](../development/progress.md#alpha34-普通手动安装的更新保护2026-10-26)。
 
 2026-10-23，alpha.20 新增以下原始 ISO 的隔离 UEFI 自动安装与两次硬盘启动验收。每次均执行目标系统的策略检查，核对内核包 hold / pin、APT 周期选项为 0，以及五个 APT / unattended-upgrades 单元 masked / inactive；管理员 `admin` 登录和 sudo、后台完成回报同时通过。
 

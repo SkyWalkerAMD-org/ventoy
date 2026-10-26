@@ -16,7 +16,7 @@ sudo /root/ventoy-linux-setup.run --hostname server01
 
 这套配置覆盖现有 Linux 家族：Ubuntu 20–26、Debian 10–13，以及 CentOS、Rocky、AlmaLinux、RHEL 7–10（x86_64）。不仅用于 Ubuntu / Debian。Windows 不在本轮 Linux 配置包范围内。
 
-**预置不等于已配置。** 运行前仍使用手动安装时创建的账户和网络设置，预置过程不改密码、不启用 SSH、不应用 DHCP 或更新策略，也不替用户选盘。`/var/lib/ventoy-center/manual-setup-preloaded` 中的 `PRELOADED_ONLY` 只证明文件已放入，不能当成配置验收通过。直接执行 setup 后再查看下文的 `VERIFIED` / `PENDING`。
+**预置不等于完整配置已完成。** 运行前仍使用手动安装时创建的账户和网络设置，预置过程不改密码、不启用 SSH、不应用 DHCP，也不替用户选盘。alpha.34 将 Ubuntu/Debian 的内核锁定和 APT 自动更新保护单独提前到安装阶段，首次启动前检查完成；其他完整配置仍由 setup 执行。`/var/lib/ventoy-center/manual-setup-preloaded` 中的 `PRELOADED_ONLY` 只证明 setup 已放入，不能当成 SSH/DHCP/软件验收通过。更新保护另有 `/var/lib/ventoy-center/manual-install-update-policy` 标记，并可运行 `/usr/local/sbin/ventoy-center-update-policy --check` 检查。
 
 alpha.24 的普通 ISO 预置依赖 iVentoy 的注入绑定。alpha.25 的 E610 适配 ISO 已把驱动、原生安装完成钩子及配置包写入镜像：普通手动入口与 PXE-Auto 复用同一成品，E610 驱动随安装自动写入目标系统，配置包仍由用户安装后手动执行。原生已支持 E610 的镜像继续保留原驱动和普通预置绑定。未经适配、也未绑定注入的原 ISO 不会携带这些内容；管理端保留下载入口供已有系统使用。
 
