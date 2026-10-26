@@ -16,7 +16,9 @@ sudo /root/ventoy-linux-setup.run
 sudo /root/ventoy-linux-setup.run --hostname server01
 ```
 
-不填写 `--hostname` 时保留安装时设置的合法主机名；默认 localhost 会改成带机器标识的名称。
+直接在终端运行时会先显示当前主机名，输入新名称即可设置，直接回车则保留当前持久化主机名。也可用 `--hostname NAME` 跳过提问。非交互运行和开机恢复不提问；未指定名称时保留当前名称，默认 localhost 会改成带机器标识的名称。显式名称只应用一次，不会在以后运行 setup 或重启时恢复旧名称。
+
+装好后可执行 `sudo hostnamectl set-hostname server02`；如需同时同步本机 hosts，使用 `sudo safe-server-init hostname server02 --update-hosts`。旧版 setup 曾保存固定主机名，已安装的机器需要替换为新版 `.run` 并运行一次，才能更新开机恢复服务；已自行修改密码时加 `--keep-passwords`。
 启动器支持 Python 2.7、Python 3 和 EL8 自带的 platform-python，最小化系统不需要另装 tar。
 也保留 tar.gz 包：解压后执行 `sudo bash ventoy-manual-setup/install.sh`。
 默认配置 `user / ventoy` 和 `root / ventoy`，允许密码 SSH 登录，并进行本机实际密码登录检查。

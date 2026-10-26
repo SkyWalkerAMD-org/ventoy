@@ -20,7 +20,9 @@ sudo /root/ventoy-linux-setup.run --hostname server01
 
 alpha.24 的普通 ISO 预置依赖 iVentoy 的注入绑定。alpha.25 的 E610 适配 ISO 已把驱动、原生安装完成钩子及配置包写入镜像：普通手动入口与 PXE-Auto 复用同一成品，E610 驱动随安装自动写入目标系统，配置包仍由用户安装后手动执行。原生已支持 E610 的镜像继续保留原驱动和普通预置绑定。未经适配、也未绑定注入的原 ISO 不会携带这些内容；管理端保留下载入口供已有系统使用。
 
-不传 `--hostname` 时保留安装时设置的合法名称。默认 localhost 会替换成机器标识生成的名称。默认账户为 `user / ventoy`、`root / ventoy`；保留其他用户。需要保留原密码时加 `--keep-passwords`，此时须已有可用的 user/root 密码，并自行做客户端登录验证。
+在终端直接运行时会显示当前主机名，并提示输入新名称；直接回车保留当前持久化名称。`--hostname NAME` 可跳过提问直接指定；非交互运行和开机恢复服务不提问。默认 localhost 会替换成机器标识生成的名称。显式名称是一次性设置：以后的 setup 和开机恢复服务不使用旧缓存覆盖管理员改名。默认账户为 `user / ventoy`、`root / ventoy`；保留其他用户。需要保留原密码时加 `--keep-passwords`，此时须已有可用的 user/root 密码，并自行做客户端登录验证。
+
+安装后改名使用 `sudo hostnamectl set-hostname server02`，或 `sudo safe-server-init hostname server02 --update-hosts` 同时维护本机 hosts。仅执行 `hostname server02` 属于临时改名，不会保存到下次启动。alpha.37 及以前的 setup 存在固定旧名称的问题；现有机器需替换新版 `.run` 并执行一次，才能更新 `/opt/ventoy-manual/current` 和开机恢复服务。只替换磁盘上的 `.run` 文件不会更新已安装服务。
 
 alpha.33 起，首次执行新版 setup 会补齐 `user` 账户和 sudo 权限，并设置 user/root 初始密码；旧版 admin 及其文件保留。root 的密码同时用于系统控制台和 SSH，不改变 BMC 网页账户。新版已完成账户配置后再次运行不会重置用户后来修改的密码；`--keep-passwords` 保留已有密码。
 
@@ -33,7 +35,7 @@ alpha.27 保留 Ubuntu 已启用的 SSH socket 启动方式，避免首次执行
 | 项目 | 应用方式 | 完成检查 |
 | --- | --- | --- |
 | SSH | 启用服务、root 密码登录、user sudo；放行已启用防火墙中的 SSH 端口 | 检查有效配置，并实际以 root/user 密码连接本机 SSH |
-| 主机名 | 校验、备份、设置、同步本机 hosts；保留 cloud-init 主机名 | 静态名称与运行名称一致 |
+| 主机名 | 默认保留当前名称；显式改名时备份并同步 hosts；让 cloud-init 保留名称 | 静态名称与运行名称一致，不要求等于旧缓存 |
 | DHCP | 为未配置硬件有线网卡建立持久 DHCP 配置，并激活新增配置 | 检查持久配置和已连接接口的实际 IPv4 地址 |
 | 内核锁定 | APT hold/pin 或 yum/dnf `kernel*` 排除 | 比对已安装内核清单、包管理器策略 |
 | 禁用自动更新 | APT 周期刷新和 unattended-upgrades；或 yum-cron/dnf 自动升级及缓存刷新 | 持久屏蔽和当前运行状态 |
