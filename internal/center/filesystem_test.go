@@ -37,7 +37,7 @@ func TestDebianLateCommandArgumentBudget(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		match := regexp.MustCompile(`printf '%s' '([A-Za-z0-9+/=]+)' \| base64 -d \| gzip -dc`).FindStringSubmatch(text)
+		match := regexp.MustCompile(`printf '%s' '([A-Za-z0-9+/=]+)' \| base64 -d \| gunzip -c`).FindStringSubmatch(text)
 		if len(match) != 2 || decodeTemplateScript(t, match[1]) != script {
 			t.Fatal("compressed late hook did not preserve its payload", profile)
 		}
