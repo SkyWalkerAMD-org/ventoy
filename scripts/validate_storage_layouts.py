@@ -75,7 +75,7 @@ def validate(folder, capacity, expected, raid, filesystem='ext4'):
             actions=storage['config']; ids={a['id']:a for a in actions}
             for mount in (x for x in actions if x['type']=='mount'):
                 key = 'swap' if mount['path']=='none' else mount['path']
-                expected_fs = 'swap' if key == 'swap' else 'ext4' if key == '/boot' else 'fat32' if key == '/boot/efi' else filesystem
+                expected_fs = 'swap' if key == 'swap' else 'ext4' if key == '/boot' else 'fat32' if key in ('/boot/efi', '/boot/efi2') else filesystem
                 assert ids[mount['device']]['fstype'] == expected_fs, (folder, key, ids[mount['device']])
                 volume=ids[ids[mount['device']]['volume']]
                 if key=='/boot' and raid:
