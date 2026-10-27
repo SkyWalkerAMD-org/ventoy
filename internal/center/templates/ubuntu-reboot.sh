@@ -12,6 +12,15 @@ case ",$(findmnt -n -r -o OPTIONS -M /cdrom)," in
     *) exit 0 ;;
 esac
 
+# Some Desktop Casper images mask this mount themselves. A masked unit ignores
+# drop-ins and reports LazyUnmount=no; preserve that live-media protection.
+# It must not turn successful target staging into a failed late-command.
+if [ "$(systemctl show cdrom.mount -p LoadState --value)" = masked ]; then
+    touch /run/casper-no-prompt
+    echo 'Ventoy Center: preserving Casper live ISO mount mask for normal reboot.'
+    exit 0
+fi
+
 # Casper's live root uses squashfs loops backed by this read-only ISO. A normal
 # unmount therefore reports EBUSY at shutdown. casper-stop can then eject the
 # still-referenced device and cause squashfs I/O errors. Detach the mount at the
