@@ -10,7 +10,7 @@
 
 配置统一 root 密码的 Ubuntu / Debian 新安装允许 root SSH 密码登录，初次启动后再次检查。Linux 自动安装设置主机名和启动网卡 DHCP，并预置 `safe-server-init`，用于安装后修改主机名及向未配置网卡补充 DHCP；保留现有网络配置与脚本的后端限制。
 
-新生成的 Linux 自动安装任务默认锁定内核，并关闭软件源自动刷新和无人值守升级。去重后的 52 个 Linux 基础路径均提供[完整配置包预置](docs/deployment/manual-linux.md)：43 个适配成品已将驱动和配置包写入 ISO，另 9 个原生支持 E610 的镜像保留原驱动及预置绑定。手动安装后直接运行 `/root/ventoy-linux-setup.run`，配置并检查 SSH、主机名、DHCP、内核锁定和禁用自动更新，同时安装匹配的中心软件组；E610 驱动持久化独立于这个手动操作。Ubuntu Desktop 22.04.4 另有 CLI 启动的自动入口，但镜像仍含桌面软件，无桌面装机优先选择 Server。具体行为、检查与恢复见 [Linux 更新策略](docs/deployment/linux-update-policy.md)。
+新生成的 Linux 自动安装任务默认锁定内核，并关闭软件源自动刷新和无人值守升级。去重后的 52 个 Linux 基础路径均提供[完整配置包预置](docs/deployment/manual-linux.md)：43 个适配成品已将驱动和配置包写入 ISO，另 9 个原生支持 E610 的镜像保留原驱动及预置绑定。手动安装后直接运行 `/root/ventoy-linux-setup.run`，配置并检查 SSH、主机名、DHCP、内核锁定和禁用自动更新，同时安装匹配的中心软件组；E610 驱动持久化独立于这个手动操作。Ubuntu Desktop 22.04.4 和 26.04 另有 CLI 启动的自动入口，但镜像仍含桌面软件，无桌面装机优先选择 Server。具体行为、检查与恢复见 [Linux 更新策略](docs/deployment/linux-update-policy.md)。
 
 E610 的精确内核驱动、ISO 制作工具和逐镜像验证记录见 [E610 ISO Kit Release](https://github.com/SkyWalkerAMD-org/E610/releases/tag/v6.4.5-iso-kit-r1)。该工具包需配合用户自行提供的原版安装 ISO；此仓库保存管理端及安装策略源码。
 

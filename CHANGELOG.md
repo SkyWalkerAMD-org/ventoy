@@ -3,7 +3,7 @@
 ## 0.3.0-alpha.41 — 2026-10-27
 
 - 补齐 Rocky 10.2、Ubuntu Desktop 26.04 的现场自动安装入口，覆盖库存全部 52 个 Linux 镜像。Ubuntu 安装客户端使用现有 Python HTTPS 支持，修复 Desktop 26.04 live 环境缺少 curl 导致发现/授权失败的问题，保留 CA 校验与失败停止。
-
+- 保留 Desktop Casper 已有的 `cdrom.mount` 屏蔽，避免成功预置 setup 后，收尾脚本因无法加载被屏蔽单元的 LazyUnmount 配置而使安装失败。
 - 同一系统的手动/自动安装统一绑定原始 ISO；准备入口不再生成 `PXE-Auto` 镜像硬链接。选择系统后，在 iVentoy 脚本菜单选择手动或自动安装，默认无倒计时。
 - 共享的红帽系注入包仅在用户选中的 Kickstart 与入口脚本完全匹配时启用自动安装；手动模式保留 E610、setup 预置及安装策略，不强制指定不存在的自动脚本。
 - 旧独立入口不会在准备 API 中静默转换；发布时需一并迁移状态与 iVentoy 绑定，保留回退备份。
