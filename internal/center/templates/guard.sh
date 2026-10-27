@@ -60,7 +60,7 @@ sed -i "s@/dev/ventoy-center-unverified@/dev/$disk@g" /tmp/ventoy-center-selecte
 {{end}}
 # CentOS 7's installer omits base64; PEM is safe as a quoted shell literal.
 printf '%s' {{sh .CA}} > /tmp/ventoy-center-ca.crt
-{{if eq .Target.Installer "ubiquity"}}python3 - <<'VC_UBI_CLAIM'
+{{if .Target.Desktop}}python3 - <<'VC_UBI_CLAIM'
 import ssl, urllib.request
 request = urllib.request.Request({{yaml (printf "%s/event" .Base)}}, data=b'{"state":"installing"}', headers={"Authorization": {{yaml (printf "Bearer %s" .Token)}}, "Content-Type": "application/json"})
 with urllib.request.urlopen(request, context=ssl.create_default_context(cafile='/tmp/ventoy-center-ca.crt'), timeout=30) as response:

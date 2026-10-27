@@ -14,7 +14,7 @@
 
 E610 的精确内核驱动、ISO 制作工具和逐镜像验证记录见 [E610 ISO Kit Release](https://github.com/SkyWalkerAMD-org/E610/releases/tag/v6.4.5-iso-kit-r1)。该工具包需配合用户自行提供的原版安装 ISO；此仓库保存管理端及安装策略源码。
 
-现场使用 **iVentoy 1.0.47 专业版**，运行目录 `/home/ventoy-center/iventoy`。18 个规划版本 ISO 已全部入库，目前共启用 50 个明确标注系统版本的自动安装入口，合计 109 个镜像路径（58 个基础系统路径、1 个 MemTest86 工具镜像、50 个自动入口）。CentOS 7.9 与 Ubuntu 22.04.3 已移除重复的 E610 命名基础入口及相应自动入口，保留普通名称下的同一份驱动适配成品。原版镜像和恢复备份在菜单外保存，专业版授权、原有机器/任务记录和未涉及入口设置保留。
+现场使用 **iVentoy 1.0.47 专业版**，运行目录 `/home/ventoy-center/iventoy`。alpha.41 将手动/自动安装合并到发行版目录下的同一个 ISO，补齐 Rocky 10.2 和 Ubuntu Desktop 26.04，共覆盖 52 个 Linux 镜像；另保留 6 个 Windows 和 1 个 MemTest86，合计 59 个镜像路径。选择系统后，不选自动脚本进入手动安装，选择脚本进入自动安装。旧的 50 个 PXE-Auto 路径是硬链接，移除它们减少菜单重复，不会释放 50 份 ISO 的空间。原版镜像和恢复备份在菜单外保存，专业版授权、原有机器/任务记录和未涉及入口设置保留。
 
 18 个规划标准版本均完成本轮隔离 QEMU/KVM 自动安装与两次硬盘启动验证。CentOS 7.9、Rocky 8.10、Rocky 9.2 和 Ubuntu Server 22.04.3 另有此前完整物理机验收；Ubuntu Server 24.04.3 已补齐物理 PXE 双盘安装后无人干预的正常硬盘启动，并完成普通 ISO 经真实隔离 iVentoy 的交互手动安装、正常重启、setup 配置和再次重启检查。物理与隔离结果分别记录，不能替代其他硬件或启动模式的验收。具体版本与证据见 [当前进度](docs/development/progress.md)和[现场镜像清单](docs/deployment/image-catalog.md)。
 
@@ -50,7 +50,7 @@ E610 的精确内核驱动、ISO 制作工具和逐镜像验证记录见 [E610 I
 | Ubuntu 24.04 / 26.04 | 同一 Linux 二进制 + systemd | 同上；其他 24–26 间的短周期版本未单独验证 |
 | Windows 10 / 11 x64 | Windows 二进制 + 可选计划任务 | Windows 单元测试；桌面系统与 iVentoy 共存需实机验收 |
 
-这里列的是**装机服务器的运行系统**，与[客户端安装版本和镜像要求](docs/deployment/linux-targets.md)分开管理。规划版本与库存扩展版本的模板、隔离安装和物理验收状态分别见进度表。Ubuntu 无桌面装机优先选择 Server / live-server；Desktop 22.04.4 的 CLI 启动验收单独记录，Desktop 26.04 未发布自动入口。
+这里列的是**装机服务器的运行系统**，与[客户端安装版本和镜像要求](docs/deployment/linux-targets.md)分开管理。规划版本与库存扩展版本的模板、隔离安装和物理验收状态分别见进度表。Ubuntu 无桌面装机优先选择 Server / live-server；Desktop 22.04.4 和 26.04 的自动安装保留桌面软件，默认以 CLI 启动，验收单独记录。
 
 ## 本地启动
 
