@@ -328,6 +328,10 @@ func (s *Server) createJob(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, err.Error())
 		return
 	}
+	if p.OS != "windows" {
+		// Persist the chosen default, including drafts, before authorization.
+		req.Filesystem, _ = newLinuxFilesystem(req.Filesystem, p.OS)
+	}
 	if strings.ContainsAny(req.ISO, " \t\r\n") {
 		fail(w, 400, "iVentoy 镜像路径不能包含空格")
 		return

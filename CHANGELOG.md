@@ -1,5 +1,12 @@
 # 开发记录
 
+## 0.3.0-alpha.40 — 2026-10-27
+
+- Linux 自动安装按发行版选择默认文件系统：CentOS、Rocky、AlmaLinux、RHEL 为 XFS，Ubuntu、Debian 为 ext4。PXE 控制台仍允许切换；/boot 继续 ext4，EFI 继续 FAT32，容量分配规则不变。
+- 新安装任务持久化解析后的格式；历史授权未指定格式时保留 ext4，既有入口的显式格式设置不被覆盖。
+- 修复 RPM / DNF 在安装脚本失败但退出码为 0 时，setup 误报软件安装成功的问题。记录失败的软件版本，再次运行不再把同版本残留误报为成功；更新为修正版本后可重新验证。
+- 普通 Linux 手动安装和 PXE-Auto 共用新版 setup 预置包；setup 不更改已有文件系统。
+
 ## 0.3.0-alpha.39 — 2026-10-26
 
 - Linux PXE 自动安装增加 ext4 / XFS 选择：默认 ext4，所选格式用于 /、/tmp、/var、/home；/boot 保持 ext4、EFI 保持 FAT32、swap 不变。沿用容量档位、单盘和双盘 RAID1 + LVM 分配。

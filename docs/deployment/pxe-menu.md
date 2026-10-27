@@ -2,7 +2,7 @@
 
 从 `0.3.0-alpha.12` 起，可在管理端的“PXE 自动安装”页面为每个原始 ISO 准备一个可复用入口。普通 ISO 继续用于手动安装。
 
-日常装机从客户端 BIOS / UEFI 的网卡启动项进入。alpha.39 的 Linux 入口采用“选择系统版本 → 选择自动安装脚本 → 选择 ext4 / XFS → 自动安装”：只有一块可用内置盘时直接清空安装，不再选择磁盘或输入 `yes`。多盘时在 PXE 画面选择目标盘并输入 `yes`，随后自动安装。日常安装无需提前登记 MAC、带外地址或创建专属任务。`26080` 用于准备系统入口和查看任务，目前不提供带外管理。
+日常装机从客户端 BIOS / UEFI 的网卡启动项进入。alpha.40 的 Linux 入口采用“选择系统版本 → 选择自动安装脚本 → 选择 ext4 / XFS → 自动安装”：只有一块可用内置盘时直接清空安装，不再选择磁盘或输入 `yes`。多盘时在 PXE 画面选择目标盘并输入 `yes`，随后自动安装。日常安装无需提前登记 MAC、带外地址或创建专属任务。`26080` 用于准备系统入口和查看任务，目前不提供带外管理。
 
 常规无 GUI 装机使用 Ubuntu Server / live-server、Debian 标准系统与 SSH，以及 CentOS / Rocky / AlmaLinux / RHEL 最小化环境。安装后默认启动目标为 `multi-user.target`。alpha.25 另提供 Ubuntu Desktop 22.04.4 的 CLI 启动入口，但它仍含桌面软件，不替代无桌面的 Server 安装。
 
@@ -18,11 +18,11 @@
 
 1. 在 BIOS / UEFI 选择接入装机网络的网卡，从 iVentoy 的 `ventoy-center → PXE-Auto` 目录选择具体系统版本。
 2. 在脚本菜单选择自动安装脚本（Ubuntu 为 `user-data`，CentOS / Rocky 为 `kickstart.cfg`，Debian 为 `preseed.cfg`）；`Boot without auto install script` 是不加载脚本的选项。
-3. 选择文件系统：回车或 `1` 使用默认 ext4，`2` 使用 XFS，也可输入 `ext4` / `xfs`；`q` 取消。格式用于 `/`、`/tmp`、`/var`、`/home`；`/boot` 固定 ext4、EFI 固定 FAT32、swap 不变。
+3. 选择文件系统：回车采用当前系统默认值：CentOS / Rocky / AlmaLinux / RHEL 为 XFS，Ubuntu / Debian 为 ext4；`1` 或 `ext4` 明确选择 ext4，`2` 或 `xfs` 明确选择 XFS；`q` 取消。格式用于 `/`、`/tmp`、`/var`、`/home`；`/boot` 固定 ext4、EFI 固定 FAT32、swap 不变。
 4. 安装客户端检查内置盘：只有一块且可用时，自动生成绑定该磁盘序列号的任务并继续。多盘在 PXE 画面选择盘号、输入 `yes`，按单盘安装；需要双盘镜像时输入 `r`，选择两个盘号（如 `1 2`），再输入 `yes`，重建 RAID1 + LVM。容量、型号、序列号和不可选原因会在确认前显示。
 5. 分区、安装、内核锁定、关闭 APT 自动刷新和无人值守升级、重启及首次启动回报自动进行，可在管理端“安装任务”查看状态。Ubuntu 安装配置不设置交互页面，并在启动安装器时启用 `autoinstall`；动态配置仍按[官方 early-commands 重新读取机制](https://canonical-subiquity.readthedocs-hosted.com/en/latest/reference/autoinstall-reference.html#early-commands)生成。
 
-文件系统选择从 alpha.39 开始提供，覆盖各 Linux 自动安装模板。单盘、硬 RAID 逻辑盘和双盘软 RAID1 的数据分区使用同一选择；容量档位与 `/home` 使用余量的规则不变。后台预先创建并授权的任务使用该任务的文件系统设置，不重复询问。安装前确认格式化工具可用，首次硬盘启动检查各挂载点的实际格式；缺失或不符不回报安装成功。普通手动安装由安装器选择文件系统，setup 不改现有分区。
+文件系统选择从 alpha.39 开始提供，覆盖各 Linux 自动安装模板。单盘、硬 RAID 逻辑盘和双盘软 RAID1 的数据分区使用同一选择；容量档位与 `/home` 使用余量的规则不变。后台预先创建并授权的任务使用该任务的文件系统设置，不重复询问。alpha.40 起，新任务在创建时保存解析后的默认值；历史任务未指定格式时仍为 ext4，升级管理端不会改变它们的授权。安装前确认格式化工具可用，首次硬盘启动检查各挂载点的实际格式；缺失或不符不回报安装成功。普通手动安装由安装器选择文件系统，setup 不改现有分区。
 
 多盘选盘和清盘确认直接在安装控制台完成，后台自动登记本机并生成绑定所选磁盘序列号的一次性任务。管理员预先授权的匹配任务仍可复用，但不是日常装机的必要步骤。其他未完成任务仍会阻止新装，以免两次安装并发写盘。
 

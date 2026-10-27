@@ -67,11 +67,17 @@ setup 会输出系统配置检查、APT 事务预演、实际安装及复查日�
 
 校验、下载、架构/EL 不匹配、依赖和安装错误返回非零。没有匹配软件时显示 `SKIPPED`。日志：`/var/log/ventoy-software.log`；最近事务：`/var/lib/ventoy-center/software/last-result.json`。完整配置流程中的日志也进入 `/var/log/ventoy-manual-init.log`。
 
+RPM / DNF 即使报告 `%post` 等安装脚本失败，也可能以 0 退出且保留已安装包记录。setup 同时检查这类错误输出，并在 `rpm-scriptlet-failures.json` 保存受影响的包和版本；相同版本再次运行或执行软件检查仍报失败。发布并成功安装修正后的新版本可解除该版本对应的失败状态。无法确定所属包的脚本错误需要人工核查，不能仅凭 `rpm -q` 查到包就认定安装完整成功。
+
 客户端内置中心 HTTPS 地址、公开 CA 和只读下载凭证，不含管理口令或安装任务凭证。管理口令轮换会使既有只读凭证失效，需要重新下载 setup。下载凭证不授予管理、上传、删除或远程执行权限。
 
 依赖解析参考 [APT 官方手册](https://manpages.ubuntu.com/manpages/noble/man8/apt-get.8.html) 与 [DNF 官方命令参考](https://dnf.readthedocs.io/en/latest/command_ref.html)。
 
 ## 验证范围
+
+2026-10-27，在 `.235` 普通 ISO 手动安装的 Rocky 10.0、双盘 RAID1 + LVM / XFS 上实际执行预置 setup，并指定 `--hostname s4-2495x1`。主机名持久配置与运行值一致，外部 root/user 密码 SSH、现有 DHCP、内核锁定和自动更新禁用检查通过；运行内核与全部 7 个内核包保持 `6.12.0-55.12.1.el10_0.x86_64`。`fyhoc -V` 返回 1.1.24，`fyhocsys-node --version` 返回 0.8.4，9 个压缩包及独立文件与中心摘要一致。安装依赖更新了 15 个非内核包（包括 OpenSSL、OpenSSH 等），未执行全系统或内核升级。
+
+同次事务发现 `sckoct-fyh-1.1.8-1.el10` 的 `%post` 运行其自带 Python/Cython 模块时发生 `__Pyx_GetCurrentInterpreterId failed`，旧 setup 错误地报告软件组成功。修复后的检测已通过隔离 RPM/DNF 的失败脚本、重复运行、修正版升级测试，并在 `.235` 根据原日志恢复真实失败记录，重新运行明确返回失败；这不是该软件包本身已经修复。原生事务回归使用独立 Rocky 9 测试根；Rocky 10 实机验证使用本次实际错误日志及已安装包状态。该修复纳入 alpha.40，中心下载与全部 Linux 手动/PXE 预置包使用同一软件检查实现。
 
 2026-10-25，用户在 `.235` 新装 Ubuntu 22.04.3 后无参数运行 setup。现场只读核对确认 `fyhoc 1.1.24-1`、`fyhocsys-node 0.8.3-1`、`sckoct-fyh 1:1.1.8-1` 均已安装；为补齐依赖，APT 新装 ipmitool/libatomic1 等包，并将 `gcc-12-base`、`libgcc-s1`、`libstdc++6` 从 `12.3.0-1ubuntu1~22.04` 升到 `12.3.0-1ubuntu1~22.04.3`。未执行全系统升级，运行内核及唯一已安装内核仍为 `5.15.0-78-generic`（包版本 `5.15.0-78.85`），hold 保留，五个 APT/无人值守更新单元全部 masked/inactive，APT 周期配置均为 0。软件请求完成；附加网卡 `enp188s0f1` 的 IPv4 DHCP 租约仍待获取，因此系统总状态是 `PENDING`，不等于软件安装失败或内核已更新。
 
