@@ -81,7 +81,7 @@ func (s *Server) renderPXEFiles(e PrivatePXEEntry) (map[string]string, error) {
 			d.UserDataSHA512 = fmt.Sprintf("%x", sha512.Sum512([]byte(config)))
 			content, err = ubuntuInjection(d)
 		} else {
-			content, err = kickstartInjection()
+			content, err = kickstartSelectionInjection(config)
 		}
 		if err != nil {
 			return nil, err
@@ -137,7 +137,7 @@ func (s *Server) preparePXEFiles(root *os.Root, e PrivatePXEEntry, write bool) (
 	if e.Preparation != nil && e.Preparation.Root != s.config.IVentoyRoot {
 		return nil, errors.New("iVentoy 目录发生变化")
 	}
-	isoDir, scriptDir := pxePaths(e)
+	scriptDir := path.Join(managedScripts, "pxe-menu", e.ID)
 	script := "kickstart.cfg"
 	if p, _ := pxeProfile(e.Profile); p.Installer == "ubiquity" {
 		script = "preseed.cfg"
@@ -163,11 +163,16 @@ func (s *Server) preparePXEFiles(root *os.Root, e PrivatePXEEntry, write bool) (
 	if err != nil {
 		return nil, err
 	}
-	p := &Preparation{Root: s.config.IVentoyRoot, ISOPath: path.Join(isoDir, "image.iso"), ScriptPath: path.Join(scriptDir, script), SourceSize: info.Size(), SourceModified: info.ModTime(), Files: map[string]string{}}
+	// This canonical ISO is shared with manual installation and is not owned
+	// by the menu. Preparing a menu must never create another ISO directory.
+	p := &Preparation{Root: s.config.IVentoyRoot, ISOPath: path.Join("iso", e.ISO), ScriptPath: path.Join(scriptDir, script), SourceSize: info.Size(), SourceModified: info.ModTime(), Files: map[string]string{}}
 	for name, content := range files {
 		p.Files[name] = fmt.Sprintf("%x", sha256.Sum256([]byte(content)))
 	}
 	if old := e.Preparation; old != nil {
+		if old.ISOPath != p.ISOPath {
+			return nil, errors.New("旧版独立 PXE 入口需要停用并迁移绑定到原始 ISO，未改变现有入口")
+		}
 		if old.SourceSize != p.SourceSize || !old.SourceModified.Equal(p.SourceModified) || !reflect.DeepEqual(old.Files, p.Files) {
 			return nil, errors.New("已准备的菜单内容改变，请停用入口并核对，未覆盖现有文件")
 		}
@@ -176,7 +181,7 @@ func (s *Server) preparePXEFiles(root *os.Root, e PrivatePXEEntry, write bool) (
 	if !write {
 		return p, nil
 	}
-	for _, dir := range []string{managedISO, managedScripts, path.Join(managedISO, "PXE-Auto"), path.Join(managedScripts, "pxe-menu"), isoDir, scriptDir} {
+	for _, dir := range []string{managedScripts, path.Join(managedScripts, "pxe-menu"), scriptDir} {
 		if err = ensureManagedDir(root, dir); err != nil {
 			return nil, err
 		}
@@ -216,23 +221,6 @@ func (s *Server) preparePXEFiles(root *os.Root, e PrivatePXEEntry, write bool) (
 		if closeErr != nil {
 			return nil, closeErr
 		}
-	}
-	iso, err := root.OpenRoot(isoDir)
-	if err != nil {
-		return nil, err
-	}
-	defer iso.Close()
-	if err = checkEntries(iso, map[string]string{"image.iso": ""}); err != nil {
-		return nil, err
-	}
-	if alias, er := root.Lstat(p.ISOPath); er == nil {
-		if !alias.Mode().IsRegular() || !os.SameFile(info, alias) {
-			return nil, errors.New("镜像入口已存在且来源不同")
-		}
-	} else if !errors.Is(er, fs.ErrNotExist) {
-		return nil, er
-	} else if er = root.Link(path.Join("iso", e.ISO), p.ISOPath); er != nil {
-		return nil, er
 	}
 	current, err := root.Stat(path.Join("iso", e.ISO))
 	alias, ae := root.Lstat(p.ISOPath)

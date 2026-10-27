@@ -92,6 +92,37 @@ client = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(client)
 mac = "02:00:00:00:01:01"
 
+# Ubuntu Desktop 26.04's live media has Python but no curl. Discovery and
+# authorization must work before target packages can be installed. Exercise
+# success and HTTP rejection through TLS verification, without any subprocess.
+import json
+import urllib.error
+import urllib.request
+for installer in ('autoinstall', 'ubiquity'):
+    with patch.dict(client.SETTINGS, installer=installer, ca='test-ca'), \
+            patch.object(client, 'output', side_effect=AssertionError('curl must not be required')), \
+            patch('ssl.create_default_context') as trust:
+        class Response(io.BytesIO):
+            pass
+        with patch('urllib.request.urlopen', return_value=Response(b'{"ok":true}')) as request:
+            assert client.api('/qa', 'discover', {'mac': mac}) == {'ok': True}
+            trust.assert_called_with(cafile='/qa/ca.crt')
+            sent = request.call_args.args[0]
+            assert sent.full_url.endswith('/discover')
+            assert json.loads(sent.data)['mac'] == mac
+            assert sent.get_header('Authorization') == 'Bearer ' + client.SETTINGS['token']
+            assert request.call_args.kwargs['timeout'] == 45
+        error = urllib.error.HTTPError('https://qa/discover', 409, 'Conflict', {},
+                                       io.BytesIO(b'{"error":"task already active"}'))
+        with patch('urllib.request.urlopen', side_effect=error):
+            try:
+                client.api('/qa', 'discover', {})
+            except RuntimeError as exc:
+                assert str(exc) == 'task already active'
+            else:
+                raise AssertionError('Rejected discovery must stop installation')
+assert "VC_UBI_CLAIM" in (root / 'ubuntu-26.04-desktop/preinstall.sh').read_text()
+
 # Rocky 8's Python 3.6 installer uses an ASCII locale. Exercise actual response
 # decoding and configuration writes with non-ASCII profile labels in that mode.
 with tempfile.TemporaryDirectory(prefix="vc-pxe-encoding-") as encoding_work:

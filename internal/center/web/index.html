@@ -51,7 +51,7 @@
         <p id="software-warnings" class="muted"></p><div id="software-table" class="panel"></div>
       </section>
       <section id="pxe" class="page" hidden>
-        <div class="page-heading"><div><div class="eyebrow">PXE INSTALL MENU</div><h1>选好系统，自动安装</h1><p>每个版本准备一次，客户端从网卡启动后选择对应的系统。</p></div><button class="primary" data-action="new-pxe">＋ 添加系统入口</button></div>
+        <div class="page-heading"><div><div class="eyebrow">PXE INSTALL MENU</div><h1>一个系统入口，两种安装方式</h1><p>从发行版目录选择系统，再选择手动安装或自动安装脚本。</p></div><button class="primary" data-action="new-pxe">＋ 添加系统入口</button></div>
         <div class="note"><span>↳</span><p>网启选择系统 → 选择自动安装脚本 → 单内置盘自动安装。多盘在 PXE 画面选盘、输入 yes，随后自动安装并重启，无需在后台创建任务。默认锁定内核，关闭自动更新；现有 LVM / RAID 磁盘需先单独处理。各入口的选盘方式见下表。</p></div>
         <div id="pxe-table" class="panel"></div>
         <p class="muted">当前菜单覆盖 CentOS、Rocky、Debian、Ubuntu Server 22.04／24.04。普通 ISO 仍用于手动安装。请将自动安装菜单用于受控装机局域网。</p>

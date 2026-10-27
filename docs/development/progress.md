@@ -1,5 +1,17 @@
 # Ventoy Center 当前进度
 
+## alpha.41 共享 ISO 入口与补齐 52 个 Linux 自动安装（2026-10-27）
+
+手动和自动安装合并到发行版目录下的同一 ISO。选择系统后，`Boot without auto install script` 进入手动安装，`Boot with ...` 选择自动脚本；默认手动、无倒计时。补齐 Rocky 10.2 和 Ubuntu Desktop 26.04，覆盖当前 52 个 Linux 镜像。发布移除 50 个历史 PXE-Auto 别名，目录由 109 个路径减为 59 个，包含另外 6 个 Windows 和 1 个 MemTest86；Linux 的完整 setup、驱动和策略钩子仍保留。
+
+新增两项均在独立 UEFI 虚拟机中完成自动安装及两次硬盘启动，控制器回报 `installed`。实际验证 root/user 密码 SSH、user sudo、root 系统控制台密码登录、CLI 默认启动、128 GB 四分之一档分区、内核锁定、禁用自动更新以及预置 setup 摘要。Rocky 10.2 默认 XFS，运行内核为 `6.12.0-211.16.1.el10_2.0.1.x86_64`；Ubuntu Desktop 26.04 默认 ext4，运行内核为 `7.0.0-14-generic`，保留桌面软件但默认 CLI。
+
+Desktop 26.04 的 live 环境没有 curl，发现/授权客户端改用 Python 标准库 HTTPS，继续验证 CA 并正确处理 HTTP 失败。其 Casper 已屏蔽 `cdrom.mount`，收尾现在保留屏蔽，避免因无法启用 LazyUnmount 而把已完成的安装判为失败。最终安装退出介质时仍有 SQUASHFS/卸载告警，但正常请求重启，随后从硬盘启动并通过检查；没有把这一结果表述为关机日志无告警。
+
+隔离的原生 iVentoy UEFI 网启另验证 CentOS 7.9、Debian 12.8、Ubuntu Server 22.04.3 各自的手动分支和自动分支，以及 Rocky 10.2 自动分支，共 7 项。手动进入原生安装器，自动进入文件系统选择页；这些菜单测试停在写盘前，不等同于七次完整安装。52 份模板、28 份账户配置、54 份 RAID 配置、660 项容量和 220 项文件系统组合，以及 16 项 Kickstart 条件注入检查通过。没有操作 `.235` 或 `.39`，没有新增物理 E610 或 RAID 故障测试。
+
+已清理退役隔离磁盘、过期构建文件和挂载，释放约 170.2 GiB。历史 PXE-Auto 文件原本是硬链接，移除别名主要整理菜单，不会再释放 50 份 ISO 数据空间。当前 ISO、tools 软件、恢复副本、授权和任务历史保留。安装、菜单截图、测试、发布与回退证据保存在中心 `e610-pxe-media-20261023/release41-20261027/`；清理记录为同级 `disk-cleanup-20261027/result.json`。源码见 [PR #15](https://github.com/SkyWalkerAMD-org/ventoy/pull/15)。
+
 ## alpha.40 发行版默认格式与 setup 检查（2026-10-27）
 
 新建 Linux 自动安装默认使用红帽系 XFS、Ubuntu/Debian ext4，保留控制台切换以及历史任务原有格式。普通手动安装由安装器选择格式，setup 不转换分区。新版 setup 检测 RPM 安装脚本的失败并保留失败版本记录，避免仅凭包数据库存在就报告成功。

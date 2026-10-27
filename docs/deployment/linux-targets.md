@@ -23,13 +23,13 @@
 | Ubuntu Server 26.04 LTS | `ubuntu-26.04` | autoinstall | amd64 live-server |
 | Ubuntu Server 24.10 / 25.04 | `ubuntu-24.10` / `ubuntu-25.04` | autoinstall | amd64 live-server；使用归档源 |
 | Ubuntu Desktop 22.04 LTS | `ubuntu-22.04-desktop` | Ubiquity | 22.04.4 已通过隔离自动安装和 CLI 启动；镜像仍含桌面软件，常规无桌面装机优先用 Server |
-| Ubuntu Desktop 26.04 LTS | `ubuntu-26.04-desktop` | Desktop Subiquity | amd64 Desktop；实验模板，不发布默认自动入口 |
+| Ubuntu Desktop 26.04 LTS | `ubuntu-26.04-desktop` | Desktop Subiquity | amd64 Desktop；alpha.41 提供自动脚本，保留桌面软件并默认 CLI 启动 |
 | Debian 10 / Buster | `debian-10` | preseed | amd64 完整 DVD-1 |
 | Debian 11 / Bullseye | `debian-11` | preseed | amd64 netinst / DVD-1 |
 | Debian 12 / Bookworm | `debian-12` | preseed | amd64 netinst / DVD-1 |
 | Debian 13 / Trixie | `debian-13` | preseed | amd64 netinst / DVD-1 |
 
-这些 profile 均可创建任务和生成安装文件，覆盖 UEFI / Legacy BIOS 两种配置。**这是模板覆盖范围，不是各版本已经实机装通的声明**；具体 ISO、CPU、固件和网卡仍需分别验收。Rocky 8/9/10 的小版本共用同一大版本模板，不能据此认定每个历史 ISO 都已验证。默认使用无桌面的 Server / 标准 / 最小化安装。alpha.25 另验证 Ubuntu Desktop 22.04.4 的原生安装及自动安装，设置为 CLI 启动；这不等同于删除镜像中全部桌面软件。Ubuntu Desktop 26.04 仍保留实验模板，不计入本轮自动安装验收。legacy-server、Debian Live、ARM 镜像不在此次范围。
+这些 profile 均可创建任务和生成安装文件，覆盖 UEFI / Legacy BIOS 两种配置。**这是模板覆盖范围，不是各版本已经实机装通的声明**；具体 ISO、CPU、固件和网卡仍需分别验收。Rocky 8/9/10 的小版本共用同一大版本模板，不能据此认定每个历史 ISO 都已验证。默认使用无桌面的 Server / 标准 / 最小化安装。Desktop 22.04.4 与 26.04 的自动安装设置为 CLI 启动；这不等同于删除镜像中全部桌面软件。alpha.41 为现有 52 个 Linux ISO 补齐自动脚本，新增两项的验证边界见[进度记录](../development/progress.md)。legacy-server、Debian Live、ARM 镜像不在此次范围。
 
 Windows 11 / Server 2022 保留安装模板，开发优先级低于 Linux。Windows 11 限 UEFI，准备要求见 [PXE 文档](pxe.md)。现场已有的 Ubuntu 24.10、25.04 已加入 alpha.21 回归范围。
 

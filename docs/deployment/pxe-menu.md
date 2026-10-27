@@ -1,23 +1,23 @@
 # 从 PXE 菜单选择系统后自动安装
 
-从 `0.3.0-alpha.12` 起，可在管理端的“PXE 自动安装”页面为每个原始 ISO 准备一个可复用入口。普通 ISO 继续用于手动安装。
+从 `0.3.0-alpha.41` 起，手动与自动安装共用发行版目录下同一个 ISO 入口。选择系统版本后，iVentoy 显示脚本菜单：`Boot without auto install script` 进入手动安装，选择 `Boot with ...` 对应脚本进入自动安装。无需再进入 `ventoy-center/PXE-Auto`。
 
-日常装机从客户端 BIOS / UEFI 的网卡启动项进入。alpha.40 的 Linux 入口采用“选择系统版本 → 选择自动安装脚本 → 选择 ext4 / XFS → 自动安装”：只有一块可用内置盘时直接清空安装，不再选择磁盘或输入 `yes`。多盘时在 PXE 画面选择目标盘并输入 `yes`，随后自动安装。日常安装无需提前登记 MAC、带外地址或创建专属任务。`26080` 用于准备系统入口和查看任务，目前不提供带外管理。
+日常装机从客户端 BIOS / UEFI 的网卡启动项进入。Linux 自动入口采用“选择系统版本 → 选择自动安装脚本 → 选择 ext4 / XFS → 自动安装”：只有一块可用内置盘时直接清空安装，不再选择磁盘或输入 `yes`。多盘时在 PXE 画面选择目标盘并输入 `yes`，随后自动安装。日常安装无需提前登记 MAC、带外地址或创建专属任务。`26080` 用于准备系统入口和查看任务，目前不提供带外管理。
 
-常规无 GUI 装机使用 Ubuntu Server / live-server、Debian 标准系统与 SSH，以及 CentOS / Rocky / AlmaLinux / RHEL 最小化环境。安装后默认启动目标为 `multi-user.target`。alpha.25 另提供 Ubuntu Desktop 22.04.4 的 CLI 启动入口，但它仍含桌面软件，不替代无桌面的 Server 安装。
+常规无 GUI 装机使用 Ubuntu Server / live-server、Debian 标准系统与 SSH，以及 CentOS / Rocky / AlmaLinux / RHEL 最小化环境。安装后默认启动目标为 `multi-user.target`。Ubuntu Desktop 22.04.4 和 26.04 也提供自动安装并默认 CLI 启动，但仍含桌面软件，不替代无桌面的 Server 安装。
 
 ## 准备一次系统入口
 
 1. 添加入口，选择原始 ISO 和对应模板，填写包含具体版本的名称、本地管理员用户名、SHA-512 crypt 密码哈希及可选 SSH 公钥。
-2. 点击“准备与关联”，生成镜像硬链接、安装脚本及需要的启动兼容包。原始 ISO 内容不变。
-3. 在 iVentoy 镜像管理刷新，选择页面给出的 `ventoy-center/PXE-Auto/系统版本-Auto-短编号/image.iso`，关联自动安装脚本及列出的启动注入文件。
-4. 自动安装脚本默认编号可设为 `1`，选择超时设为 `0`，等待用户选择脚本。全局默认镜像保持为空、系统倒计时为 `0`，客户端自行选择版本。[iVentoy 官方说明](https://www.iventoy.com/en/doc_unattend_install.html)解释了默认镜像、脚本编号及倒计时。刷新和修改关联前，须确认没有客户端仍在使用网络镜像。
+2. 点击“准备与关联”，生成安装脚本及支持手动/自动选择的启动兼容包。直接引用原始 ISO，不复制镜像或另建 ISO 硬链接。
+3. 在 iVentoy 镜像管理选择页面给出的原始 ISO，例如 `Rocky/Rocky-10.0-x86_64-dvd1.iso`，关联自动安装脚本及列出的启动注入文件。此注入包同时包含手动安装的 setup 预置与策略钩子，不再绑定另一个纯手动注入包。
+4. 自动安装脚本默认编号设为 `0`（手动安装），选择超时设为 `0`，等待用户明确选择。全局默认镜像保持为空、系统倒计时为 `0`，客户端自行选择版本。[iVentoy 官方说明](https://www.iventoy.com/en/doc_unattend_install.html)解释了默认镜像、脚本编号及倒计时。刷新和修改关联前，须确认没有客户端仍在使用网络镜像。
 5. 在管理端启用入口。准备文件与启用入口不会自动修改 iVentoy 参数；两边都配置完成后才能使用。
 
 ## 在待装机器上操作
 
-1. 在 BIOS / UEFI 选择接入装机网络的网卡，从 iVentoy 的 `ventoy-center → PXE-Auto` 目录选择具体系统版本。
-2. 在脚本菜单选择自动安装脚本（Ubuntu 为 `user-data`，CentOS / Rocky 为 `kickstart.cfg`，Debian 为 `preseed.cfg`）；`Boot without auto install script` 是不加载脚本的选项。
+1. 在 BIOS / UEFI 选择接入装机网络的网卡，从 iVentoy 的 `Ubuntu`、`Debian`、`Rocky` 等发行版目录选择具体系统版本。
+2. 手动安装选 `Boot without auto install script`，随后按原生安装器操作。自动安装选择 `Boot with ...` 对应脚本（Ubuntu 为 `user-data`，CentOS / Rocky 为 `kickstart.cfg`，Debian 为 `preseed.cfg`），再继续下面的步骤。
 3. 选择文件系统：回车采用当前系统默认值：CentOS / Rocky / AlmaLinux / RHEL 为 XFS，Ubuntu / Debian 为 ext4；`1` 或 `ext4` 明确选择 ext4，`2` 或 `xfs` 明确选择 XFS；`q` 取消。格式用于 `/`、`/tmp`、`/var`、`/home`；`/boot` 固定 ext4、EFI 固定 FAT32、swap 不变。
 4. 安装客户端检查内置盘：只有一块且可用时，自动生成绑定该磁盘序列号的任务并继续。多盘在 PXE 画面选择盘号、输入 `yes`，按单盘安装；需要双盘镜像时输入 `r`，选择两个盘号（如 `1 2`），再输入 `yes`，重建 RAID1 + LVM。容量、型号、序列号和不可选原因会在确认前显示。
 5. 分区、安装、内核锁定、关闭 APT 自动刷新和无人值守升级、重启及首次启动回报自动进行，可在管理端“安装任务”查看状态。Ubuntu 安装配置不设置交互页面，并在启动安装器时启用 `autoinstall`；动态配置仍按[官方 early-commands 重新读取机制](https://canonical-subiquity.readthedocs-hosted.com/en/latest/reference/autoinstall-reference.html#early-commands)生成。
@@ -32,8 +32,8 @@
 
 ## 覆盖范围和保护
 
-- 新菜单模板当前覆盖 CentOS 7.6 / 7.9 / 8.0 / 8.4 / 8.5 / Stream 8 / 9 / 10、Rocky 8 / 9 / 10、AlmaLinux 8 / 9、RHEL 7 / 8 / 9、Debian 10 / 11 / 12 / 13、Ubuntu Server 20.04 / 22.04 / 24.04 / 24.10 / 25.04 / 26.04 live-server，以及 Ubuntu Desktop 22.04.4 的 CLI 启动流程。模板和代码测试不等于所有硬件均已完成实装验收，具体进度见[验收记录](../development/progress.md)。
-- 现场去重后共启用 50 个入口；43 个 E610 成品各自的手动/PXE 隔离安装与重启通过。CentOS 7.9 与 Ubuntu 22.04.3 使用普通名称下的驱动适配成品，历史 E610 命名重复入口已移除。Ubuntu Desktop 26.04 未列入本轮自动安装验收；Windows 不在本轮统一 Linux 流程内。
+- 新菜单模板当前覆盖 CentOS 7.6 / 7.9 / 8.0 / 8.4 / 8.5 / Stream 8 / 9 / 10、Rocky 8 / 9 / 10、AlmaLinux 8 / 9、RHEL 7 / 8 / 9、Debian 10 / 11 / 12 / 13、Ubuntu Server 20.04 / 22.04 / 24.04 / 24.10 / 25.04 / 26.04 live-server，以及 Ubuntu Desktop 22.04.4 / 26.04 的 CLI 启动流程。模板和代码测试不等于所有硬件均已完成实装验收，具体进度见[验收记录](../development/progress.md)。
+- alpha.41 为现有全部 52 个 Linux ISO 配置共享手动/自动入口，新增 Rocky 10.2 与 Ubuntu Desktop 26.04。Desktop 镜像仍含桌面软件，自动安装后默认进入 CLI。43 个 E610 成品此前各自的手动/PXE 隔离安装与重启通过；这不等于所有硬件或所有存储布局均已验收。CentOS 7.9 与 Ubuntu 22.04.3 使用普通名称下的驱动适配成品，历史 E610 命名重复入口已移除。Windows 不在本轮统一 Linux 流程内。
 - 按序列号选择唯一的整块非 USB 磁盘。无序列号、重复序列号、只读盘、已挂载盘或活动交换空间会被拒绝。单盘方式继续保护现有 LVM / RAID；双盘重建方式可以清理完全落在所选两盘内的旧存储，涉及第三块盘或缺失成员时停止。
 - Ubuntu 安装器发生致命错误时，使用本次任务专属凭据回报 `failed`，释放已停止任务的占用。PXE 选盘后的检查失败也走同一回报；没有领到任务的错误不提交失败事件。断电、断网或回报失败仍需核实客户端已停止后结束旧任务，不根据超时自动重启安装。
 
@@ -52,7 +52,7 @@
 - 客户端与服务端分别检查单盘规则，配置发放前后重新枚举硬件和挂载状态；最终保护脚本再次核对目标序列号。旧缓存客户端不能请求新的单盘授权；入口规则改变后旧会话失效，须重新网启。
 - 菜单确认凭据 15 分钟有效且只能使用一次；实例安装授权 24 小时有效且只能领取一次。再次确认硬件没有变化后，安装前还会检查发行版、MAC、磁盘和固件模式。
 - 停用入口会撤销尚未开始的菜单安装授权和待确认会话；已经开始写盘的安装不会被强制中断。入口重新启用不会恢复已撤销授权。
-- Ubuntu 固定镜像安装环境对应的内核，再应用内核包保留、APT 周期任务关闭和无人值守升级服务屏蔽。RPM 系统应用 kernel 包排除和相应自动更新服务屏蔽。普通 ISO 手动安装预置[完整配置包](manual-linux.md)，进入硬盘系统后手动执行；预置本身不会应用策略。
+- Ubuntu 固定镜像安装环境对应的内核，再应用内核包保留、APT 周期任务关闭和无人值守升级服务屏蔽。RPM 系统应用 kernel 包排除和相应自动更新服务屏蔽。普通 ISO 手动安装预置[完整配置包](manual-linux.md)，进入硬盘系统后手动执行以配置 SSH、DHCP 和软件；Ubuntu/Debian 的安装钩子另在首次启动前应用更新保护，预置完整 setup 不等于已运行其所有功能。
 - 菜单启动文件只有该入口的有限凭据，不包含管理口令；新装账户的密码哈希和机器任务凭据在确认后通过 HTTPS 返回。MAC 和磁盘检查用于防止误装，不是硬件身份认证；应部署在受控装机局域网中。
 
 ## 默认分区容量（alpha.33）

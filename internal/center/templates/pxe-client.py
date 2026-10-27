@@ -164,8 +164,9 @@ def automatic_disk(inv, policy):
     return single_internal_disk(inv)
 
 def api(work, endpoint, body):
-    if SETTINGS['installer'] == 'ubiquity':
-        # The original Desktop live system need not contain curl.
+    if SETTINGS['installer'] in ('ubiquity', 'autoinstall'):
+        # Both Desktop installers can omit curl from the live system. Ubuntu
+        # already provides Python 3; keep discovery independent of extra packages.
         import ssl
         import urllib.request
         import urllib.error
@@ -173,7 +174,7 @@ def api(work, endpoint, body):
             data=json.dumps(body).encode('utf-8'), headers={
                 'Authorization': 'Bearer ' + SETTINGS['token'], 'Content-Type': 'application/json'})
         try:
-            with urllib.request.urlopen(request, context=ssl.create_default_context(cafile=work + '/ca.crt'), timeout=45) as response:
+            with urllib.request.urlopen(request, context=ssl.create_default_context(cafile=work + '/ca.crt' if SETTINGS['ca'] else None), timeout=45) as response:
                 return json.load(response)
         except urllib.error.HTTPError as error:
             try:

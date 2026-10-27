@@ -59,3 +59,29 @@ func kickstartInjection() (string, error) {
 	}
 	return out.String(), nil
 }
+
+// A shared ISO also boots without an answer file. Only supply inst.ks when
+// iVentoy actually selected this entry's script. The early dracut hook covers
+// installers which populate /ventoy/autoinstall after the live injection hook;
+// updating CMDLINE also handles dracut's already cached command line.
+func kickstartSelectionInjection(answer string) (string, error) {
+	const hook = `#!/bin/sh
+vc_cmp=cmp
+[ ! -x /ventoy/busybox/cmp ] || vc_cmp=/ventoy/busybox/cmp
+if [ -s /ventoy/autoinstall ] && "$vc_cmp" -s /ventoy/autoinstall /ventoy-center/selected-kickstart.cfg; then
+    mkdir -p /etc/cmdline.d
+    printf '%s\n' 'inst.ks=file:/ventoy/autoinstall' > /etc/cmdline.d/99-ventoy-center-ks.conf
+    case " ${CMDLINE:-} " in
+        *' inst.ks=file:/ventoy/autoinstall '*) ;;
+        *) if [ "${CMDLINE+x}" = x ]; then CMDLINE="$CMDLINE inst.ks=file:/ventoy/autoinstall"; fi ;;
+    esac
+fi
+unset vc_cmp
+`
+	b, err := packInjection(map[string]injectionFile{
+		liveInjectionHook: {[]byte(hook), 0755},
+		"usr/lib/dracut/hooks/cmdline/01-ventoy-center-ks.sh": {[]byte(hook), 0755},
+		"ventoy-center/selected-kickstart.cfg":                {[]byte(answer), 0600},
+	})
+	return string(b), err
+}

@@ -27,6 +27,7 @@ esac''',
             "systemctl": '''printf '%s\\n' "$*" >> "$TEST_TRACE"
 case "$*" in
   daemon-reload) exit "$TEST_RELOAD_RC" ;;
+  "show cdrom.mount -p LoadState --value") echo "$TEST_LOAD_STATE" ;;
   "show cdrom.mount -p LazyUnmount --value") echo "$TEST_LAZY" ;;
   *) exit 99 ;;
 esac''',
@@ -40,7 +41,7 @@ esac''',
         casper = run / ".casper-boot"
 
         def execute(casper_boot=True, os_id="ubuntu", root_fs="overlay", media="iso9660",
-                    options="ro,noatime", reload_rc="0", lazy="yes"):
+                    options="ro,noatime", reload_rc="0", lazy="yes", load_state="loaded"):
             release.write_text("ID=" + os_id + "\n")
             if casper_boot:
                 casper.touch()
@@ -48,7 +49,8 @@ esac''',
                 casper.unlink()
             env = dict(os.environ, PATH=str(bindir) + os.pathsep + os.environ["PATH"],
                        TEST_TRACE=str(trace), TEST_ROOT=root_fs, TEST_MEDIA=media,
-                       TEST_OPTIONS=options, TEST_RELOAD_RC=reload_rc, TEST_LAZY=lazy)
+                       TEST_OPTIONS=options, TEST_RELOAD_RC=reload_rc, TEST_LAZY=lazy,
+                       TEST_LOAD_STATE=load_state)
             return subprocess.run(["/bin/sh"], input=script, env=env, text=True, capture_output=True)
 
         # Installed systems, other installers, missing mount, and writable media
@@ -59,12 +61,22 @@ esac''',
             assert result.returncode == 0, result.stderr
             assert not dropin.exists() and not trace.exists() and not marker.exists()
 
+        # Desktop Casper's existing mask deliberately ignores drop-ins. Keep
+        # it, suppress only the media-removal prompt, and succeed repeatedly.
+        for _ in range(2):
+            result = execute(load_state="masked", lazy="no")
+            assert result.returncode == 0, result.stderr
+            assert not dropin.exists() and marker.exists()
+        assert trace.read_text().splitlines() == ["show cdrom.mount -p LoadState --value"] * 2
+        trace.unlink()
+        marker.unlink()
+
         result = execute()
         assert result.returncode == 0, result.stderr
         assert dropin.read_text() == "[Mount]\nLazyUnmount=yes\n"
         assert marker.exists() and dropin.stat().st_mode & 0o777 == 0o644
         assert execute().returncode == 0  # repeatable, no duplicate configuration
-        assert trace.read_text().splitlines() == ["daemon-reload", "show cdrom.mount -p LazyUnmount --value"] * 2
+        assert trace.read_text().splitlines() == ["show cdrom.mount -p LoadState --value", "daemon-reload", "show cdrom.mount -p LazyUnmount --value"] * 2
 
         marker.unlink()
         assert execute(reload_rc="1").returncode != 0

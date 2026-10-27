@@ -39,7 +39,12 @@ for profile in root.iterdir():
                 assert 'ventoy-preload-chain/boot-hook.sh' in names
                 assert 'ventoy-preload-chain/setup-hook.sh' in names
             elif not profile.name.startswith('debian-'):
-                assert 'etc/cmdline.d/99-ventoy-center-ks.conf' in names
+                if mode == 'job':
+                    assert 'etc/cmdline.d/99-ventoy-center-ks.conf' in names
+                else:
+                    assert 'etc/cmdline.d/99-ventoy-center-ks.conf' not in names
+                    assert 'usr/lib/dracut/hooks/cmdline/01-ventoy-center-ks.sh' in names
+                    assert 'ventoy-center/selected-kickstart.cfg' in names
             assert 'ventoy-manual-preload/ventoy-linux-setup.run' in names
             for member in t.getmembers():
                 if member.name.endswith('.sh'):
