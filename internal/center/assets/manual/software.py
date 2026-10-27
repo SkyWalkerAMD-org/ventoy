@@ -55,7 +55,9 @@ def run(args, echo=False):
     else:
         data = p.communicate()[0].decode('utf-8', 'replace')
     if p.returncode:
-        raise RuntimeError('%s failed (exit %s):\n%s' % (args[0], p.returncode, data[-12000:]))
+        error = RuntimeError('%s failed (exit %s):\n%s' % (args[0], p.returncode, data[-12000:]))
+        error.output = data
+        raise error
     return data.strip()
 
 
@@ -309,8 +311,78 @@ def select_latest(candidates, family, arch):
     return [selected[name] for name in sorted(selected)]
 
 
+def rpm_scriptlet_failures():
+    try:
+        with open(os.path.join(STATE, 'rpm-scriptlet-failures.json')) as f:
+            return json.load(f)
+    except IOError as e:
+        if e.errno == 2:
+            return dict(packages={}, unknown=False, errors=[])
+        raise
+
+
+def record_rpm_scriptlet_errors(output):
+    # RPM 4 / DNF can return zero after a failed %post. Package presence alone
+    # does not prove success. LC_ALL=C makes their diagnostics predictable.
+    errors = [line.strip() for line in output.splitlines() if
+              re.search(r'(?i)(?:scriptlet.*failed|error in .*scriptlet|failed to .*scriptlet)', line)]
+    if not errors:
+        return
+    current = installed('rpm')
+    failure = rpm_scriptlet_failures()
+    labels = []
+    for line in errors:
+        match = re.search(r'%[a-z]+\(([^)]+)\).*scriptlet.*failed', line, re.I)
+        if match:
+            labels.append(match.group(1))
+        match = re.search(r'scriptlet in rpm package ([A-Za-z0-9.+_-]+)', line)
+        if match:
+            labels.append(match.group(1))
+    matched = set()
+    for key, versions in current.items():
+        name, arch = key.split(':', 1)
+        identifiers = [name]
+        for version in versions.split('|'):
+            identifiers += [name + '-' + version + '.' + arch,
+                            name + '-' + version.split(':', 1)[-1] + '.' + arch]
+        if any(label in identifiers for label in labels):
+            failure['packages'][key] = versions
+            matched.update(label for label in labels if label in identifiers)
+    # An unidentified failure (e.g. an uninstalled trigger owner) still requires
+    # review; do not lose it merely because a package/version cannot be mapped.
+    if not labels or len(matched) != len(set(labels)):
+        failure['unknown'] = True
+    failure['errors'] = (failure['errors'] + errors)[-30:]
+    save_json(failure, 'rpm-scriptlet-failures.json')
+    raise RuntimeError('RPM installation script failed; package records may exist, '
+                       'but software installation is incomplete:\n' + '\n'.join(errors))
+
+
+def run_rpm_transaction(args):
+    try:
+        output = run(args, echo=True)
+    except RuntimeError as error:
+        record_rpm_scriptlet_errors(getattr(error, 'output', str(error)))
+        raise
+    record_rpm_scriptlet_errors(output)
+
+
+def check_rpm_scriptlets(current):
+    failure = rpm_scriptlet_failures()
+    unresolved = [key for key, version in failure['packages'].items()
+                  if current.get(key) == version]
+    if unresolved or failure['unknown']:
+        raise RuntimeError('Unresolved RPM installation script failure: %s. '
+                           'Install a corrected package version or repair and review '
+                           '%s; an unchanged rerun cannot certify this installation.' %
+                           (', '.join(sorted(unresolved)) or 'unidentified scriptlet',
+                            os.path.join(STATE, 'rpm-scriptlet-failures.json')))
+
+
 def verify(packages, family, before=None):
     after = installed(family)
+    if family == 'rpm':
+        check_rpm_scriptlets(after)
     for p in packages:
         current = current_version(after,p,family)
         if current is None or compare_versions(current,p['version'],family)<0:
@@ -373,9 +445,9 @@ def transaction(packages, family, work, allow_dependencies=True):
                 # whole-system update/upgrade/distro-sync. Preserve user locks.
                 args = [manager, '-y', '--exclude=kernel*', '--setopt=obsoletes=0', '--setopt=install_weak_deps=False', '--setopt=timeout=30', '--setopt=retries=1']
                 run(args + ['--setopt=tsflags=test', 'install'] + files, echo=True)
-                run(args + ['install'] + files, echo=True)
+                run_rpm_transaction(args + ['install'] + files)
             else:
-                run(['rpm', '-Uvh'] + files, echo=True)
+                run_rpm_transaction(['rpm', '-Uvh'] + files)
     verify(packages, family, before)
     return len(pending)
 

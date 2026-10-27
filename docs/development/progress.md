@@ -1,5 +1,11 @@
 # Ventoy Center 当前进度
 
+## alpha.40 发行版默认格式与 setup 检查（2026-10-27）
+
+新建 Linux 自动安装默认使用红帽系 XFS、Ubuntu/Debian ext4，保留控制台切换以及历史任务原有格式。普通手动安装由安装器选择格式，setup 不转换分区。新版 setup 检测 RPM 安装脚本的失败并保留失败版本记录，避免仅凭包数据库存在就报告成功。
+
+`.235` 的 Rocky 10 手动安装后 setup 实测：主机名 `s4-2495x1`、root/user SSH 密码登录、DHCP、内核锁定和禁用更新均通过；fyhoc 与 fyhocsys-node 0.8.4 可运行，工具文件摘要一致。`sckoct-fyh 1.1.8-1.el10` 自带 Cython 初始化失败，需要提供修正后的软件包；setup 本轮修复负责准确报告失败，不能代替修复该业务软件。真实 RPM/DNF 隔离事务已验证失败识别、重复运行拒绝误报和升级到修正版本后的通过行为。没有新增全部发行版或 E610 实卡验收。
+
 ## alpha.39 文件系统选择（2026-10-26）
 
 Linux PXE 自动安装支持 ext4（默认）和 XFS，选择用于根、tmp、var、home；boot 固定 ext4、ESP 固定 FAT32。单盘、硬 RAID 逻辑盘和双盘 RAID1 + LVM 沿用原容量档位。匹配的后台授权任务保留其指定格式，旧任务未指定时兼容 ext4；手动安装和 setup 不转换已有文件系统。

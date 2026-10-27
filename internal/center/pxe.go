@@ -410,7 +410,7 @@ func (s *Server) pxeDiscover(w http.ResponseWriter, r *http.Request) {
 			return errors.New("PXE 客户端过旧，请刷新 iVentoy 后重新网启")
 		}
 		preset, automatic := "", ""
-		filesystem, err := linuxFilesystem(e.Request.Filesystem)
+		filesystem, err := newLinuxFilesystem(e.Request.Filesystem, e.Request.OS)
 		if err != nil {
 			return err
 		}
@@ -533,6 +533,9 @@ func (s *Server) pxeInstall(w http.ResponseWriter, r *http.Request) {
 		}
 		if j != nil {
 			presetFilesystem, err := linuxFilesystem(j.Request.Filesystem)
+			if req.Filesystem == "" {
+				filesystem = presetFilesystem
+			}
 			if err != nil || presetFilesystem != filesystem {
 				return errors.New("Filesystem does not match the existing authorized task")
 			}
@@ -545,6 +548,12 @@ func (s *Server) pxeInstall(w http.ResponseWriter, r *http.Request) {
 			j.PXEEntryID = e.ID
 			j.Filesystem = filesystem
 		} else {
+			if req.Filesystem == "" {
+				filesystem, err = newLinuxFilesystem(e.Request.Filesystem, e.Request.OS)
+				if err != nil {
+					return err
+				}
+			}
 			message := "PXE 控制台已确认清空磁盘 " + req.DiskSerial
 			serial := ""
 			if req.StoragePlan == nil {

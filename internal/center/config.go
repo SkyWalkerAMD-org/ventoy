@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-const Version = "0.3.0-alpha.39"
+const Version = "0.3.0-alpha.40"
 
 type Config struct {
 	Listen                   string         `json:"listen"`

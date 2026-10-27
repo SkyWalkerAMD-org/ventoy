@@ -15,7 +15,7 @@ type StoragePlan struct {
 
 const storageRAID1LVM = "raid1-lvm"
 
-// An omitted value keeps existing jobs and older PXE clients on ext4.
+// An omitted value keeps already-created jobs on their historical ext4 layout.
 // This allowlist also prevents template/recipe injection through the API.
 func linuxFilesystem(value string) (string, error) {
 	switch value {
@@ -26,6 +26,18 @@ func linuxFilesystem(value string) (string, error) {
 	default:
 		return "", errors.New("Linux filesystem must be ext4 or xfs")
 	}
+}
+
+// Resolve a new installation's default before storing its authorization. Stored
+// jobs use linuxFilesystem instead so a release cannot change their layout.
+func newLinuxFilesystem(value, osName string) (string, error) {
+	if value == "" {
+		switch osName {
+		case "rhel", "centos", "rocky", "almalinux":
+			value = "xfs"
+		}
+	}
+	return linuxFilesystem(value)
 }
 
 func validateStorageShape(plan *StoragePlan) error {

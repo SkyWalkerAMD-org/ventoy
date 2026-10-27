@@ -79,6 +79,85 @@ func TestPXEFilesystemSelection(t *testing.T) {
 	}
 }
 
+func TestNewInstallationFilesystemDefaults(t *testing.T) {
+	for _, tc := range []struct{ profile, os, want string }{
+		{"rocky-9", "rocky", "xfs"}, {"centos-7.9", "centos", "xfs"},
+		{"rhel-8", "rhel", "xfs"}, {"almalinux-9", "almalinux", "xfs"},
+		{"ubuntu-22.04", "ubuntu", "ext4"}, {"debian-12", "debian", "ext4"},
+	} {
+		t.Run(tc.os, func(t *testing.T) {
+			for _, explicit := range []string{"", "ext4", "xfs"} {
+				s, e := pxeFixture(t, tc.profile)
+				info := pxeTicket(t, s, e, pxeInventory())
+				if info["filesystem"] != tc.want {
+					t.Fatalf("menu default = %q; want %q", info["filesystem"], tc.want)
+				}
+				body := map[string]string{"ticket": info["ticket"], "disk_serial": "DISK-DEMO-001"}
+				want := tc.want
+				if explicit != "" {
+					body["filesystem"], want = explicit, explicit
+				}
+				mustCode(t, request(s, "POST", "/pxe/"+e.ID+"/install", e.Token, body), 200)
+				j := s.store.snapshot().Jobs[0]
+				if j.Filesystem != want || j.Request.Filesystem != want {
+					t.Fatal("PXE did not snapshot the effective filesystem", j.Filesystem)
+				}
+			}
+			s, _ := pxeFixture(t, tc.profile)
+			s.ca = []byte("fixture CA")
+			j := injectionFixtureJob(t, s, tc.profile)
+			if j.Filesystem != tc.want || j.Request.Filesystem != tc.want {
+				t.Fatal("management draft did not snapshot its family default")
+			}
+		})
+	}
+}
+
+func TestLegacyFilesystemAuthorizationSurvivesNewDefault(t *testing.T) {
+	for _, sent := range []string{"", "ext4"} {
+		s, e := pxeFixture(t, "rocky-9")
+		j := createFixtureJob(t, s, "rocky", false)
+		// Simulate a persisted pre-alpha.40 draft whose omitted value meant ext4.
+		if err := s.store.update(func(st *State) error {
+			old := findJob(st, j.ID)
+			old.Request.Filesystem, old.Filesystem = "", ""
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		j = arm(t, s, j)
+		info := pxeTicket(t, s, e, pxeInventory())
+		if info["filesystem"] != "xfs" || info["preset_filesystem"] != "ext4" {
+			t.Fatal("new default changed an existing authorization", info)
+		}
+		body := map[string]string{"ticket": info["ticket"], "disk_serial": j.Machine.DiskSerial, "filesystem": "xfs"}
+		mustCode(t, request(s, "POST", "/pxe/"+e.ID+"/install", e.Token, body), 409)
+		body["filesystem"] = sent
+		mustCode(t, request(s, "POST", "/pxe/"+e.ID+"/install", e.Token, body), 200)
+		if s.store.snapshot().Jobs[0].Filesystem != "ext4" {
+			t.Fatal("legacy authorized filesystem changed")
+		}
+	}
+}
+
+func TestPXEEntryFilesystemOverride(t *testing.T) {
+	s, e := pxeFixture(t, "rocky-9")
+	if err := s.store.update(func(st *State) error {
+		findPXEEntry(st, e.ID).Request.Filesystem = "ext4"
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	info := pxeTicket(t, s, e, pxeInventory())
+	if info["filesystem"] != "ext4" {
+		t.Fatal("explicit entry setting lost")
+	}
+	mustCode(t, request(s, "POST", "/pxe/"+e.ID+"/install", e.Token, map[string]string{"ticket": info["ticket"], "disk_serial": "DISK-DEMO-001"}), 200)
+	if s.store.snapshot().Jobs[0].Request.Filesystem != "ext4" {
+		t.Fatal("omitted client selection ignored entry override")
+	}
+}
+
 func TestPresetFilesystemCannotChangeAtPXE(t *testing.T) {
 	s, e := pxeFixture(t, "rocky-9", pxeConsole)
 	j := createFixtureJob(t, s, "rocky", false)

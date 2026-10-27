@@ -22,6 +22,49 @@ spec.loader.exec_module(client)
 
 
 class Boundaries(unittest.TestCase):
+    def test_rpm_scriptlet_failure_with_success_exit_is_not_verified(self):
+        warning = ('warning: %post(sckoct-fyh-1:1.1.8-1.el10.x86_64) '
+                   'scriptlet failed, exit status 1\n'
+                   'Error in POSTIN scriptlet in rpm package sckoct-fyh\nComplete!')
+        package = dict(name='sckoct-fyh', arch='x86_64', version='1:1.1.8-1.el10')
+        current = {'sckoct-fyh:x86_64': package['version']}
+        with tempfile.TemporaryDirectory() as tmp, patch.object(client, 'STATE', tmp), \
+             patch.object(client, 'installed', return_value=current):
+            with patch.object(client, 'run', return_value=warning):
+                with self.assertRaisesRegex(RuntimeError, 'installation script failed'):
+                    client.run_rpm_transaction(['/usr/bin/dnf', 'install', 'package.rpm'])
+            failure = json.loads((Path(tmp)/'rpm-scriptlet-failures.json').read_text())
+            self.assertEqual(failure['packages'], current)
+            self.assertFalse(failure['unknown'])
+            # Both read-only checks and unchanged reruns must retain failure.
+            with self.assertRaisesRegex(RuntimeError, 'Unresolved RPM'):
+                client.verify([package], 'rpm')
+            with patch.object(client, 'run', side_effect=AssertionError('must not reinstall')):
+                with self.assertRaisesRegex(RuntimeError, 'Unresolved RPM'):
+                    client.transaction([package], 'rpm', tmp)
+            current['sckoct-fyh:x86_64'] = '1:1.1.9-1.el10'
+            fixed = dict(package, version='1:1.1.9-1.el10')
+            client.verify([fixed], 'rpm')
+
+    def test_rpm_scriptlet_nonzero_and_unknown_failures(self):
+        for text in ('error: %post(app-1-1.noarch) scriptlet failed, exit status 1',
+                     'error: failed to exec scriptlet interpreter /bin/sh: Permission denied'):
+            with self.subTest(text=text), tempfile.TemporaryDirectory() as tmp, \
+                 patch.object(client, 'STATE', tmp), patch.object(client, 'installed', return_value={}):
+                error = RuntimeError('rpm failed'); error.output = text
+                with patch.object(client, 'run', side_effect=error):
+                    with self.assertRaisesRegex(RuntimeError, 'installation script failed'):
+                        client.run_rpm_transaction(['rpm', '-Uvh', 'package.rpm'])
+                with self.assertRaisesRegex(RuntimeError, 'Unresolved RPM'):
+                    client.verify([], 'rpm')
+
+    def test_successful_rpm_output_does_not_create_failure(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(client, 'STATE', tmp), \
+             patch.object(client, 'run', return_value='Running scriptlet: app-1-1.noarch\nComplete!'):
+            client.run_rpm_transaction(['rpm', '-Uvh', 'package.rpm'])
+            client.check_rpm_scriptlets({})
+            self.assertFalse((Path(tmp)/'rpm-scriptlet-failures.json').exists())
+
     def test_copy_file_manifest(self):
         wanted = dict(os='ubuntu', version='22.04', arch='amd64')
         item = dict(path='centos_opt_static', size=10, sha256='0'*64)
@@ -196,14 +239,14 @@ def native():
     def run(args): return subprocess.check_output(args,stderr=subprocess.STDOUT,universal_newlines=True)
     with tempfile.TemporaryDirectory() as temp:
         root=Path(temp)
-        def package(name,dependency='',version='1'):
+        def package(name,dependency='',version='1',bad_post=False):
             if family=='deb':
                 d=root/(name+'-'+version); (d/'DEBIAN').mkdir(parents=True)
                 (d/'DEBIAN/control').write_text('Package: '+name+'\nVersion: '+version+'\nArchitecture: all\nMaintainer: QA <qa@example.invalid>\nDescription: disposable software client test\n'+('Depends: '+dependency+'\n' if dependency else ''))
                 content=d/'usr/share'/name;content.mkdir(parents=True);(content/'version').write_text(version)
                 out=root/(name+'_'+version+'_all.deb');run(['dpkg-deb','--build',str(d),str(out)]);return str(out)
             spec=root/(name+'.spec')
-            spec.write_text('Name: '+name+'\nVersion: '+version+'\nRelease: 1\nSummary: software QA\nLicense: MIT\nBuildArch: noarch\n'+('Requires: '+dependency+'\n' if dependency else '')+'%description\nDisposable QA\n%install\nmkdir -p %{buildroot}/usr/share/%{name}\necho %{version} > %{buildroot}/usr/share/%{name}/version\n%files\n/usr/share/%{name}/version\n')
+            spec.write_text('Name: '+name+'\nVersion: '+version+'\nRelease: 1\nSummary: software QA\nLicense: MIT\nBuildArch: noarch\n'+('Requires: '+dependency+'\n' if dependency else '')+'%description\nDisposable QA\n%install\nmkdir -p %{buildroot}/usr/share/%{name}\necho %{version} > %{buildroot}/usr/share/%{name}/version\n%files\n/usr/share/%{name}/version\n'+('%post\nexit 1\n' if bad_post else ''))
             run(['rpmbuild','--define','_topdir '+str(root/'build'),'-bb',str(spec)])
             return str(root/'build/RPMS/noarch'/(name+'-'+version+'-1.noarch.rpm'))
         lib=package('ventoy-qa-lib');app=package('ventoy-qa-app','ventoy-qa-lib');broken=package('ventoy-qa-broken','ventoy-qa-missing')
@@ -224,10 +267,19 @@ def native():
         with unittest.TestCase().assertRaises(RuntimeError):client.transaction(bad,family,str(root/'broken'),False)
         assert client.installed(family)==before,'dependency failure changed installed packages'
         if family=='rpm':
+            broken_post=client.metadata(package('ventoy-qa-scriptlet',bad_post=True),family,arch)
+            with unittest.TestCase().assertRaisesRegex(RuntimeError,'script failed'):
+                client.transaction([broken_post],family,str(root/'post-failure'),False)
+            assert 'ventoy-qa-scriptlet:noarch' in client.installed(family)
+            with unittest.TestCase().assertRaisesRegex(RuntimeError,'Unresolved RPM'):
+                client.transaction([broken_post],family,str(root/'post-repeat'),False)
+            corrected=client.metadata(package('ventoy-qa-scriptlet',version='2'),family,arch)
+            assert client.transaction([corrected],family,str(root/'post-fixed'),False)==1
             # Exercise yum/dnf's real dependency fallback against a private file
             # repository, without relying on a public mirror for test packages.
             repo=root/'repo';repo.mkdir()
             shutil.copyfile(package('ventoy-qa-repo-lib'),repo/'library.rpm')
+            shutil.copyfile(package('ventoy-qa-scriptlet-repo-lib'),repo/'scriptlet-library.rpm')
             dependent=client.metadata(package('ventoy-qa-repo-app','ventoy-qa-repo-lib'),family,arch)
             run(['createrepo_c',str(repo)])
             repo_dir=Path('/etc/yum.repos.d');repo_dir.mkdir(exist_ok=True)
@@ -242,6 +294,14 @@ def native():
                 assert client.transaction([dependent],family,str(root/'repo-transaction'),True)==1
                 client.verify([dependent],family,baseline)
                 assert 'ventoy-qa-repo-lib:noarch' in client.installed(family)
+                broken_post=client.metadata(package('ventoy-qa-scriptlet-dnf','ventoy-qa-scriptlet-repo-lib',bad_post=True),family,arch)
+                with unittest.TestCase().assertRaisesRegex(RuntimeError,'script failed'):
+                    client.transaction([broken_post],family,str(root/'dnf-post-failure'),True)
+                assert 'ventoy-qa-scriptlet-dnf:noarch' in client.installed(family)
+                with unittest.TestCase().assertRaisesRegex(RuntimeError,'Unresolved RPM'):
+                    client.transaction([broken_post],family,str(root/'dnf-post-repeat'),True)
+                corrected=client.metadata(package('ventoy-qa-scriptlet-dnf','ventoy-qa-scriptlet-repo-lib',version='2'),family,arch)
+                assert client.transaction([corrected],family,str(root/'dnf-post-fixed'),True)==1
             finally:
                 if config.exists():config.unlink()
                 for original,backup in moved:backup.rename(original)
