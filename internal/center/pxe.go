@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"path"
 	"strings"
 	"time"
 )
@@ -641,10 +640,4 @@ func (s *Server) pxeInstall(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, 200, payload)
-}
-
-func pxePaths(e PrivatePXEEntry) (string, string) {
-	// Full release remains visible even on firmware with no Unicode font.
-	stem := strings.TrimSuffix(path.Base(e.ISO), path.Ext(e.ISO))
-	return path.Join(managedISO, "PXE-Auto", stem+"-Auto-"+e.ID[:6]), path.Join(managedScripts, "pxe-menu", e.ID)
 }

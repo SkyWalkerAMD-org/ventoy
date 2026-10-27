@@ -39,6 +39,7 @@ jobs:
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_manual_preload.py
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_manual_update.py
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_setup_preload.py "$RUNNER_TEMP/ventoy-template-fixtures"
+          "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_unified_menu.py "$RUNNER_TEMP/ventoy-template-fixtures"
           for f in internal/center/assets/manual/*.sh; do bash -n "$f"; done
       - if: runner.os == 'Linux'
         run: go test -race ./...

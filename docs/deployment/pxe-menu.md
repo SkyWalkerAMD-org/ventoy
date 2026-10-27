@@ -1,6 +1,6 @@
 # 从 PXE 菜单选择系统后自动安装
 
-从 `0.3.0-alpha.12` 起，可在管理端的“PXE 自动安装”页面为每个原始 ISO 准备一个可复用入口。普通 ISO 继续用于手动安装。
+从 `0.3.0-alpha.41` 起，手动与自动安装共用发行版目录下同一个 ISO 入口。选择系统版本后，iVentoy 显示脚本菜单：`Boot without auto install script` 进入手动安装，选择 `Boot with ...` 对应脚本进入自动安装。无需再进入 `ventoy-center/PXE-Auto`。
 
 日常装机从客户端 BIOS / UEFI 的网卡启动项进入。alpha.40 的 Linux 入口采用“选择系统版本 → 选择自动安装脚本 → 选择 ext4 / XFS → 自动安装”：只有一块可用内置盘时直接清空安装，不再选择磁盘或输入 `yes`。多盘时在 PXE 画面选择目标盘并输入 `yes`，随后自动安装。日常安装无需提前登记 MAC、带外地址或创建专属任务。`26080` 用于准备系统入口和查看任务，目前不提供带外管理。
 
@@ -9,15 +9,15 @@
 ## 准备一次系统入口
 
 1. 添加入口，选择原始 ISO 和对应模板，填写包含具体版本的名称、本地管理员用户名、SHA-512 crypt 密码哈希及可选 SSH 公钥。
-2. 点击“准备与关联”，生成镜像硬链接、安装脚本及需要的启动兼容包。原始 ISO 内容不变。
-3. 在 iVentoy 镜像管理刷新，选择页面给出的 `ventoy-center/PXE-Auto/系统版本-Auto-短编号/image.iso`，关联自动安装脚本及列出的启动注入文件。
-4. 自动安装脚本默认编号可设为 `1`，选择超时设为 `0`，等待用户选择脚本。全局默认镜像保持为空、系统倒计时为 `0`，客户端自行选择版本。[iVentoy 官方说明](https://www.iventoy.com/en/doc_unattend_install.html)解释了默认镜像、脚本编号及倒计时。刷新和修改关联前，须确认没有客户端仍在使用网络镜像。
+2. 点击“准备与关联”，生成安装脚本及支持手动/自动选择的启动兼容包。直接引用原始 ISO，不复制镜像或另建 ISO 硬链接。
+3. 在 iVentoy 镜像管理选择页面给出的原始 ISO，例如 `Rocky/Rocky-10.0-x86_64-dvd1.iso`，关联自动安装脚本及列出的启动注入文件。此注入包同时包含手动安装的 setup 预置与策略钩子，不再绑定另一个纯手动注入包。
+4. 自动安装脚本默认编号设为 `0`（手动安装），选择超时设为 `0`，等待用户明确选择。全局默认镜像保持为空、系统倒计时为 `0`，客户端自行选择版本。[iVentoy 官方说明](https://www.iventoy.com/en/doc_unattend_install.html)解释了默认镜像、脚本编号及倒计时。刷新和修改关联前，须确认没有客户端仍在使用网络镜像。
 5. 在管理端启用入口。准备文件与启用入口不会自动修改 iVentoy 参数；两边都配置完成后才能使用。
 
 ## 在待装机器上操作
 
-1. 在 BIOS / UEFI 选择接入装机网络的网卡，从 iVentoy 的 `ventoy-center → PXE-Auto` 目录选择具体系统版本。
-2. 在脚本菜单选择自动安装脚本（Ubuntu 为 `user-data`，CentOS / Rocky 为 `kickstart.cfg`，Debian 为 `preseed.cfg`）；`Boot without auto install script` 是不加载脚本的选项。
+1. 在 BIOS / UEFI 选择接入装机网络的网卡，从 iVentoy 的 `Ubuntu`、`Debian`、`Rocky` 等发行版目录选择具体系统版本。
+2. 手动安装选 `Boot without auto install script`，随后按原生安装器操作。自动安装选择 `Boot with ...` 对应脚本（Ubuntu 为 `user-data`，CentOS / Rocky 为 `kickstart.cfg`，Debian 为 `preseed.cfg`），再继续下面的步骤。
 3. 选择文件系统：回车采用当前系统默认值：CentOS / Rocky / AlmaLinux / RHEL 为 XFS，Ubuntu / Debian 为 ext4；`1` 或 `ext4` 明确选择 ext4，`2` 或 `xfs` 明确选择 XFS；`q` 取消。格式用于 `/`、`/tmp`、`/var`、`/home`；`/boot` 固定 ext4、EFI 固定 FAT32、swap 不变。
 4. 安装客户端检查内置盘：只有一块且可用时，自动生成绑定该磁盘序列号的任务并继续。多盘在 PXE 画面选择盘号、输入 `yes`，按单盘安装；需要双盘镜像时输入 `r`，选择两个盘号（如 `1 2`），再输入 `yes`，重建 RAID1 + LVM。容量、型号、序列号和不可选原因会在确认前显示。
 5. 分区、安装、内核锁定、关闭 APT 自动刷新和无人值守升级、重启及首次启动回报自动进行，可在管理端“安装任务”查看状态。Ubuntu 安装配置不设置交互页面，并在启动安装器时启用 `autoinstall`；动态配置仍按[官方 early-commands 重新读取机制](https://canonical-subiquity.readthedocs-hosted.com/en/latest/reference/autoinstall-reference.html#early-commands)生成。

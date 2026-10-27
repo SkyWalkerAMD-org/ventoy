@@ -198,7 +198,7 @@ function pxeDetails(entry){
   const steps=el('ol',null,'preparation-steps');
   const local=entry.disk_policy==='single-or-console';
   const automatic=local||entry.disk_policy==='single-internal';
-  for(const text of ['准备文件后，在 iVentoy 镜像管理刷新，选择上面的版本目录内 image.iso。','关联上面的自动安装脚本；若列有启动注入文件，也需要关联。','脚本选择菜单保持手动选择，关闭倒计时。保持全局默认镜像为空，客户端可以自主选系统。',automatic?'在本页启用入口。客户端选择系统与自动安装脚本后，只有一块可用内置盘时直接清空安装，无需选盘或输入 yes。':'在本页启用入口。客户端选择系统后，核对磁盘并输入 yes 确认安装；no 或 q 取消。'])steps.append(el('li',text));
+  for(const text of ['准备文件后，在 iVentoy 镜像管理选择上面的原始 ISO；同一入口提供手动与自动安装。','关联上面的自动安装脚本；若列有启动注入文件，也需要关联。','脚本默认编号设为 0、超时设为 0。Boot without auto install script 为手动安装；Boot with 对应脚本为自动安装。',automatic?'在本页启用入口。客户端选择系统与自动安装脚本后，只有一块可用内置盘时直接清空安装，无需选盘或输入 yes。':'在本页启用入口。客户端选择系统后，核对磁盘并输入 yes 确认安装；no 或 q 取消。'])steps.append(el('li',text));
   root.append(steps,el('p',local?'多盘时直接在 PXE 画面选择安装盘并输入 yes，随后自动分区、安装和重启，无需登记机器或在后台创建任务。已有 LVM / RAID 仍需单独处理。安装完成后从硬盘启动。':automatic?'此入口使用旧策略：多盘先指定目标盘并授权任务。迁移入口后可改为在 PXE 选盘。已有 LVM / RAID 仍需单独处理。':'已有匹配的待启动任务会使用原授权。再次网启已安装的机器需要重新确认。'));
   root.append(button('准备 / 核对菜单文件',async()=>{const updated=await (await post(`/api/pxe/entries/${entry.id}/prepare`)).json();await refresh(true);pxeDetails(updated);},'primary'));
   if(!$('#preparation-dialog').open)$('#preparation-dialog').showModal();
