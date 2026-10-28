@@ -1,5 +1,21 @@
 # Ventoy Center 当前进度
 
+## alpha.42 退出介质、软件解锁与终端刷新（2026-10-28）
+
+iVentoy 已升级为 1.0.48 专业版，许可、59 个 ISO 路径及原有绑定核对通过；升级与回退记录见[部署说明](../deployment/iventoy-upgrade.md)。管理端 alpha.42 的代码和预置包完成下述隔离验证，现场发布需先确认活动安装已经退出，不把候选包当作已发布版本。
+
+Ubuntu 26.04 在安装完成后，为 Casper 的 vendor-mask 创建仅本次 live 环境有效的 cdrom 挂载单元，实际启用 LazyUnmount；同时通过 finalrd 运行时钩子补入 systemd 动态加载的 libmount。Desktop 自动安装和 Server 逐页手动安装均完成并通过原生重启进入硬盘系统；未强制重启、提前弹出镜像或改写目标系统的关机逻辑。`/cdrom` 的单元卸载失败和 libmount 缺失问题已修复；最终退出仍可能记录 loop 设备忙的提示，不能称为关机日志完全无告警。
+
+自动安装检查分区、CLI、root/user 密码 SSH、user sudo、root 控制台登录、内核/更新策略及预置包摘要，并通过第二次硬盘启动。手动安装在首次执行完整 setup 前已检查更新策略和预置包，随后运行 setup 配置 SSH/DHCP 并安装软件。两者内核保持介质版本 `7.0.0-14-generic`。手动模式保留原生选盘、账户、网络等页面。
+
+FYHOC 使用真实 `unlk` 认证，并启用每次开机离线重新认证的服务。CentOS 7.9 的 RPM 和 Ubuntu 26.04 的 DEB 实测安装 `fyhoc 1.1.24-1`、动态选择 `fyhocsys-node 0.8.5`，正常重启后解锁仍有效；9 个附加工具文件传输及摘要检查通过。口令保存在中心私有文件和节点 root-only 文件，不写入公开源码、ISO、setup 或日志。完整 setup 成功改名后，前台 `.run` 启动器进入新 Bash 提示符；PTY 回归验证了目录保留、sudo 原账户及后台/失败不打开 shell。
+
+完整 `.run` 交互增加 root 密码修改：隐藏输入并二次确认、留空保留，修改当次测试真实 SSH 登录。保存自定义状态而不保存密码，后续 setup/开机不恢复默认值，普通账户密码不变。PTY 回归覆盖空白字符、取消、输错重试、密码策略失败和 SSH 验证失败后的准确提示；Ubuntu 隔离实机验证新密码登录、重复执行、正常重启保持以及当前 root 提示符刷新。
+
+52 个 Linux 手动/自动共享入口已核对预置包一致性。全量模板与策略检查、代表版本完整安装及 AMD CPU 软件模拟的边界详见[平台检查](../deployment/linux-platform-checks.md)。没有把这些结果扩大为全部 AMD/Intel 主板实机通过，也没有操作用户要求保留的 `.54`。用户已更正：`updates_disk_hook` 截图属于 `.249` 的 10980XE，`.235` 的 2495X 可正常到达选择页，随后已完成 CentOS 7.9 安装与旧版 setup。
+
+隔离证据位于中心 `e610-pxe-media-20261023/ubuntu26-reboot42-20261027/`：完整回归、全量入口核验、手动/自动首次启动、FYHOC 重启验收与 AMD 模拟记录分别留存。现场最终发布结果单独记录为 `deployment.json`。
+
 ## alpha.41 共享 ISO 入口与补齐 52 个 Linux 自动安装（2026-10-27）
 
 手动和自动安装合并到发行版目录下的同一 ISO。选择系统后，`Boot without auto install script` 进入手动安装，`Boot with ...` 选择自动脚本；默认手动、无倒计时。补齐 Rocky 10.2 和 Ubuntu Desktop 26.04，覆盖当前 52 个 Linux 镜像。发布移除 50 个历史 PXE-Auto 别名，目录由 109 个路径减为 59 个，包含另外 6 个 Windows 和 1 个 MemTest86；Linux 的完整 setup、驱动和策略钩子仍保留。

@@ -555,6 +555,9 @@ def execute(mode):
             raise RuntimeError('No successfully installed matching software group to verify')
         verify(report['packages'], family)
         verify_archives(report.get('archives', []))
+        if report.get('fyhoc_unlock'):
+            import fyhoc_unlock
+            fyhoc_unlock.check()
         print('VERIFIED: %s packages are at the requested version or newer.' % len(report['packages']))
         return
     with open(os.path.join(HERE, 'software-client.json')) as f:
@@ -619,6 +622,9 @@ def execute(mode):
         if os.path.isdir('/var/lib/ventoy-center/kernel-policy'):
             run(['sh', policy, '--check'], echo=True)
         verify_archives(archives)
+        if any(name.split(':')[0] == 'fyhoc' for name in installed(family)):
+            import fyhoc_unlock
+            report['fyhoc_unlock'] = fyhoc_unlock.configure(client)
         report['status'], report['changed'] = 'verified', changed
         if unchanged is not None:
             print('VERIFIED: unchanged software group; installed versions checked; no package download or installation needed.')

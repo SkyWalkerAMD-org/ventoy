@@ -46,6 +46,16 @@ sudo ./ventoy-linux-setup.run --hostname server01
 
 `--offline` 不连接软件库。从 alpha.32 起，附加网卡等待 DHCP、驱动等待重启等 `PENDING` 检查不会跳过用户请求的软件安装；已有网络可用时继续下载、安装并验证。软件失败明确报错并保留请求，用户再次运行或配置恢复服务可以重试；成功后清除请求，正常后续重启不再从软件库更新。新增软件、升级软件都由用户主动再次运行 setup 触发。
 
+## FYHOC 每次开机自动解锁（alpha.42）
+
+中心可在私有配置中设置 `fyhoc_unlock_password_file`，指向 tools 目录以外、仅服务账户可读的 `0600` 普通文件。文件只保存解锁口令；口令不写入公开源码、ISO、setup 包或软件清单。节点使用已有软件下载凭证，通过 HTTPS 的独立接口获取；因此持有该凭证的节点也有权获取解锁口令。更新中心文件后，下一次运行 setup 会验证并保存新口令。
+
+匹配的软件包安装并校验成功后，setup 对已安装的 `fyhoc` 执行真实 `fyhoc unlk`，通过关闭回显的专用终端输入口令，不把口令放进命令参数或环境变量。节点把凭据保存为 root 所有的 `/etc/ventoy-center/fyhoc-unlock.key`（`0600`），启用 `ventoy-fyhoc-unlock.service` 并立即检查。每次开机重新认证，不依赖中心联网，不修改或伪造 FYHOC 的临时授权文件。软件升级后再执行 setup 也会重新验证。
+
+`--check-software` 同时检查本次开机的解锁状态和开机服务；口令错误、认证超时、服务失败均返回错误，不报告解锁成功。服务日志仅记录成功/失败，不输出口令或认证终端内容。中心未配置该功能时明确显示 `FYHOC_UNLOCK_SKIPPED`。这只处理 FYHOC 解锁，不替代 fyhocsys-node 的入网注册。
+
+CentOS 7.9 与 Ubuntu Desktop 26.04 隔离系统已分别用真实 `fyhoc 1.1.24-1` RPM / DEB 完成安装、立即解锁和正常重启后的自动解锁；内核分别保持 `3.10.0-1160.el7.x86_64`、`7.0.0-14-generic`。同次动态选择并安装 `fyhocsys-node 0.8.5`，9 个工具文件传输和摘要检查通过。完整范围和发布状态见[进度记录](../development/progress.md)。
+
 ## 自动选择与升级
 
 - Ubuntu / Debian 选择本机架构的 DEB；EL 系列选择本机架构的 RPM。`all` / `noarch` 包也可使用。默认根据 RPM 的 EL 大版本匹配；例如 `.el9` 不发给 EL8。

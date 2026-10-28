@@ -1,5 +1,15 @@
 # iVentoy 现场升级与回退记录
 
+## 1.0.48 专业版（2026-10-28）
+
+已从 1.0.47 Pro 升级到 **1.0.48 Pro**，路径仍为 `/home/ventoy-center/iventoy`。用户提供的 Linux x86_64 专业版包位于 `/root`，大小 24,771,582 字节，SHA-256 为 `fbac78b6f36709587e05d32c4f951691884590360bd426d09a891619c6405081`。许可与程序包继续只保存在私有服务器。
+
+用户确认三台客户端均退出安装器后完成切换。核验专业版运行状态、许可、59 个现有 ISO 路径、52 个 Linux 共享入口的脚本绑定、用户脚本及 tools 文件；ISO 的 inode、大小和修改时间保持一致。1.0.48 原生界面不再保存旧的 `def_page_lang: 0` 字段，其余全局配置核对一致。早期升级验收未通过时已恢复旧版，没有把失败尝试视为成功。
+
+最终备份为 `/home/ventoy-center/upgrade-iventoy-1.0.48-published/switch-20261028-144938/iventoy-1.0.47-pro`，验收为其上级工作目录的 `upgrade-acceptance.json`。回退仍应先确认没有正在使用网络镜像的客户端，恢复成套程序与配置，再核对绑定和许可；不能只替换版本号或某个可执行文件。
+
+版本与流程依据：[官方更新记录](https://www.iventoy.com/en/doc_news.html)、[官方升级说明](https://www.iventoy.com/en/doc_update.html)。这项升级核验不等于所有主板均完成重新安装；安装兼容性范围见 [Linux 平台检查](linux-platform-checks.md)。
+
 ## 1.0.47 专业版（2026-10-23）
 
 现场已从 1.0.45 Pro 升级为 **1.0.47 Pro**，保留运行路径 `/home/ventoy-center/iventoy`。使用用户提供的 `iventoy-1.0.47-linux-x86_64-pro.tar.gz`，本机与上传后 SHA-256 均为 `419dcd591e936f157524729e3ce1589c0821ee02f13e60914d2479691d895ea6`。专业版文件与许可证不纳入公开仓库。

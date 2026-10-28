@@ -79,19 +79,21 @@ if sys.platform != 'win32':
     # A correct-looking username with a failed SSH exit status is not success.
     source = (ROOT / 'internal/center/assets/manual/manual-ssh.sh').read_text(encoding='utf-8')
     account = source[source.index('    # Older setup versions'):source.index('    cfg=/etc/ssh/sshd_config')]
-    for marker, keep, present, uid, ok, changed in [
-        ('', 0, 0, 1000, True, True),  # old admin marker must not skip user
-        (None, 0, 0, 1000, True, True),
-        ('user\n', 0, 1, 1000, True, False),
-        ('', 1, 0, 1000, False, False),
-        ('', 0, 1, 100, False, False),
-        ('', 1, 1, 1000, True, False),
+    for marker, keep, present, uid, ok, changed, custom in [
+        ('', 0, 0, 1000, True, True, False),  # old admin marker must not skip user
+        (None, 0, 0, 1000, True, True, False),
+        ('user\n', 0, 1, 1000, True, False, False),
+        ('', 1, 0, 1000, False, False, False),
+        ('', 0, 1, 100, False, False, False),
+        ('', 1, 1, 1000, True, False, False),
+        ('', 0, 1, 1000, True, True, True),
     ]:
         with tempfile.TemporaryDirectory(prefix='manual-accounts-') as temp:
             root=Path(temp);state=root/'state';state.mkdir();etc=root/'etc';etc.mkdir()
             (etc/'sudoers.d').mkdir()
             for file in ('passwd','shadow','group','gshadow'):(etc/file).write_text('existing-account-data\n')
             if marker is not None:(state/'accounts-set').write_text(marker)
+            if custom:(state/'root-password-custom').write_text('custom\n')
             mocks=r'''set -Eeuo pipefail
 die() { echo "$*" >&2; exit 1; }
 getent() { if [[ $1 == passwd ]]; then [[ $present == 1 ]]; else return 0; fi; }
@@ -110,7 +112,7 @@ family=apt
             assert (result.returncode==0)==ok,(marker,keep,present,uid,result.stderr)
             passwords=state/'password-input'
             assert passwords.exists()==changed
-            if changed:assert passwords.read_text()=='user:ventoy\nroot:ventoy\n'
+            if changed:assert passwords.read_text()==('user:ventoy\n' if custom else 'user:ventoy\nroot:ventoy\n')
             if ok:assert (state/'accounts-set').read_text()=='user\n'
             assert all((etc/f).read_text()=='existing-account-data\n' for f in ('passwd','shadow','group','gshadow'))
     print('PASS: user/root password policy, old admin marker migration, keep-passwords and system-user protection')
@@ -132,21 +134,25 @@ systemctl() {
         result = subprocess.run(['bash', '-c', code], capture_output=True, text=True)
         assert result.returncode == 0 and result.stdout.strip() == expected, result
     print('PASS: existing socket activation retained; inactive and legacy service paths enabled')
-    start = source.index('    for user in root user; do\n        # Some units reload')
+    start = source.index('    login_accounts=(root user)')
     end = source.index('\nelse\n    echo "SSH_CONFIG_VERIFIED', start)
     login_loop = source[start:end]
     scenarios = [
-        ('--apply', 'transition', 0, 4),
-        ('--apply', 'denied', 1, 3),
-        ('--check', 'denied', 1, 1),
-        ('--apply', 'wrong', 1, 3),
-        ('--apply', 'nonzero', 1, 3),
+        ('--apply', 'transition', 0, 4, False, False),
+        ('--apply', 'denied', 1, 3, False, False),
+        ('--check', 'denied', 1, 1, False, False),
+        ('--apply', 'wrong', 1, 3, False, False),
+        ('--apply', 'nonzero', 1, 3, False, False),
+        ('--check', 'success', 0, 1, True, False),
+        ('--check', 'success', 0, 1, True, True),
     ]
-    for mode, scenario, expected, calls in scenarios:
+    for mode, scenario, expected, calls, custom, password_file in scenarios:
         with tempfile.TemporaryDirectory(prefix='manual-ssh-regression-') as temp:
             mocks = r'''set -eu
 die() { echo "$*" >&2; exit 1; }
 port=22
+root_password_file=
+state=$scratch
 setsid() {
     n=$(cat "$scratch/calls" 2>/dev/null || echo 0)
     n=$((n+1)); printf '%s\n' "$n" > "$scratch/calls"
@@ -157,16 +163,21 @@ setsid() {
         denied) return 255;;
         wrong) echo other-user;;
         nonzero) printf '%s\n' "$user"; return 255;;
+        success) printf '%s\n' "$user";;
     esac
 }
 sleep() { :; }
 '''
             import shlex
-            code = mocks + '\nscratch=' + shlex.quote(temp)
+            code = 'scratch=' + shlex.quote(temp) + '\n' + mocks
+            if custom:(Path(temp)/'root-password-custom').write_text('custom\n')
+            if password_file:code += '\nroot_password_file="$state/password-check.test/root-password"\n'
             code += '\nmode=' + mode + '\nscenario=' + scenario + '\n' + login_loop
             result = subprocess.run(['bash', '-c', code], capture_output=True, text=True)
             actual_calls = int((Path(temp) / 'calls').read_text())
             assert (result.returncode, actual_calls) == (expected, calls), (scenario, result.stderr)
+            if custom:
+                assert ('SSH_PASSWORD_LOGIN_VERIFIED user=root' in result.stdout) == password_file, result.stdout
     print('PASS: SSH reload readiness, permanent denial, check-only mode and authenticated identity')
 
     # Run the actual completion path with only the software transaction mocked.
