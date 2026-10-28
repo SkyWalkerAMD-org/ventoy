@@ -2,11 +2,11 @@
 
 局域网批量装机管理端。客户端在 BIOS / UEFI 的 Boot 菜单选择网卡，由 **iVentoy / PXE** 加载镜像和自动安装配置；本项目负责目标机器、安装任务、授权、安装包和进度回传。
 
-**当前代码：0.3.0-alpha.41，iVentoy 1.0.47 Pro；Linux CLI 装机优先。** 43 个需要适配的 Linux ISO 已直接内置 E610 驱动，普通手动安装与 PXE 自动安装复用同一成品，并在安装收尾自动持久化驱动。43 个成品的 86 项隔离安装与重启验收通过，物理 E610 验收范围另列。常规无桌面装机使用 Ubuntu Server / live-server、Debian 标准系统与 SSH，以及 CentOS / Rocky / AlmaLinux / RHEL 最小化环境，默认启动到命令行。手动与自动安装均预置含软件分发功能的新版 setup，安装后可直接运行。Windows 保留为次要支持。
+**当前代码：0.3.0-alpha.43，iVentoy 1.0.48 Pro；Linux CLI 装机优先。** 43 个需要适配的 Linux ISO 已直接内置 E610 驱动，普通手动安装与 PXE 自动安装复用同一成品，并在安装收尾自动持久化驱动。43 个成品的 86 项隔离安装与重启验收通过，物理 E610 验收范围另列。常规无桌面装机使用 Ubuntu Server / live-server、Debian 标准系统与 SSH，以及 CentOS / Rocky / AlmaLinux / RHEL 最小化环境，默认启动到命令行。手动与自动安装均预置含软件分发功能的新版 setup，安装后可直接运行。Windows 保留为次要支持。
 
 安装完成后，运行新版 `sudo bash ventoy-linux-setup.run`，会从中心 `software_dir` 自动获取适合本机的 RPM / DEB 并安装或升级。包可直接集中存放，按架构和 EL 版本匹配；同一软件择新、同版本跳过、不降级。中心替换软件后再次执行即可。详见[节点软件分发](docs/deployment/node-software.md)。
 
-日常装机使用“PXE 选择系统版本 → 选择自动安装脚本 → 选择 ext4 / XFS → 自动安装”。文件系统按发行版默认选择：CentOS / Rocky / AlmaLinux / RHEL 为 XFS，Ubuntu / Debian 为 ext4，仍可手动切换。所选格式应用于 /、/tmp、/var、/home；/boot 保持 ext4、EFI 保持 FAT32。一块可用内置盘自动清空安装；多盘在 PXE 画面选盘并输入 `yes`，也可输入 `r`、两个盘号和 `yes`，重建双盘 RAID1 + LVM。旧存储必须完整落在所选两盘内，否则停止。日常安装无需先登记带外地址或创建专属任务。详见 [PXE 菜单安装](docs/deployment/pxe-menu.md)。
+日常装机使用“PXE 选择系统版本 → 选择自动安装脚本 → 选择 ext4 / XFS → 自动安装”。文件系统按发行版默认选择：CentOS / Rocky / AlmaLinux / RHEL 为 XFS，Ubuntu / Debian 为 ext4，仍可手动切换。所选格式应用于 /、/tmp、/var、/home；/boot 保持 ext4、EFI 保持 FAT32。一块可用内置盘自动清空安装；多盘在 PXE 画面选盘并输入 `yes`，也可输入 `r`、两个盘号和 `yes`，重建双盘 RAID1 + LVM。单盘已有 LVM/软件 RAID 时也可选盘并输入 `yes` 重建，旧存储必须完整落在所选磁盘范围内，否则列出未选成员并停止。日常安装无需先登记带外地址或创建专属任务。详见 [PXE 菜单安装](docs/deployment/pxe-menu.md)。
 
 配置统一 root 密码的 Ubuntu / Debian 新安装允许 root SSH 密码登录，初次启动后再次检查。Linux 自动安装设置主机名和启动网卡 DHCP，并预置 `safe-server-init`，用于安装后修改主机名及向未配置网卡补充 DHCP；保留现有网络配置与脚本的后端限制。
 
@@ -14,7 +14,7 @@
 
 E610 的精确内核驱动、ISO 制作工具和逐镜像验证记录见 [E610 ISO Kit Release](https://github.com/SkyWalkerAMD-org/E610/releases/tag/v6.4.5-iso-kit-r1)。该工具包需配合用户自行提供的原版安装 ISO；此仓库保存管理端及安装策略源码。
 
-现场使用 **iVentoy 1.0.47 专业版**，运行目录 `/home/ventoy-center/iventoy`。alpha.41 将手动/自动安装合并到发行版目录下的同一个 ISO，补齐 Rocky 10.2 和 Ubuntu Desktop 26.04，共覆盖 52 个 Linux 镜像；另保留 6 个 Windows 和 1 个 MemTest86，合计 59 个镜像路径。选择系统后，不选自动脚本进入手动安装，选择脚本进入自动安装。旧的 50 个 PXE-Auto 路径是硬链接，移除它们减少菜单重复，不会释放 50 份 ISO 的空间。原版镜像和恢复备份在菜单外保存，专业版授权、原有机器/任务记录和未涉及入口设置保留。
+现场使用 **iVentoy 1.0.48 专业版**，运行目录 `/home/ventoy-center/iventoy`。alpha.41 将手动/自动安装合并到发行版目录下的同一个 ISO，补齐 Rocky 10.2 和 Ubuntu Desktop 26.04，共覆盖 52 个 Linux 镜像；另保留 6 个 Windows 和 1 个 MemTest86，合计 59 个镜像路径。选择系统后，不选自动脚本进入手动安装，选择脚本进入自动安装。旧的 50 个 PXE-Auto 路径是硬链接，移除它们减少菜单重复，不会释放 50 份 ISO 的空间。原版镜像和恢复备份在菜单外保存，专业版授权、原有机器/任务记录和未涉及入口设置保留。
 
 18 个规划标准版本均完成本轮隔离 QEMU/KVM 自动安装与两次硬盘启动验证。CentOS 7.9、Rocky 8.10、Rocky 9.2 和 Ubuntu Server 22.04.3 另有此前完整物理机验收；Ubuntu Server 24.04.3 已补齐物理 PXE 双盘安装后无人干预的正常硬盘启动，并完成普通 ISO 经真实隔离 iVentoy 的交互手动安装、正常重启、setup 配置和再次重启检查。物理与隔离结果分别记录，不能替代其他硬件或启动模式的验收。具体版本与证据见 [当前进度](docs/development/progress.md)和[现场镜像清单](docs/deployment/image-catalog.md)。
 
@@ -38,7 +38,7 @@ E610 的精确内核驱动、ISO 制作工具和逐镜像验证记录见 [E610 I
 - **安装包下载不是 PXE 下发。** 需要在 iVentoy 中关联镜像、脚本及按 MAC 的分机独启规则。尚无经过现场验证的 iVentoy 自动配置适配器。
 - 通用菜单为每台机器动态领取独立任务，按 MAC、盘序列号和启动模式再次核对。旧式专属任务仍使用各自独立 ISO 路径与脚本绑定。
 - Windows ISO 的 WinPE 默认通常不含 PowerShell / StorageWMI，组件不足时安装保护会阻止继续。当前 Windows 模板语言支持 zh-CN / en-US，须与镜像一致。
-- Linux 存储模板支持单盘和明确选择的双盘 RAID1 + LVM 重建。单盘方式保护已有 LVM / RAID；双盘方式重新核对完整成员范围，拒绝第三块未选盘、缺失成员、挂载盘及活动交换空间。
+- Linux 存储模板支持单盘和明确选择的双盘 RAID1 + LVM 重建。已有 LVM / RAID 经本次选盘及 `yes` 确认后可重建；安装前核对完整成员范围，拒绝未选成员、缺失 LVM 成员、挂载盘及活动交换空间。
 
 ## 服务端平台
 

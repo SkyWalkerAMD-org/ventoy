@@ -159,6 +159,9 @@ def automatic_disk(inv, policy):
     if policy == 'single-or-console':
         if len([d for d in inv['disks'] if d.get('location') != 'external']) > 1:
             return ''
+        if any(d.get('location') == 'internal' and
+               d['blocked'] == 'Existing LVM/RAID: prepare storage separately' for d in inv['disks']):
+            return ''
     elif policy != 'single-internal':
         raise RuntimeError('Unknown PXE disk policy')
     return single_internal_disk(inv)
@@ -262,8 +265,11 @@ def choose(inv, info, console):
     print('Boot MAC: ' + inv['mac'], file=console)
     print('Kernel will be locked; automatic package updates will be disabled.\n', file=console)
     for index, disk in enumerate(inv['disks'], 1):
+        status = disk['blocked']
+        if info.get('disk_policy') == 'single-or-console' and status == 'Existing LVM/RAID: prepare storage separately':
+            status = 'Existing LVM/RAID: select to rebuild after membership checks'
         print('%d. /dev/%s  %.1f GiB  %s  SERIAL=%s  %s' % (
-            index,disk['name'],disk['size']/float(1024**3),disk['model'],disk['serial'],disk['blocked']),file=console)
+            index,disk['name'],disk['size']/float(1024**3),disk['model'],disk['serial'],status),file=console)
     disk = None
     raid = SETTINGS['installer'] in ('autoinstall', 'kickstart', 'preseed') and info.get('disk_policy') == 'single-or-console'
     for attempt in range(1, 4):
@@ -279,7 +285,9 @@ def choose(inv, info, console):
             print('Invalid disk number. Nothing has been erased.', file=console)
             continue
         candidate = inv['disks'][int(value)-1]
-        if candidate['blocked'] or candidate.get('location') != 'internal':
+        rebuild = (info.get('disk_policy') == 'single-or-console' and
+                   candidate['blocked'] == 'Existing LVM/RAID: prepare storage separately')
+        if (candidate['blocked'] and not rebuild) or candidate.get('location') != 'internal':
             print('This disk cannot be selected: ' + (candidate['blocked'] or 'Unverified internal connection'), file=console)
             continue
         disk = candidate
@@ -289,6 +297,8 @@ def choose(inv, info, console):
     print('\nSelected: /dev/%s  %.1f GiB  %s  SERIAL=%s' % (
         disk['name'], disk['size']/float(1024**3), disk['model'], disk['serial']), file=console)
     print('ALL DATA ON THIS DISK WILL BE ERASED. Other disks will not be selected for installation.', file=console)
+    if rebuild:
+        print('Old LVM/RAID on this disk will be removed. Membership will be checked before writing.\nIf it also uses another disk, installation stops and lists that disk; select all members for a rebuild.', file=console)
     for attempt in range(1, 4):
         print('Type yes to erase and install, or no / q to cancel. Attempt %d/3:' % attempt, file=console)
         console.flush()
@@ -297,6 +307,8 @@ def choose(inv, info, console):
             raise RuntimeError('Installation canceled at the console')
         if confirmation.lower() == 'yes':
             # The server still binds confirmation to the exact inventoried disk.
+            if rebuild:
+                return disk['serial'], 'ERASE REBUILD ' + disk['serial'], dict(mode='single-rebuild', disk_serials=[disk['serial']])
             return disk['serial'], 'ERASE ' + disk['serial'], None
         print('Please type yes, no or q. Empty Enter does not confirm. Nothing has been erased.', file=console)
     raise RuntimeError('Erase confirmation did not match after 3 attempts; stopped')

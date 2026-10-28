@@ -399,6 +399,32 @@ for scenario in ("single", "second", "blocked-first", "bad-choice", "cancel", "b
             assert calls == ['discover'], (scenario, calls)
         if scenario == 'single':
             console.assert_called_once(); prompt.assert_called_once()
+# Reinstalling old LVM requires a local yes even with only one internal disk.
+# USB disks remain outside the plan; changed inventory/cancellation issues no job.
+for scenario in ('rebuild', 'cancel', 'changed', 'mismatch'):
+    old_inv=dict(inv,disks=[dict(inv['disks'][0],blocked='Existing LVM/RAID: prepare storage separately'),external])
+    assert client.automatic_disk(old_inv,'single-or-console') == ''
+    calls=[]
+    def rebuild_api(work, endpoint, body):
+        calls.append(endpoint)
+        if endpoint=='discover':
+            return dict(ticket='ticket',preset_disk='',disk_policy='single-or-console',automatic_disk='DISK-ONE' if scenario=='mismatch' else '')
+        assert body['storage_plan']=={'mode':'single-rebuild','disk_serials':['DISK-ONE']}
+        assert body['disk_serial']=='DISK-ONE' and body['confirmation']=='ERASE REBUILD DISK-ONE'
+        return dict(installer='autoinstall',config=selected_source,preinstall='checked-rebuild-guard',install_failure='pass\n')
+    inventories=[old_inv]*3
+    if scenario=='changed':inventories[1]=inv
+    with patch.dict(client.SETTINGS,disk_policy='single-or-console'), patch.object(client,'boot_mac',return_value=mac), patch.object(client,'inventory',side_effect=inventories), patch.object(client.tempfile,'mkdtemp',return_value='/mock'), patch.object(client,'write'), patch.object(client,'api',side_effect=rebuild_api), patch.object(client.subprocess,'check_call') as execute, patch.object(client.subprocess,'call'), patch.object(client.os,'unlink'), patch.object(client.os,'umask'), patch.object(client,'Console',return_value=io.StringIO()), patch.object(client,'prompt',side_effect=['','1','no' if scenario=='cancel' else 'yes']), patch.object(client,'reserve_console'):
+        if scenario=='rebuild':
+            client.main()
+            assert calls==['discover','install']
+            assert execute.call_args_list[-1].args[0]==['/bin/bash','/mock/preinstall.sh']
+        else:
+            try:client.main()
+            except RuntimeError:pass
+            else:raise AssertionError('Unsafe rebuild request: '+scenario)
+            assert calls==['discover']
+
 raid_inv = dict(inv, disks=[dict(inv['disks'][0], size=128*1024**3),
                            dict(inv['disks'][0], name='sdb', serial='SECOND', size=128*1024**3),
                            dict(inv['disks'][0], name='sdc', serial='KEEP', size=128*1024**3)])

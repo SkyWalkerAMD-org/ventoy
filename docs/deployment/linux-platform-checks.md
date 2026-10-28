@@ -23,7 +23,7 @@
 
 ## `Pane is dead` 的现场线索
 
-10980XE（带外 `192.168.0.249`）截图显示 CentOS 7 在 `%pre` 脚本失败后，错误处理又因缺少 `updates_disk_hook` 退出。2026-10-28 通过该机 KVM 读取 `/tmp/ventoy-center-menu.log`，原始错误为 `Target disk requires storage preparation: Existing LVM/RAID: prepare storage separately`。内置 120 GB SATA SSD 上有旧 Rocky 的 `rl` 卷组，全部 PV 位于该盘；另外一块约 480 GB 磁盘为 USB/exFAT，不是安装目标。此轮启动为 Legacy BIOS。
+10980XE（带外 `192.168.0.249`）截图显示 CentOS 7 在 `%pre` 脚本失败后，错误处理又因缺少 `updates_disk_hook` 退出。2026-10-28 通过该机 KVM 读取 `/tmp/ventoy-center-menu.log`，原始错误为 `Target disk requires storage preparation: Existing LVM/RAID: prepare storage separately`。旧流程在发现磁盘和计算单盘自动选择时就会拒绝旧 LVM，因此错误发生在文件系统、选盘页面之前；不是用户在这些页面输错。内置 120 GB SATA SSD 上有旧 Rocky 的 `rl` 卷组，全部 PV 位于该盘；另外一块约 480 GB 磁盘为 USB/exFAT，不是安装目标。此轮启动为 Legacy BIOS。
 
 用户确认 9995WX 曾出现同样的可见错误，但该机的原始 `%pre` 错误没有读取，不能据此判定同一原因。`Pane is dead` 只是 Anaconda 进程退出后的终端状态，不是 CPU 不兼容或 iVentoy 升级损坏的诊断。
 
@@ -42,3 +42,19 @@
 FYHOC 开机解锁服务为 enabled/active，`fyhoc unlk` 在标准输入关闭时返回 `unlocked for this boot`，无需再次输入密码。软件检查确认 4 个 RPM 和 9 个工具文件，未重复安装相同版本。实机没有 E610，此项不增加 E610 驱动验证范围。
 
 节点私有记录为 `/root/setup42-validation/`，本地脱敏汇总为 `.local/setup42-node235-acceptance.json`。setup SHA-256：`679e37a089b5c4b000d960577028bedc0ce4ef02280d5b082d9c9867fb778fdb`。密码和解锁口令不随记录提交。
+
+## `.249` CentOS 7.9 实机验收（2026-10-28）
+
+用户授权清空序列号 `50026B72823A61B9` 的 120 GB 内置 Kingston SSD、保留 480 GB USB 数据盘后，经 KVM 确认旧 `rl` 卷组全部成员在目标盘内，备份卷组元数据并清理该盘。重新从 iVentoy 1.0.48 选择 CentOS 7.9 和自动脚本，使用默认 XFS，完成安装、原生自动重启和硬盘启动。此实机采用发布中的 alpha.42，旧 LVM 准备由本次 KVM 操作完成；不能当作 alpha.43 新的自动旧存储重建逻辑实机验收。
+
+系统地址 `192.168.1.78`，实际 root 控制台登录、root/user 密码 SSH 均通过，user 属于 wheel。运行内核 `3.10.0-1160.el7.x86_64`，默认 `multi-user.target`；SSH 策略、内核锁定和自动更新禁用检查通过，预置 setup 摘要与 alpha.42 发布文件一致。
+
+磁盘容量 120,034,123,776 字节，Legacy BIOS 启动：1 MiB BIOS 引导分区、2 GiB ext4 `/boot`、32 GiB XFS `/`、16 GiB XFS `/var`、8 GiB swap、1.25 GiB XFS `/tmp`，余下约 52.54 GiB XFS `/home`。USB 盘按序列号重新识别，分区表和前 1 MiB SHA-256 与安装前一致。重启后内置盘由 `sdb` 变为 `sda`，验证始终使用序列号，不依赖盘符。
+
+本地脱敏记录 `.local/c7-249-acceptance.json`。本次证明该 10980XE 机器可以完成 CentOS 7.9 自动安装，不据此宣称 9995WX 的旧报错已找到同一原因。
+
+## alpha.43 旧 LVM 重装隔离验收
+
+在仅使用文件磁盘的 CentOS 7.9 UEFI 虚拟机上，预先建立单盘 `oldqa` LVM 和 ext4 逻辑卷，另接独立 USB 模拟数据盘。新 PXE 脚本依次显示文件系统选择和选盘页，选择内置盘并输入 `yes` 后，生成一次性 `single-rebuild` 任务，成员检查通过，再由 Anaconda 删除旧布局。完成系统安装和原生重启后，从硬盘进入系统，root/user 密码 SSH、user sudo、容量档位、XFS、更新策略和预置 setup 摘要均通过。旧卷组不再存在，USB 模拟盘盘头摘要保持一致。
+
+此次隔离完整安装与 `.249` 的 Legacy BIOS 实装互为补充，不能称为所有 CPU、控制器或跨盘存储布局已经实测。成员保护另外用真实生成的 shell/Python 客户端和可控硬件样本验证。私有验收记录在中心 `e610-pxe-media-20261023/storage43-20261028/qa-acceptance.json`。

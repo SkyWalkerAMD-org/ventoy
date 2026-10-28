@@ -1,5 +1,13 @@
 # Ventoy Center 当前进度
 
+## alpha.43 已有 LVM 的单盘重装（2026-10-28）
+
+PXE 选盘新增旧存储重建。单块内置盘已有 LVM/软件 RAID 时显示选择页，用户选择该盘并输入 `yes`，安装前核对全部旧成员均在所选范围内，再使用原生安装器重建分区。两盘镜像继续使用 `r` 选择双盘 RAID1 + LVM。USB、未选成员、挂载、活动 swap、重复序列号及无法可靠检查的存储不会被隐式清理。该变化覆盖 Anaconda、Subiquity、Debian Installer 和 Ubiquity，手动入口仍保留原生分区交互。
+
+新增 API 一次性确认、实际 Python/原生 Debian 客户端和成员检查回归；单盘重建的 56 个模板/启动模式组合、现有双盘布局、容量档位与 ext4/XFS 验证通过。`.249` 的原始原因已确认是旧 Rocky LVM，取得目标盘清空授权后在 alpha.42 上完成 CentOS 7.9 实装和正常硬盘启动，保留 USB 数据盘；`.235` 的新版 setup 与重启验证也已完成。具体边界见[平台与实机记录](../deployment/linux-platform-checks.md)。
+
+新流程的隔离 CentOS 7.9 UEFI 完整安装已通过：带旧 LVM 启动后能进入文件系统/选盘页，确认目标盘后原生重分区、正常重启到硬盘系统，root/user SSH、分区、更新策略和 setup 检查通过，USB 模拟盘保持。旧流程在页面出现前就拒绝单盘 LVM的问题已在客户端和管理端同时修正。52 个入口发布状态以现场部署记录为准。
+
 ## alpha.42 退出介质、软件解锁与终端刷新（2026-10-28）
 
 iVentoy 已升级为 1.0.48 专业版，许可、59 个 ISO 路径及原有绑定核对通过；升级与回退记录见[部署说明](../deployment/iventoy-upgrade.md)。管理端 alpha.42 已于 2026-10-28 发布：用户确认客户端退出安装器后，备份配置与预置文件，更新全部 52 个 Linux 手动/自动共享入口及 tools 中的 setup，刷新服务并核对绑定和摘要。ISO 内容及 tools 内其他软件包保持不变。源码经 13 项 CI 检查通过，已通过 [PR #16](https://github.com/SkyWalkerAMD-org/ventoy/pull/16) 合入 main。

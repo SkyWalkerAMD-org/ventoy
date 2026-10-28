@@ -5,12 +5,12 @@ import subprocess
 import tempfile
 
 
-def check_raid_guard(source):
+def check_raid_guard(source, single=False):
     start=source.index('# Read-only storage scope verification')
-    end=source.index('echo "Ventoy storage: two-disk rebuild scope verified:')
+    end=source.index('echo "Ventoy storage: '+('single-disk' if single else 'two-disk')+' rebuild scope verified:')
     end=source.index('\n',end)+1
     source=source[start:end]
-    for case in ('blank','both-pvs','third-pv','missing-pv','hidden-pv','vg-collision',
+    for case in ('blank','single-pv','unrelated-vg','both-pvs','third-pv','missing-pv','hidden-pv','vg-collision',
                  'mounted','swap','readonly','external','duplicate','md-third','md-both','md-no-uuid'):
         with tempfile.TemporaryDirectory(prefix='vc-raid-guard-') as directory:
             root=Path(directory)
@@ -18,12 +18,13 @@ def check_raid_guard(source):
                 (root/name).mkdir(parents=True,exist_ok=True)
             nodes={}
             for index,name in enumerate(('sda','sdb','sdc')):
-                device=root/'sys/devices'/('usb1' if case=='external' and name=='sdb' else 'pci0000:00')/name
+                affected='sda' if single else 'sdb'
+                device=root/'sys/devices'/('usb1' if case=='external' and name==affected else 'pci0000:00')/name
                 device.mkdir(parents=True)
                 (root/'sys/block'/name).symlink_to(device)
                 (root/'sys/class/block'/name).symlink_to(device)
                 nodes[name]=device
-                for key,value in {'ro':'1' if case=='readonly' and name=='sdb' else '0','removable':'0',
+                for key,value in {'ro':'1' if case=='readonly' and name==affected else '0','removable':'0',
                                   'size':'268435456','dev':'8:'+str(index*16),
                                   'serial':'QA-FIRST' if index==0 or case=='duplicate' and index==1 else 'QA-SECOND' if index==1 else 'KEEP'}.items():
                     (device/key).write_text(value+'\n')
@@ -32,12 +33,15 @@ def check_raid_guard(source):
                 (part/'partition').write_text('1\n');(part/'dev').write_text('8:'+str(index*16+1)+'\n')
                 (root/'dev'/name).touch();(root/'dev'/(name+'1')).touch()
             (root/'proc/self/mountinfo').write_text('1 2 8:1 / /target rw - ext4 /dev/sda1 rw\n' if case=='mounted' else '')
-            (root/'proc/swaps').write_text('Filename Type Size Used Priority\n'+(str(root/'dev/sdb1')+' partition 1024 0 -2\n' if case=='swap' else ''))
+            (root/'proc/swaps').write_text('Filename Type Size Used Priority\n'+(str(root/('dev/'+affected+'1'))+' partition 1024 0 -2\n' if case=='swap' else ''))
             pvs=[]
             if case in ('both-pvs','third-pv','missing-pv'):
                 pvs=[str(root/'dev/sda1')+'|oldvg',str(root/('dev/sdc1' if case=='third-pv' else 'dev/sdb1'))+'|oldvg']
                 if case=='missing-pv':pvs.append('[unknown]|oldvg')
             if case=='vg-collision':pvs=[str(root/'dev/sdc1')+'|vcvg']
+            if case in ('single-pv','unrelated-vg'):
+                pvs=[str(root/'dev/sda1')+'|oldvg']
+                if case=='unrelated-vg':pvs.append(str(root/'dev/sdc1')+'|keepvg')
             (root/'pv-list').write_text('\n'.join(pvs)+'\n')
             tools={
                 'udevadm':'exit 0',
@@ -47,7 +51,7 @@ def check_raid_guard(source):
 esac
 for arg; do last=$arg; done
 case "$CASE:$last" in
-hidden-pv:*/sda1|both-pvs:*/sda1|third-pv:*/sda1|missing-pv:*/sda1) echo LVM2_member;;
+hidden-pv:*/sda1|single-pv:*/sda1|unrelated-vg:*/sda1|both-pvs:*/sda1|third-pv:*/sda1|missing-pv:*/sda1) echo LVM2_member;;
 md-*:*/sda1|md-*:*/sdb1|md-third:*/sdc1) echo linux_raid_member;;
 esac''',
                 'mdadm':'test "$CASE" = md-no-uuid || echo MD_UUID=fixture-array',
@@ -61,5 +65,9 @@ esac''',
             script=script.replace('[ -b ', '[ -f ')
             result=subprocess.run(['/bin/bash','-eu'],input=script,text=True,capture_output=True,
                 env=dict(os.environ,ROOT=str(root),CASE=case,PATH=str(root/'bin')+':/usr/bin:/bin'),timeout=10)
-            assert (result.returncode==0)==(case in ('blank','both-pvs','md-both')), (case,result.stdout,result.stderr)
-    print('Storage guard: complete old LVM/MD membership, third/missing/hidden members, mounts, swap and disk identity verified')
+            allowed=('blank','single-pv','unrelated-vg','vg-collision') if single else ('blank','single-pv','unrelated-vg','both-pvs','md-both')
+            assert (result.returncode==0)==(case in allowed), (single,case,result.stdout,result.stderr)
+            if single and case in ('both-pvs','third-pv','md-both','md-third'):
+                assert 'Existing storage spans an unselected disk:' in result.stderr
+                assert 'no disk has been erased' in result.stderr
+    print(('Single-disk' if single else 'RAID')+' storage guard: complete old LVM/MD membership, third/missing/hidden members, mounts, swap and disk identity verified')

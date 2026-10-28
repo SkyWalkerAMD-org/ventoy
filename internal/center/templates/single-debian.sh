@@ -10,6 +10,13 @@ d-i partman-partitioning/default_label string gpt
 d-i partman-partitioning/choose_label string gpt
 d-i partman-auto/method string regular
 d-i partman-auto/choose_recipe select vc-sized
+{{if .StorageGuard}}d-i partman-lvm/device_remove_lvm boolean true
+d-i partman-md/device_remove_md boolean true
+d-i partman-lvm/confirm boolean true
+d-i partman-lvm/confirm_nooverwrite boolean true
+d-i partman-md/confirm boolean true
+d-i partman-md/confirm_nooverwrite boolean true
+{{end}}
 d-i partman-auto/expert_recipe string vc-sized :: {{if eq .Machine.Firmware "uefi"}}$vc_efi_mb $vc_efi_mb $vc_efi_mb free \$primary{ } method{ efi } format{ }{{else}}1 1 1 free \$primary{ } method{ biosgrub }{{end}} . $vc_boot_mb $vc_boot_mb $vc_boot_mb ext4 method{ format } format{ } use_filesystem{ } filesystem{ ext4 } mountpoint{ /boot } . $vc_tmp_mb $vc_tmp_mb $vc_tmp_mb {{.DataFilesystem}} method{ format } format{ } use_filesystem{ } filesystem{ {{.DataFilesystem}} } mountpoint{ /tmp } . $vc_swap_mb $vc_swap_mb $vc_swap_mb linux-swap method{ swap } format{ } . $vc_var_mb $vc_var_mb $vc_var_mb {{.DataFilesystem}} method{ format } format{ } use_filesystem{ } filesystem{ {{.DataFilesystem}} } mountpoint{ /var } . $vc_root_mb $vc_root_mb $vc_root_mb {{.DataFilesystem}} method{ format } format{ } use_filesystem{ } filesystem{ {{.DataFilesystem}} } mountpoint{ / } . 8590 10000 -1 {{.DataFilesystem}} method{ format } format{ } use_filesystem{ } filesystem{ {{.DataFilesystem}} } mountpoint{ /home } .
 VC_SINGLE_PRESEED
 {{if eq .Target.Installer "ubiquity"}}# The guarded launcher loads this file only after its claim succeeds.

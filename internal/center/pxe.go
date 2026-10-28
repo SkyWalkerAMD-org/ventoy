@@ -296,6 +296,13 @@ func automaticPXEDisk(inv PXEInventory, policy string) (string, error) {
 		if count > 1 {
 			return "", nil
 		}
+		// Old storage needs local confirmation and a full membership guard,
+		// even when this is the only internal disk. Do not implicitly erase it.
+		for _, d := range inv.Disks {
+			if d.Location == "internal" && existingStorage(d.Blocked) {
+				return "", nil
+			}
+		}
 	}
 	return singleInternalDisk(inv)
 }
@@ -511,17 +518,17 @@ func (s *Server) pxeInstall(w http.ResponseWriter, r *http.Request) {
 		}
 		if req.StoragePlan != nil {
 			p, err := pxeProfile(e.Profile)
-			if err != nil || !raidInstaller(p) {
-				return errors.New("This installer does not yet support the RAID1 + LVM layout")
+			if err != nil || !rebuildInstaller(p) || (raidPlan(req.StoragePlan) && !raidInstaller(p)) {
+				return errors.New("This installer does not support the selected storage rebuild")
 			}
 			if policy != pxeLocalSelection || inv.Version != pxeInventoryVersion {
-				return errors.New("RAID installation requires the current local-selection menu")
+				return errors.New("Storage rebuild requires the current local-selection menu")
 			}
 			if err := validateStoragePlan(req.StoragePlan, inv.Disks); err != nil {
 				return err
 			}
 			if req.DiskSerial != req.StoragePlan.DiskSerials[0] || req.Confirmation != storageConfirmation(*req.StoragePlan) {
-				return errors.New("Confirm both selected RAID member disks on the local console")
+				return errors.New("Confirm the selected rebuild disks on the local console")
 			}
 		} else if err := eligibleDisk(inv, req.DiskSerial); err != nil {
 			return err
@@ -562,7 +569,7 @@ func (s *Server) pxeInstall(w http.ResponseWriter, r *http.Request) {
 				return err
 			}
 			if req.StoragePlan != nil {
-				message = "PXE 控制台确认双盘 RAID1 + LVM：" + strings.Join(req.StoragePlan.DiskSerials, ", ")
+				message = "PXE 控制台确认存储重建 " + req.StoragePlan.Mode + "：" + strings.Join(req.StoragePlan.DiskSerials, ", ")
 			} else if serial != "" {
 				if req.DiskSerial != serial {
 					return errors.New("目标盘与单内置盘规则不匹配")

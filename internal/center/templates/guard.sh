@@ -48,7 +48,7 @@ python3 - <<'VC_UBUNTU_KERNEL'
 VC_UBUNTU_KERNEL
 # Subiquity's serial matcher uses udev ID_SERIAL (often MODEL_SERIAL),
 # not lsblk's short SERIAL. Bind the path resolved by the checks above.
-python3 - "$disk"{{if .StorageGuard}} "$disk2"{{end}} <<'VC_UBUNTU_STORAGE'
+python3 - "$disk"{{if .RAIDSetup}} "$disk2"{{end}} <<'VC_UBUNTU_STORAGE'
 {{.UbuntuStorage}}
 VC_UBUNTU_STORAGE
 {{else if eq .Target.Installer "ubiquity"}}# Desktop squashfs omits /boot/vmlinuz; Ubiquity copies it from casper.

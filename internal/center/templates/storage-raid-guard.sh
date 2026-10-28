@@ -1,4 +1,4 @@
-# Read-only storage scope verification for an explicitly authorized two-disk
+# Read-only storage scope verification for an explicitly authorized disk
 # rebuild. Run before claiming the job; the native installer performs writes.
 vc_scope=$(mktemp -d /tmp/ventoy-storage.XXXXXX)
 vc_selected=$vc_scope/selected
@@ -34,7 +34,8 @@ case "$vc_path" in */usb*/*|*/session*/*|*/virtual/*) vc_storage_fail 'External 
 [ "$(cat "/sys/block/$vc_member/size")" -ge 234375000 ] || vc_storage_fail 'RAID member is smaller than 120 GB'
 printf '%s\n' "$vc_member" >> "$vc_selected"
 {{end}}
-[ "$(sed -n '1p' "$vc_selected")" != "$(sed -n '2p' "$vc_selected")" ] || vc_storage_fail 'RAID members resolve to the same disk'
+{{if eq .Request.StoragePlan.Mode "raid1-lvm"}}[ "$(sed -n '1p' "$vc_selected")" != "$(sed -n '2p' "$vc_selected")" ] || vc_storage_fail 'RAID members resolve to the same disk'
+{{end}}
 
 # Traverse both holders and slaves, including partition parents. This catches
 # a mounted LV and any third physical member before native destructive actions.
@@ -79,9 +80,10 @@ while read -r vc_node; do
 done < "$vc_nodes"
 # Never collide with a VG on an unselected disk, even if no selected member
 # currently belongs to that VG. Native installers must not reuse its name.
-if grep -Eq '\|[[:space:]]*vcvg[[:space:]]*$' "$vc_scope/pvs" && ! grep -Fxq vcvg "$vc_scope/vgs"; then
+{{if eq .Request.StoragePlan.Mode "raid1-lvm"}}if grep -Eq '\|[[:space:]]*vcvg[[:space:]]*$' "$vc_scope/pvs" && ! grep -Fxq vcvg "$vc_scope/vgs"; then
     vc_storage_fail 'The destination volume group name belongs to unselected storage'
 fi
+{{end}}
 while IFS='|' read -r vc_pv vc_vg; do
     vc_pv=$(printf '%s' "$vc_pv" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     vc_vg=$(printf '%s' "$vc_vg" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
@@ -118,7 +120,7 @@ while read -r vc_node; do
     vc_slave_count=0
     for vc_slave in "/sys/class/block/$vc_node"/slaves/*; do [ ! -e "$vc_slave" ] || vc_slave_count=$((vc_slave_count + 1)); done
     if [ ! -f "/sys/class/block/$vc_node/partition" ] && [ "$vc_slave_count" = 0 ]; then
-        grep -qx "$vc_node" "$vc_selected" || vc_storage_fail 'Existing storage spans an unselected disk; stopped'
+        grep -qx "$vc_node" "$vc_selected" || vc_storage_fail "Existing storage spans an unselected disk: /dev/$vc_node (serial $(vc_serial "$vc_node")). Select all member disks for a rebuild; no disk has been erased"
     fi
     vc_devno=$(cat "/sys/class/block/$vc_node/dev")
     while read -r vc_mid vc_parent vc_mdev vc_rest; do
@@ -131,5 +133,7 @@ while read -r vc_node; do
     done < /proc/swaps
 done < "$vc_nodes"
 disk=$(sed -n '1p' "$vc_selected")
-disk2=$(sed -n '2p' "$vc_selected")
+{{if eq .Request.StoragePlan.Mode "raid1-lvm"}}disk2=$(sed -n '2p' "$vc_selected")
 echo "Ventoy storage: two-disk rebuild scope verified: /dev/$disk /dev/$disk2"
+{{else}}echo "Ventoy storage: single-disk rebuild scope verified: /dev/$disk"
+{{end}}
