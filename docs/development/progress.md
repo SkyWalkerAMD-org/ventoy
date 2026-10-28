@@ -6,7 +6,11 @@ PXE 选盘新增旧存储重建。单块内置盘已有 LVM/软件 RAID 时显�
 
 新增 API 一次性确认、实际 Python/原生 Debian 客户端和成员检查回归；单盘重建的 56 个模板/启动模式组合、现有双盘布局、容量档位与 ext4/XFS 验证通过。`.249` 的原始原因已确认是旧 Rocky LVM，取得目标盘清空授权后在 alpha.42 上完成 CentOS 7.9 实装和正常硬盘启动，保留 USB 数据盘；`.235` 的新版 setup 与重启验证也已完成。具体边界见[平台与实机记录](../deployment/linux-platform-checks.md)。
 
-新流程的隔离 CentOS 7.9 UEFI 完整安装已通过：带旧 LVM 启动后能进入文件系统/选盘页，确认目标盘后原生重分区、正常重启到硬盘系统，root/user SSH、分区、更新策略和 setup 检查通过，USB 模拟盘保持。旧流程在页面出现前就拒绝单盘 LVM的问题已在客户端和管理端同时修正。52 个入口发布状态以现场部署记录为准。
+新流程的隔离 CentOS 7.9 UEFI 完整安装已通过：带旧 LVM 启动后能进入文件系统/选盘页，确认目标盘后原生重分区、正常重启到硬盘系统，root/user SSH、分区、更新策略和 setup 检查通过，USB 模拟盘保持。旧流程在页面出现前就拒绝单盘 LVM 的问题已在客户端和管理端同时修正。
+
+13 项 CI 通过后，[PR #17](https://github.com/SkyWalkerAMD-org/ventoy/pull/17) 已合入 main，并于 2026-10-28 发布 alpha.43。发布前确认没有活动安装任务，`.249` 已从硬盘运行；备份后更新管理端、52 个 Linux 共享入口及 tools 中的 setup，刷新 iVentoy 并核对全部绑定。59 个 ISO 的内容和元数据、tools 的其他软件包、专业版许可及私有解锁凭据保留。发布后 `.249` SSH 再次登录通过。
+
+发布记录在中心 `e610-pxe-media-20261023/storage43-20261028/deployment.json`，同目录保存全量入口核验、CI 和隔离安装结果及生产回退副本。全部 52 个入口预置 setup 的共同 SHA-256 为 `df51467abc6a250dbb2dd661b864115f082d91fc39d4da8eaaaa73c0dff038a9`。
 
 ## alpha.42 退出介质、软件解锁与终端刷新（2026-10-28）
 
