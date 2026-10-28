@@ -50,9 +50,9 @@ func TestCapacityTierLayout(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			d := renderData{}
+			d := renderData{StorageGuard: "verified storage scope"}
 			if tc.second != 0 {
-				d.StorageGuard = "verified pair"
+				d.RAIDSetup = "verified RAID pair"
 			}
 			source, err := render("storage-sizing.sh", d)
 			if err != nil {

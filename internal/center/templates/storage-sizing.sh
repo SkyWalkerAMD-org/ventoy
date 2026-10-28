@@ -37,4 +37,4 @@ vc_storage_sizes() {
     export VC_STORAGE_SIZES_MIB
     printf 'Ventoy storage (MiB): EFI=1024 boot=2048 tmp=%s swap=%s var=%s root=%s home=remaining; capacity=%s bytes\n' "$vc_tmp_mib" "$vc_swap_mib" "$vc_var_mib" "$vc_root_mib" "$vc_capacity"
 }
-vc_storage_sizes "$disk"{{if .StorageGuard}} "$disk2"{{end}}
+vc_storage_sizes "$disk"{{if .RAIDSetup}} "$disk2"{{end}}

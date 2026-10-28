@@ -131,13 +131,15 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 		if err := validateStorageShape(j.Request.StoragePlan); err != nil {
 			return nil, err
 		}
-		if !raidInstaller(p) || j.Machine.DiskSerial != j.Request.StoragePlan.DiskSerials[0] {
-			return nil, fmt.Errorf("RAID layout does not match the installer or primary disk")
+		if !rebuildInstaller(p) || (raidPlan(j.Request.StoragePlan) && !raidInstaller(p)) || j.Machine.DiskSerial != j.Request.StoragePlan.DiskSerials[0] {
+			return nil, fmt.Errorf("Storage rebuild does not match the installer or primary disk")
 		}
 		d.StorageGuard, err = render("storage-raid-guard.sh", d)
 		if err != nil {
 			return nil, err
 		}
+	}
+	if raidPlan(j.Request.StoragePlan) {
 		d.RAIDSetup, err = render("raid-installed.sh", d)
 		if err != nil {
 			return nil, err
@@ -172,7 +174,7 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		if j.Request.StoragePlan == nil && p.Installer != "autoinstall" {
+		if !raidPlan(j.Request.StoragePlan) && p.Installer != "autoinstall" {
 			name := "single-kickstart.sh"
 			if p.Installer == "preseed" || p.Installer == "ubiquity" {
 				name = "single-debian.sh"
@@ -221,7 +223,7 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 				return nil, err
 			}
 			storageTemplate := "ubuntu-storage.py"
-			if j.Request.StoragePlan != nil {
+			if raidPlan(j.Request.StoragePlan) {
 				storageTemplate = "ubuntu-raid-storage.py"
 			}
 			d.UbuntuStorage, err = render(storageTemplate, d)

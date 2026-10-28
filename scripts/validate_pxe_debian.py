@@ -22,7 +22,7 @@ def check_debian_client(wrapper):
     source = debian_client_source(wrapper)
     if os.name == "nt":
         return
-    for scenario in ("single", "xfs", "bad-fs", "cancel-fs", "usb", "multiple", "second-blocked", "unknown", "mounted", "swap", "readonly", "raid", "preset", "changed", "mismatch", "select-second", "bad-choice", "cancel", "blank", "blocked-choice", "local-changed", "local-mismatch", "legacy-multiple", "no-stty", "raid-pair", "raid-duplicate", "raid-cancel", "raid-small", "raid-readonly"):
+    for scenario in ("single", "xfs", "bad-fs", "cancel-fs", "usb", "multiple", "second-blocked", "unknown", "mounted", "swap", "readonly", "raid", "preset", "changed", "mismatch", "select-second", "bad-choice", "cancel", "blank", "blocked-choice", "local-changed", "local-mismatch", "legacy-multiple", "no-stty", "raid-pair", "raid-duplicate", "raid-cancel", "raid-small", "raid-readonly", "single-rebuild", "rebuild-cancel", "rebuild-changed", "rebuild-usb"):
         with tempfile.TemporaryDirectory(prefix="vc-debian-") as directory:
             root = Path(directory)
             devices = root / "devices/pci0000:00"
@@ -44,9 +44,9 @@ def check_debian_client(wrapper):
                 (blocks / name).symlink_to(p)
                 return p
             first = disk("sda", "FIRST")
-            multi = scenario.startswith('raid-') or scenario in ("multiple", "second-blocked", "preset", "usb", "select-second", "bad-choice", "cancel", "blank", "blocked-choice", "local-changed", "local-mismatch", "legacy-multiple", "no-stty")
+            multi = scenario.startswith('raid-') or scenario in ("multiple", "second-blocked", "preset", "usb", "select-second", "bad-choice", "cancel", "blank", "blocked-choice", "local-changed", "local-mismatch", "legacy-multiple", "no-stty", "rebuild-usb")
             if multi:
-                second = disk("sdb", "SECOND", scenario == "usb")
+                second = disk("sdb", "SECOND", scenario in ("usb", "rebuild-usb"))
                 if scenario in ("second-blocked", "blocked-choice"): (second / "ro").write_text("1\n")
             if scenario.startswith('raid-'):
                 (first/'size').write_text('268435456\n')
@@ -63,7 +63,7 @@ def check_debian_client(wrapper):
             commands = {
                 "anna-install":"exit 0",
                 "udevadm":'case "$1" in settle) exit 0;; esac\nprintf \'ID_MODEL=Model "quoted"\\nID_BUS=ata\\n\'',
-                "blkid":'test "$SCENARIO" != raid || echo linux_raid_member',
+                "blkid":'''case "$SCENARIO" in raid) echo linux_raid_member;; single-rebuild|rebuild-*) for arg; do last=$arg; done; case "$last" in */sda) echo LVM2_member;; esac;; esac''',
                 # cdebconf sends protocol commands on inherited fd 3 and keeps
                 # original stdio on 4-6. The local chooser must preserve these.
                 "debconf-set-selections":'''set -eu
@@ -75,7 +75,7 @@ printf 'preserved-error\\n' >&6
 cp "$1" "$ROOT/applied.cfg"''',
                 "debconf-get":'printf \'touch "%s/guard-passed"\\n\' "$ROOT"',
                 "stty":"exit 0",
-                "chvt":'test "$SCENARIO" != local-changed || echo 1 > "$ROOT/sys/block/sda/ro"',
+                "chvt":'case "$SCENARIO" in local-changed|rebuild-changed) echo 1 > "$ROOT/sys/block/sda/ro";; esac',
                 "wget":'''if [ "$1" = --version ]; then echo 'GNU Wget'; exit 0; fi
 for arg; do
   case "$arg" in --post-file=*) request=${arg#--post-file=};; */discover) endpoint=discover;; */install) endpoint=install;; esac
@@ -104,6 +104,7 @@ fi''',
             answers = '2\nyes\n' if scenario in ('select-second','local-changed','local-mismatch') else '1\nyes\n'
             if scenario == 'bad-choice': answers='\n99\n2\nyes\n'
             if scenario == 'cancel': answers='2\nno\n'
+            if scenario == 'rebuild-cancel': answers='1\nno\n'
             if scenario == 'blank': answers='2\n\n\n\n'
             if scenario == 'blocked-choice': answers='2\n2\n2\n'
             if scenario=='raid-pair':answers='r\n1 2\nyes\n'
@@ -117,6 +118,7 @@ fi''',
             (root/'console-in').write_text(answers)
             script=script.replace('8</dev/tty9 9>/dev/tty9', '8<"%s" 9>"%s"' % (root/'console-in',root/'console-out'))
             automatic = '' if multi and scenario not in ('usb','preset','local-mismatch') else 'FIRST'
+            if scenario=='single-rebuild' or scenario.startswith('rebuild-'): automatic=''
             if scenario == 'mismatch': automatic='WRONG'
             env=dict(os.environ,ROOT=str(root),SCENARIO=scenario,PRESET="FIRST" if scenario=="preset" else "",AUTOMATIC=automatic,POLICY='single-internal' if scenario=='legacy-multiple' else 'single-or-console',PATH=str(bindir)+os.pathsep+os.environ['PATH'])
             (root/'client.sh').write_text(script+'\nprintf "CLIENT_DONE\\n" >&3\n')
@@ -125,7 +127,7 @@ fi''',
             result=subprocess.run(['/bin/sh','-c',runner],text=True,capture_output=True,env=env,timeout=15)
             inv=json.loads((root/'discover.json').read_text())
             assert inv['disks'][0]['serial']=='FIRST' and inv['disks'][0]['model']=='Model "quoted"', inv
-            success=scenario in ('single','xfs','usb','preset','multiple','second-blocked','select-second','bad-choice','no-stty','raid-pair')
+            success=scenario in ('single','xfs','usb','preset','multiple','second-blocked','select-second','bad-choice','no-stty','raid-pair','single-rebuild','rebuild-usb')
             assert (result.returncode==0)==success, (scenario,result.stdout,result.stderr)
             assert (root/'guard-passed').exists()==success, scenario
             if success:
@@ -139,6 +141,9 @@ fi''',
                 if scenario=='raid-pair':
                     assert installed['confirmation']=='ERASE RAID1 FIRST SECOND'
                     assert installed['storage_plan']=={'mode':'raid1-lvm','disk_serials':['FIRST','SECOND']}
+                elif scenario in ('single-rebuild','rebuild-usb'):
+                    assert installed['confirmation']=='ERASE REBUILD FIRST'
+                    assert installed['storage_plan']=={'mode':'single-rebuild','disk_serials':['FIRST']}
                 else:
                     assert installed['confirmation']==('ERASE '+installed['disk_serial'] if multi and scenario not in ('usb','preset') else '')
             else:

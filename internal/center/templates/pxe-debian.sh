@@ -159,7 +159,9 @@ choose_disk() {
     index=1
     while [ "$index" -le "$disk_count" ]; do
         row="$work/disks/$index"
-        printf '%s. /dev/%s  %s GiB  %s  SERIAL=%s  %s\n' "$index" "$(sed -n '1p' "$row")" "$(sed -n '3p' "$row")" "$(sed -n '4p' "$row")" "$(sed -n '2p' "$row")" "$(sed -n '5p' "$row")" >&9
+        status=$(sed -n '5p' "$row")
+        case "$status" in 'Existing LVM or RAID'|'Active RAID or LVM') status='Existing LVM/RAID: select to rebuild after membership checks';; esac
+        printf '%s. /dev/%s  %s GiB  %s  SERIAL=%s  %s\n' "$index" "$(sed -n '1p' "$row")" "$(sed -n '3p' "$row")" "$(sed -n '4p' "$row")" "$(sed -n '2p' "$row")" "$status" >&9
         index=$((index + 1))
     done
     serial=
@@ -177,7 +179,10 @@ choose_disk() {
             index=$((index + 1))
         done
         if [ -z "$selected" ]; then printf 'Invalid disk number. Nothing has been erased.\n' >&9; continue; fi
-        if [ -n "$(sed -n '5p' "$selected")" ] || [ "$(sed -n '6p' "$selected")" != internal ]; then
+        blocked=$(sed -n '5p' "$selected")
+        rebuild=no
+        case "$blocked" in 'Existing LVM or RAID'|'Active RAID or LVM') rebuild=yes;; esac
+        if { [ -n "$blocked" ] && [ "$rebuild" != yes ]; } || [ "$(sed -n '6p' "$selected")" != internal ]; then
             printf 'This disk cannot be selected: %s\n' "$(sed -n '5p' "$selected")" >&9
             continue
         fi
@@ -186,13 +191,22 @@ choose_disk() {
     done
     [ -n "$serial" ] || fail 'No usable disk selected after 3 attempts'
     printf '\nSelected: /dev/%s  %s GiB  %s  SERIAL=%s\nALL DATA ON THIS DISK WILL BE ERASED. Other disks will not be selected for installation.\n' "$(sed -n '1p' "$selected")" "$(sed -n '3p' "$selected")" "$(sed -n '4p' "$selected")" "$serial" >&9
+    if [ "$rebuild" = yes ]; then
+        printf 'Old LVM/RAID on this disk will be removed after membership checks. Storage spanning other disks will stop and list the affected disk; select all members for a rebuild.\n' >&9
+    fi
     attempt=1
     while [ "$attempt" -le 3 ]; do
         printf 'Type yes to erase and install, or no / q to cancel. Attempt %s/3: ' "$attempt" >&9
         IFS= read -r value <&8 || fail 'Console input closed; no erase confirmation'
         value=$(printf '%s' "$value" | tr A-Z a-z)
         case "$value" in
-            yes) confirmation="ERASE $serial"; return;;
+            yes)
+                confirmation="ERASE $serial"
+                if [ "$rebuild" = yes ]; then
+                    confirmation="ERASE REBUILD $serial"
+                    storage_plan=$(printf ',"storage_plan":{"mode":"single-rebuild","disk_serials":["%s"]}' "$serial")
+                fi
+                return;;
             no|q) fail 'Installation canceled at the console';;
         esac
         printf 'Please type yes, no or q. Empty Enter does not confirm. Nothing has been erased.\n' >&9
@@ -281,7 +295,9 @@ else
 fi
 case "$filesystem" in ext4|xfs) ;; *) fail 'Invalid authorized filesystem';; esac
 if [ -z "$serial" ]; then
-    if [ "$policy" = single-or-console ] && [ "$internal_count" -gt 1 ]; then
+    old_storage=no
+    case "$only_blocked" in 'Existing LVM or RAID'|'Active RAID or LVM') old_storage=yes;; esac
+    if [ "$policy" = single-or-console ] && { [ "$internal_count" -gt 1 ] || [ "$old_storage" = yes ]; }; then
         [ -z "$automatic" ] || fail 'Controller and client selected different disks'
         choose_disk
     else

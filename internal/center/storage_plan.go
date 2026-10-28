@@ -14,6 +14,19 @@ type StoragePlan struct {
 }
 
 const storageRAID1LVM = "raid1-lvm"
+const storageSingleRebuild = "single-rebuild"
+
+func existingStorage(reason string) bool {
+	switch reason {
+	case "Existing LVM/RAID: prepare storage separately", "Existing LVM or RAID", "Active RAID or LVM":
+		return true
+	}
+	return false
+}
+
+func raidPlan(plan *StoragePlan) bool { return plan != nil && plan.Mode == storageRAID1LVM }
+
+func rebuildInstaller(p Profile) bool { return raidInstaller(p) || p.Installer == "ubiquity" }
 
 // An omitted value keeps already-created jobs on their historical ext4 layout.
 // This allowlist also prevents template/recipe injection through the API.
@@ -44,12 +57,21 @@ func validateStorageShape(plan *StoragePlan) error {
 	if plan == nil {
 		return nil
 	}
-	if plan.Mode != storageRAID1LVM || len(plan.DiskSerials) != 2 || plan.DiskSerials[0] == plan.DiskSerials[1] {
-		return errors.New("RAID1 + LVM requires exactly two different disk serials")
+	switch plan.Mode {
+	case storageRAID1LVM:
+		if len(plan.DiskSerials) != 2 || plan.DiskSerials[0] == plan.DiskSerials[1] {
+			return errors.New("RAID1 + LVM requires exactly two different disk serials")
+		}
+	case storageSingleRebuild:
+		if len(plan.DiskSerials) != 1 {
+			return errors.New("A single-disk rebuild requires exactly one disk serial")
+		}
+	default:
+		return errors.New("Unknown storage rebuild mode")
 	}
 	for _, serial := range plan.DiskSerials {
 		if !serialRE.MatchString(serial) {
-			return errors.New("Invalid RAID member serial")
+			return errors.New("Invalid rebuild disk serial")
 		}
 	}
 	return nil
@@ -68,7 +90,7 @@ func validateStoragePlan(plan *StoragePlan, disks []PXEDisk) error {
 	}
 	for _, serial := range plan.DiskSerials {
 		if !serialRE.MatchString(serial) {
-			return errors.New("Invalid RAID member serial")
+			return errors.New("Invalid rebuild disk serial")
 		}
 		matches := 0
 		for _, disk := range disks {
@@ -77,23 +99,26 @@ func validateStoragePlan(plan *StoragePlan, disks []PXEDisk) error {
 			}
 			matches++
 			if disk.Location != "internal" || disk.Size < 120000000000 {
-				return errors.New("RAID members must be internal disks of at least 120 GB")
+				return errors.New("Rebuild targets must be internal disks of at least 120 GB")
 			}
 			// The eventual installer guard independently verifies full LVM/MD
 			// membership before any destructive claim. Mounts, swap, external
 			// disks, ambiguous identifiers and unknown blocks cannot be bypassed.
-			if disk.Blocked != "" && disk.Blocked != "Existing LVM/RAID: prepare storage separately" && disk.Blocked != "Existing LVM or RAID" && disk.Blocked != "Active RAID or LVM" {
-				return fmt.Errorf("RAID member cannot be selected: %s", disk.Blocked)
+			if disk.Blocked != "" && !existingStorage(disk.Blocked) {
+				return fmt.Errorf("Rebuild target cannot be selected: %s", disk.Blocked)
 			}
 		}
 		if matches != 1 {
-			return errors.New("Each RAID member serial must match exactly one disk")
+			return errors.New("Each rebuild target serial must match exactly one disk")
 		}
 	}
 	return nil
 }
 
 func storageConfirmation(plan StoragePlan) string {
+	if plan.Mode == storageSingleRebuild {
+		return "ERASE REBUILD " + plan.DiskSerials[0]
+	}
 	// Only validated fixed-layout plans reach this function; member order also
 	// identifies the primary boot disk and cannot silently change after yes.
 	return "ERASE RAID1 " + plan.DiskSerials[0] + " " + plan.DiskSerials[1]
