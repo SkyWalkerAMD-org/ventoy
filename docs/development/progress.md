@@ -16,6 +16,8 @@ FYHOC 使用真实 `unlk` 认证，并启用每次开机离线重新认证的服
 
 隔离证据位于中心 `e610-pxe-media-20261023/ubuntu26-reboot42-20261027/`：完整回归、全量入口核验、手动/自动首次启动、FYHOC 重启验收与 AMD 模拟记录分别留存。现场最终发布结果单独记录为 `deployment.json`。
 
+发布后在 `.235` 已安装的 CentOS 7.9 上完成新版 setup 实机复测：无参数执行、交互提示及正常重启均通过，FYHOC 开机自动解锁，现有主机名与自定义密码保持，内核和内核包未更新。`.249` 的 KVM 日志确认本次 CentOS 停止源于内置 SSD 上的旧 Rocky LVM 保护；约 480 GB 的 USB/exFAT 盘不是安装目标，实装等待该机 120 GB 内置盘清理范围确认。详见[现场检查](../deployment/linux-platform-checks.md)。
+
 ## alpha.41 共享 ISO 入口与补齐 52 个 Linux 自动安装（2026-10-27）
 
 手动和自动安装合并到发行版目录下的同一 ISO。选择系统后，`Boot without auto install script` 进入手动安装，`Boot with ...` 选择自动脚本；默认手动、无倒计时。补齐 Rocky 10.2 和 Ubuntu Desktop 26.04，覆盖当前 52 个 Linux 镜像。发布移除 50 个历史 PXE-Auto 别名，目录由 109 个路径减为 59 个，包含另外 6 个 Windows 和 1 个 MemTest86；Linux 的完整 setup、驱动和策略钩子仍保留。
