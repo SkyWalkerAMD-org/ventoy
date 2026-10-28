@@ -46,7 +46,7 @@ exit "${FIXTURE_RC:-0}"
 '''
     stream = io.BytesIO()
     with tarfile.open(fileobj=stream, mode='w:gz') as archive:
-        for name, body in [('install.sh', payload), ('root-password.sh', b'#!/bin/bash\necho PASSWORD_DIALOG\n')]:
+        for name, body in [('install.sh', payload), ('root-password.sh', b'#!/bin/bash\necho PASSWORD_DIALOG\nexit "${FIXTURE_PASSWORD_RC:-0}"\n')]:
             item = tarfile.TarInfo('ventoy-manual-setup/' + name)
             item.mode = 0o755
             item.size = len(body)
@@ -56,10 +56,11 @@ exit "${FIXTURE_RC:-0}"
     launcher.write_bytes(template.replace('@ARCHIVE_SHA256@', hashlib.sha256(data).hexdigest()).encode() + data)
     launcher.chmod(0o755)
 
-    def run(args=(), rename=True, rc=0, terminal=True, sudo=False, stale_sudo=False):
+    def run(args=(), rename=True, rc=0, terminal=True, sudo=False, stale_sudo=False, password_rc=0):
         (root / 'hostname').write_text('old-host\n')
         env = dict(os.environ, HOME=str(root / 'home'), PATH=str(root / 'bin') + ':' + os.environ['PATH'],
-                   FIXTURE_HOSTNAME=str(root / 'hostname'), FIXTURE_RENAME=str(int(rename)), FIXTURE_RC=str(rc), FIXTURE_SUDO=str(int(sudo)))
+                   FIXTURE_HOSTNAME=str(root / 'hostname'), FIXTURE_RENAME=str(int(rename)), FIXTURE_RC=str(rc), FIXTURE_SUDO=str(int(sudo)),
+                   FIXTURE_PASSWORD_RC=str(password_rc))
         for key in ('SUDO_USER', 'SUDO_UID', 'BASH_ENV', 'ENV'):
             env.pop(key, None)
         if sudo or stale_sudo:
@@ -99,13 +100,25 @@ exit "${FIXTURE_RC:-0}"
     code, out = run()
     assert code == 0 and 'PASSWORD_DIALOG' in out and 'HOSTNAME_VERIFIED: new-host' in out and 'FRESH_BASH cwd=' + str(root) in out, out
     for options in ({'rename': False}, {'terminal': False}, {'args': ['--check']},
-                    {'args': ['--resume']}, {'args': ['--software']}, {'rc': 17}, {'rc': 3}):
+                    {'args': ['--resume']}, {'args': ['--software']}, {'rc': 17},
+                    {'rc': 4, 'terminal': False}, {'rc': 4, 'args': ['--software']}):
         code, out = run(**options)
         assert code == options.get('rc', 0) and 'FRESH_BASH' not in out and 'HOSTNAME_VERIFIED:' not in out, (options, code, out)
-        wanted = options.get('terminal', True) and options.get('rc', 0) in (0, 3) and not options.get('args')
+        wanted = options.get('terminal', True) and options.get('rc', 0) in (0, 3, 4) and not options.get('args')
         assert ('PASSWORD_DIALOG' in out) == wanted, (options, out)
     code, out = run(sudo=True)
     assert code == 0 and 'CALLER_ACCOUNT_REFRESH' in out and 'FRESH_BASH' not in out, out
     code, out = run(stale_sudo=True)
     assert code == 0 and 'FRESH_BASH' in out and 'CALLER_ACCOUNT_REFRESH' not in out, out
-print('PASS: fresh interactive prompt, same directory, sudo account preservation, noninteractive/check/pending/error exits')
+    for rc in (3, 4):
+        for sudo in (False, True):
+            code, out = run(rc=rc, sudo=sudo)
+            assert code == rc and 'PASSWORD_DIALOG' in out and 'SETUP_INCOMPLETE:' in out, (code, out)
+            assert ('CALLER_ACCOUNT_REFRESH' if sudo else 'FRESH_BASH') in out, out
+        code, out = run(rc=rc, rename=False)
+        assert code == rc and 'PASSWORD_DIALOG' in out and 'FRESH_BASH' not in out, (code, out)
+    code, out = run(rc=4, password_rc=2)
+    assert code == 4 and 'PASSWORD_DIALOG' in out, (code, out)
+    code, out = run(password_rc=2)
+    assert code == 2 and 'FRESH_BASH' not in out, (code, out)
+print('PASS: fresh interactive prompt, password dialog after software failure, preserved error status and caller identity')

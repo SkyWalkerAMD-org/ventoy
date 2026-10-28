@@ -52,6 +52,7 @@ Missing packages may be installed, but no system/kernel upgrade is performed.
 --offline prohibits package downloads. E610 driver activation may need a reboot;
 the installed service resumes setup and verifies it on subsequent boots.
 Exit 0 = verified, 1 = failed, 2 = invalid arguments, 3 = pending/reboot required.
+Exit 4 = system checks completed, but software installation/verification failed.
 HELP
         exit 0;;
     *) exit 2;;
@@ -244,7 +245,16 @@ if [[ $mode == --resume && $offline == 0 && -f "$state/software-request" && $(ca
     if ((pending)); then
         echo 'SYSTEM_PENDING: continuing requested software installation using available networking.'
     fi
-    software_action --software
+    # System checks above have completed. Distinguish a software failure so
+    # the interactive launcher can still offer the independent password dialog
+    # and refresh a changed hostname without reporting setup as successful.
+    software_rc=0
+    (software_action --software) || software_rc=$?
+    if ((software_rc)); then
+        echo 'SOFTWARE_FAILED: system configuration was checked, but software installation is incomplete.' >&2
+        echo 'The software request is retained for retry; setup exits with status 4.' >&2
+        exit 4
+    fi
     printf '0\n' > "$state/software-request"
 fi
 if ((pending)); then

@@ -189,8 +189,9 @@ sleep() { :; }
         # pending, mode, offline, request, software_rc, expected_rc, calls, request_after
         (1, '--resume', 0, '1', 0, 3, 1, '0'),
         (0, '--resume', 0, '1', 0, 0, 1, '0'),
-        (1, '--resume', 0, '1', 17, 17, 1, '1'),
-        (0, '--resume', 0, '1', 17, 17, 1, '1'),
+        (1, '--resume', 0, '1', 17, 4, 1, '1'),
+        (0, '--resume', 0, '1', 17, 4, 1, '1'),
+        (0, '--resume', 0, '1', 1, 4, 1, '1'),
         (1, '--check', 0, '1', 0, 3, 0, '1'),
         (0, '--check', 0, '1', 0, 0, 0, '1'),
         (1, '--resume', 1, '1', 0, 3, 0, '1'),
@@ -210,11 +211,13 @@ systemctl() { test "$*" = 'get-default'; echo multi-user.target; }
 software_action() {
     test "$1" = --software
     echo invoked >> "$state/calls"
-    return "$software_rc"
+    # A helper's fatal exit must also return to the launcher's dialog path.
+    if [[ $fixture_software_rc == 1 ]]; then exit 1; fi
+    return "$fixture_software_rc"
 }
 '''
             code = mocks + '\nstate=' + shlex.quote(temp)
-            code += '\npending=%d\nmode=%s\noffline=%d\nsoftware_rc=%d\n' % (pending, mode, offline, software_rc)
+            code += '\npending=%d\nmode=%s\noffline=%d\nfixture_software_rc=%d\n' % (pending, mode, offline, software_rc)
             code += completion
             result = subprocess.run(['bash', '-c', code], capture_output=True, text=True)
             actual_calls = len((state / 'calls').read_text().splitlines()) if (state / 'calls').exists() else 0
@@ -223,6 +226,7 @@ software_action() {
             if software_rc and calls:
                 assert not (state / 'status').exists(), 'failed software transaction was reported as completed'
                 assert not any(line.startswith(('PENDING:', 'VERIFIED:')) for line in result.stdout.splitlines())
+                assert 'SOFTWARE_FAILED:' in result.stderr, result
             else:
                 status = (state / 'status').read_text()
                 assert status.startswith('pending ' if pending else 'verified '), status
@@ -234,7 +238,7 @@ software_action() {
                 assert len((state / 'calls').read_text().splitlines()) == 1
             # Failure must leave the original explicit request available to retry.
             if software_rc and calls:
-                retry = subprocess.run(['bash', '-c', code.replace('software_rc=17', 'software_rc=0')], capture_output=True, text=True)
+                retry = subprocess.run(['bash', '-c', code.replace('fixture_software_rc=%d' % software_rc, 'fixture_software_rc=0')], capture_output=True, text=True)
                 assert retry.returncode == (3 if pending else 0), retry
                 assert request_file.read_text().strip() == '0'
     print('PASS: pending system checks do not skip software; failure/retry, no repeat upgrade, offline and check-only modes')

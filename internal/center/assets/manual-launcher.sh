@@ -54,24 +54,29 @@ with tarfile.open(fileobj=io.BytesIO(data), mode='r:gz') as archive:
 PY
 setup_rc=0
 bash "$stage/ventoy-manual-setup/install.sh" "$@" || setup_rc=$?
-if (( (setup_rc == 0 || setup_rc == 3) && refresh_prompt)) && [[ -t 0 && -t 1 && -t 2 ]]; then
-    # An unplugged secondary NIC or pending driver does not block a requested
-    # password change. Keep the original pending exit status on success.
-    bash "$stage/ventoy-manual-setup/root-password.sh" || setup_rc=$?
+if (( (setup_rc == 0 || setup_rc == 3 || setup_rc == 4) && refresh_prompt)) && [[ -t 0 && -t 1 && -t 2 ]]; then
+    # Status 4 means system checks reached the software step, which failed.
+    # That independent failure must not hide the optional password dialog.
+    password_rc=0
+    bash "$stage/ventoy-manual-setup/root-password.sh" || password_rc=$?
+    if ((password_rc && setup_rc != 4)); then setup_rc=$password_rc; fi
 fi
-# A child cannot replace its caller's cached Bash hostname. After a successful
+# A child cannot replace its caller's cached Bash hostname. After a verified
 # interactive rename, use a fresh shell on this same terminal. Never put a
 # background/service/check invocation into an interactive shell, and clean the
-# extraction directory before replacing this launcher.
+# extraction directory before opening the refreshed shell.
 hostname_after=$(hostname)
 rm -rf -- "$stage"
 trap - EXIT
-if ((setup_rc == 0 && refresh_prompt)) && [[ -t 0 && -t 1 && -t 2 &&
+if (((setup_rc == 0 || setup_rc == 3 || setup_rc == 4) && refresh_prompt)) && [[ -t 0 && -t 1 && -t 2 &&
         "$hostname_before" != "$hostname_after" ]]; then
     pgid=$(ps -o pgid= -p "$$" | tr -d ' ')
     foreground=$(ps -o tpgid= -p "$$" | tr -d ' ')
     if [[ -n "$pgid" && "$pgid" == "$foreground" ]]; then
         echo "HOSTNAME_VERIFIED: $hostname_after; opening a refreshed interactive Bash prompt."
+        if ((setup_rc)); then
+            echo "SETUP_INCOMPLETE: exit status $setup_rc is retained; refreshing the prompt does not resolve the errors above." >&2
+        fi
         parent_command=$(ps -o comm= -p "$PPID" | tr -d ' ')
         parent_uid=$(ps -o ruid= -p "$PPID" | tr -d ' ')
         if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != root &&
@@ -79,11 +84,13 @@ if ((setup_rc == 0 && refresh_prompt)) && [[ -t 0 && -t 1 && -t 2 &&
             # A sudo invocation must return to the invoking account, not leave
             # an unexpected root shell open. Verify sudo's recorded identity.
             if [[ $(id -u "$SUDO_USER") == "${SUDO_UID:-}" ]] && command -v runuser >/dev/null 2>&1; then
-                exec runuser -u "$SUDO_USER" -- /bin/bash -i
+                runuser -u "$SUDO_USER" -- /bin/bash -i || true
+                exit "$setup_rc"
             fi
             echo 'Hostname is active. Run exec bash in your current account to refresh its prompt.'
         else
-            exec /bin/bash -i
+            /bin/bash -i || true
+            exit "$setup_rc"
         fi
     fi
 fi
