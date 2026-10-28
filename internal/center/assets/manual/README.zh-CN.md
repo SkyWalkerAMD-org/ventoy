@@ -18,6 +18,8 @@ sudo /root/ventoy-linux-setup.run --hostname server01
 
 直接在终端运行时会先显示当前主机名，输入新名称即可设置，直接回车则保留当前持久化主机名。也可用 `--hostname NAME` 跳过提问。非交互运行和开机恢复不提问；未指定名称时保留当前名称，默认 localhost 会改成带机器标识的名称。显式名称只应用一次，不会在以后运行 setup 或重启时恢复旧名称。
 
+完整 `.run` 配置结束后，可交互修改 root 密码：输入新密码并再次确认，输入不显示；直接回车保留当前密码。修改后会用新密码实际验证 root SSH 登录，普通账户 `user` 的密码不变。临时验证文件仅 root 可读，验证后删除；不把新密码写入日志或保存供开机使用。后续运行 setup、检查或重启保留自定义 root 密码；因未保存明文，后续检查仅验证 root 的账户与 SSH 配置，密码实际登录验证在修改当次完成。非交互、开机恢复和软件单独安装不询问密码。
+
 装好后可执行 `sudo hostnamectl set-hostname server02`；如需同时同步本机 hosts，使用 `sudo safe-server-init hostname server02 --update-hosts`。旧版 setup 曾保存固定主机名，已安装的机器需要替换为新版 `.run` 并运行一次，才能更新开机恢复服务；已自行修改密码时加 `--keep-passwords`。
 启动器支持 Python 2.7、Python 3 和 EL8 自带的 platform-python，最小化系统不需要另装 tar。
 也保留 tar.gz 包：解压后执行 `sudo bash ventoy-manual-setup/install.sh`。
@@ -54,3 +56,8 @@ sudo journalctl -u ventoy-manual-init.service
 配置/账户备份：`/var/lib/ventoy-center/manual-init/`（仅 root 可读）。
 主机名备份：`/var/backups/safe-server-init/`。驱动回退按包内 `e610/INSTALL.zh-CN.md`；源码构建的安装器位于 `/var/lib/e610-ixgbe/manual-系统-内核/payload/install.sh --rollback`。
 手动安装中已经更新过的内核不会降回 ISO 版本；原版 ISO 的安装器本身也不会因下载此包而自动获得 E610 驱动。若安装器阶段没有网卡，使用已适配的 E610 ISO 或安装器驱动注入入口。
+## 当前终端的主机名显示
+
+直接运行 `.run` 并成功改名后，前台终端会自动进入新的交互 Bash，立即显示新主机名，保留当前目录。通过 sudo 运行时使用原调用账户。系统主机名实际由 hostnamectl 设置并检查，刷新只处理 Bash 提示符缓存。
+
+新 shell 退出后会回到等待 setup 的原 shell；后台、重定向输出、只读检查、软件模式或失败/待完成状态不打开 shell。直接运行解压后的 `install.sh` 时，原终端可执行 `exec bash` 或重新登录刷新提示符。
