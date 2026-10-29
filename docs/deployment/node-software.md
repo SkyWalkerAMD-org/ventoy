@@ -48,7 +48,7 @@ sudo ./ventoy-linux-setup.run --hostname server01
 
 `--offline` 不连接软件库。从 alpha.32 起，附加网卡等待 DHCP、驱动等待重启等 `PENDING` 检查不会跳过用户请求的软件安装；已有网络可用时继续下载、安装并验证。软件失败明确报错并保留请求，用户再次运行或配置恢复服务可以重试；成功后清除请求，正常后续重启不再从软件库更新。新增软件、升级软件都由用户主动再次运行 setup 触发。
 
-## 长期密钥自动接入节点（未发布）
+## 长期密钥自动接入节点（alpha.45）
 
 已核对 [sckocstp 0.8.6](https://github.com/SkyWalkerAMD-org/sckocst-pub/blob/1d6310c50341cf3e07e4aef67e3f0ca79502196b/docs/releases/0.8.6.md) 和 [fyhocsys 0.8.6](https://github.com/SkyWalkerAMD-org/fyhocsys/blob/c66dc8febdbaeda81ee144c9afacbe2e02bfb13d/docs/releases/0.8.6.md)。两者支持同一条长期密钥命令在多台机器自动登记；中心和节点都需要 0.8.6 或更新。
 

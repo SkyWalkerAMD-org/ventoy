@@ -1,8 +1,10 @@
 # Ventoy Center 当前进度
 
-本轮源码、回归脚本和文档统一同步到验证分支 `codex/setup-reinstall-integration`。本地 Codex 接续入口：[2026-10-29 验证交接](local-validation-2026-10-29.md)，包含拉取、测试命令、私有配置和云端验证边界；生产尚未部署。
+alpha.45 集成旧存储重装、DHCP 链路延迟适配、软件包副本保留和长期密钥节点接入。2026-10-29 已在 Windows 工作区复测 Go 全量测试、vet 和 JavaScript 语法，并在中心的隔离目录复测 Linux 脚本与模板。一次性交接文档已移除；复现方法保留于[开发与验证](testing.md)，私有配置方法见[软件与节点接入](../deployment/node-software.md)。
 
-## setup 长期密钥接入与包副本保留（2026-10-29，未发布）
+本轮 Linux 检查包括单盘/双盘各 39 个存储场景、56 个单盘及 54 个 RAID 配方、660 项容量档位和 220 项文件系统配方、DHCP 12 项回归，以及 root 身份运行的节点接入隔离检查。生产发布证据集中保存于中心 `e610-pxe-media-20261023/integration45-20261029/`；只有该目录的 `deployment.json` 与实机验收记录完成，才表示对应生产更新和实机验证完成。以下云端结果保留原有测试范围，不扩大为全部发行版或硬件的实机通过。
+
+## setup 长期密钥接入与包副本保留（alpha.45）
 
 核对 sckocstp 0.8.6（`1d6310c50341cf3e07e4aef67e3f0ca79502196b`）与 fyhocsys 0.8.6（`c66dc8febdbaeda81ee144c9afacbe2e02bfb13d`）源码和发布说明。两者的长期接入均使用官方 `join --key-file`；中心生成/显示/作废密钥，新节点使用主机名和 DMI 序列号登记，同机重装按中心记录的 DMI UUID 和 5 分钟离线条件重新绑定，重复执行不重建同一中心的本机连接。
 
@@ -16,7 +18,7 @@ Go 全量测试、vet、race 通过；Python 软件回归覆盖两种包格式�
 
 接入测试使用隔离节点命令与中心响应夹具；没有向用户真实中心登记节点或进行生产开机、心跳、压测验收。公开发布资产读取返回 404；尝试构建原版 0.8.6 节点时，SQLite 依赖的下载重定向被云端网络策略拒绝，未绕过限制。当前云端没有生产内网通道。复用配置和部署方法见[软件与节点接入](../deployment/node-software.md)，本轮证据在 `/workspace/ventoy-validation/node-setup-report.md`。
 
-## setup DHCP 链路延迟适配（2026-10-29，未发布）
+## setup DHCP 链路延迟适配（alpha.45）
 
 根据 Ubuntu 22.04.3 的 DHCP 问题反馈，复现了 setup 的一个独立缺陷：新网卡启用后只等待 1 秒，若此时还没有 carrier，包装脚本跳过 Netplan 生成配置的发布/加载；因此 YAML 和 managed.tsv 已存在，稍后接通链路仍无法申请地址。现在先加载所选新增网卡的 networkd 配置或 Netplan/NetworkManager autoconnect 配置，再等待链路，不重启全局网络、不转换已有静态配置。生成、复制、重载和激活失败均明确保留待处理状态，修正了条件函数中失败状态被后续清理命令掩盖的问题。
 
@@ -26,7 +28,7 @@ Go 全量测试、vet、race 通过；Python 软件回归覆盖两种包格式�
 
 证据：`/workspace/ventoy-validation/jammy-dhcp-final/boot1.log`、`boot2.log`、`manual-setup-final.log`，说明见 `dhcp-report.md`。
 
-## 云端旧存储重装回归（2026-10-29，未发布）
+## 云端旧存储重装回归（alpha.45）
 
 继续适配已有系统盘：安装环境启用旧 swap 后，客户端原先直接拒绝目标盘，Python 客户端还将 `[SWAP]` 与真实挂载混为一谈。现支持显式确认的单盘/双盘重建：领取前仅检查，领取后重新检查完整成员、挂载、设备身份和 LVM 状态，随后只关闭所选块设备上的 swap。未选 swap 保持启用；真实挂载、只读盘、跨未选磁盘的存储，以及关闭失败或关闭后仍启用，均停止安装。
 
