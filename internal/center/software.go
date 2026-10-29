@@ -133,6 +133,9 @@ func (s *Server) addSoftwareClient(files map[string][]byte) {
 	c := map[string]any{"schema": 1, "enabled": s.config.SoftwareDir != ""}
 	if s.config.SoftwareDir != "" {
 		c["url"], c["token"] = s.config.PublicURL, s.softwareToken()
+		// Capability only: private join settings are fetched at execution time,
+		// so key rotation never requires rebuilding setup or installer media.
+		c["node_join"] = true
 		if len(s.ca) > 0 {
 			files["software-ca.crt"] = s.ca
 			c["ca_file"] = "software-ca.crt"

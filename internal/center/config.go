@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-const Version = "0.3.0-alpha.44"
+const Version = "0.3.0-alpha.45"
 
 type Config struct {
 	Listen                   string         `json:"listen"`
@@ -25,6 +25,7 @@ type Config struct {
 	SoftwareDir              string         `json:"software_dir,omitempty"`
 	SoftwareRPMMinEL         map[string]int `json:"software_rpm_min_el,omitempty"`
 	FYHOCUnlockPasswordFile  string         `json:"fyhoc_unlock_password_file,omitempty"`
+	NodeJoinConfigFile       string         `json:"node_join_config_file,omitempty"`
 	LinuxSetupPreload        bool           `json:"linux_setup_preload,omitempty"`
 	AdminTokenFile           string         `json:"admin_token_file"`
 	TLSCert                  string         `json:"tls_cert_file"`
@@ -108,9 +109,17 @@ func loadConfig(path string) (Config, error) {
 		return c, errors.New("linux_admin_username must be a valid non-root administrator name")
 	}
 	base, _ := filepath.Abs(filepath.Dir(path))
-	for _, p := range []*string{&c.DataDir, &c.ISODir, &c.PackageDir, &c.SoftwareDir, &c.FYHOCUnlockPasswordFile, &c.AdminTokenFile, &c.TLSCert, &c.TLSKey, &c.BootstrapCA, &c.IVentoyRoot} {
+	for _, p := range []*string{&c.DataDir, &c.ISODir, &c.PackageDir, &c.SoftwareDir, &c.FYHOCUnlockPasswordFile, &c.NodeJoinConfigFile, &c.AdminTokenFile, &c.TLSCert, &c.TLSKey, &c.BootstrapCA, &c.IVentoyRoot} {
 		if *p != "" && !filepath.IsAbs(*p) {
 			*p = filepath.Join(base, *p)
+		}
+	}
+	if c.NodeJoinConfigFile != "" {
+		if c.SoftwareDir == "" {
+			return c, errors.New("node_join_config_file requires software_dir")
+		}
+		if !nodeJoinFileOutsideSoftware(c.NodeJoinConfigFile, c.SoftwareDir) {
+			return c, errors.New("node_join_config_file must be outside software_dir")
 		}
 	}
 	if c.FYHOCUnlockPasswordFile != "" && c.SoftwareDir != "" {

@@ -21,7 +21,9 @@ tools 根目录中的压缩包、独立工具和其他普通文件原样保存�
 
 普通文件分发需要 alpha.37 或更新的管理端和 setup。全局预置包更新后，新装节点直接运行预置 `.run` 即可；已有节点需更新一次 `.run`，后续 tools 内容变化自动读取最新清单。`copy_files` 为新增字段，旧客户端继续处理已有软件包和压缩包，不会因独立工具加入而报格式错误。文件名使用 ASCII 字母或数字开头，其余可包含字母、数字、点、下划线、加号、连字符和波浪号，总长不超过 248。仅发布根目录的普通文件；隐藏文件、符号链接、子目录、`.part/.partial/.tmp/.download/.crdownload/.swp/.bak` 和 `~` 临时后缀，以及 `ventoy-linux-setup.run` 本身及其附属文件不作为原样文件分发。此目录专用于向节点分发软件和工具。
 
-未变化的压缩包校验后跳过下载；中心替换同名文件后，下一次运行原子替换节点上由 setup 管理的旧文件。节点文件被用户改动或同名文件不属于 setup 时保留并报错。中心删除文件不会删除节点已有副本。压缩包与软件包合计最多 256 个文件、8 GiB，单文件最多 4 GiB；目录中未完成的 `.part` 文件不发布。`--list-software` 列出两类文件但不传输，`--check-software` 同时回读软件版本与已分发压缩包摘要。
+未变化的压缩包校验后跳过下载；中心替换同名文件后，下一次运行原子替换节点上由 setup 管理的旧文件。节点文件被用户改动或同名文件不属于 setup 时保留并报错。中心删除文件不会删除节点已有副本。压缩包与软件包合计最多 256 个文件、8 GiB，单文件最多 4 GiB；目录中未完成的 `.part` 文件不发布。`--list-software` 列出文件但不传输，`--check-software` 同时回读软件版本与已分发文件摘要。
+
+2026-10-29 未发布改动：匹配组内的 DEB/RPM 也以原文件名保存在 `/root/ventoy-tools/`（`0600`），安装直接复用已校验的副本。专属目录的软件包在目标机按文件名保存；只保留本机匹配组，不把其他系统的软件包下载过来。软件已装好但旧 setup 已清理包文件的，第一次运行新版会补传；之后校验一致就跳过下载。安装或节点接入失败时仍保留文件供重试，`--check-software` 会检查副本丢失或变化。依赖解析从系统源额外获取的依赖包仍由系统包管理器管理。
 
 ## 节点执行
 
@@ -45,6 +47,45 @@ sudo ./ventoy-linux-setup.run --hostname server01
 ```
 
 `--offline` 不连接软件库。从 alpha.32 起，附加网卡等待 DHCP、驱动等待重启等 `PENDING` 检查不会跳过用户请求的软件安装；已有网络可用时继续下载、安装并验证。软件失败明确报错并保留请求，用户再次运行或配置恢复服务可以重试；成功后清除请求，正常后续重启不再从软件库更新。新增软件、升级软件都由用户主动再次运行 setup 触发。
+
+## 长期密钥自动接入节点（alpha.45）
+
+已核对 [sckocstp 0.8.6](https://github.com/SkyWalkerAMD-org/sckocst-pub/blob/1d6310c50341cf3e07e4aef67e3f0ca79502196b/docs/releases/0.8.6.md) 和 [fyhocsys 0.8.6](https://github.com/SkyWalkerAMD-org/fyhocsys/blob/c66dc8febdbaeda81ee144c9afacbe2e02bfb13d/docs/releases/0.8.6.md)。两者支持同一条长期密钥命令在多台机器自动登记；中心和节点都需要 0.8.6 或更新。
+
+在相应节点中心“部署与操作 → 自动接入”生成长期密钥，取命令中的 `url`、`pin`、`key`。在 Ventoy Center 的 `config.json` 增加：
+
+```json
+{
+  "software_dir": "/home/ventoy-center/iventoy/tools",
+  "node_join_config_file": "/home/ventoy-center/private/node-join.json"
+}
+```
+
+私有文件内容如下（占位值必须替换成中心生成的实际值）：
+
+```json
+{
+  "schema": 1,
+  "nodes": [
+    {
+      "program": "fyhocsys",
+      "url": "https://CENTER_ADDRESS",
+      "pin": "CENTER_CERTIFICATE_SHA256_64_HEX",
+      "key": "LONG_TERM_JOIN_KEY"
+    }
+  ]
+}
+```
+
+文件设为服务账户所有、权限 `0600`，放在 `software_dir` 外的私有目录；不能放进源码、tools、ISO 或 setup。`program` 可选 `fyhocsys`、`sckocstp`，按需要填写其中一个或各一个，各用对应中心的密钥。未列出的程序不会自动接入。把需要安装的 0.8.6+ 节点 DEB/RPM 放进匹配的软件组。首次新增配置字段需要重启 Ventoy Center，并更新已有节点及安装入口使用的 setup；之后只修改私有 JSON 即可轮换密钥、地址和指纹，无需重打包。
+
+节点开机后执行普通 `setup` / `ventoy-linux-setup.run`，或 `--software`：安装完成后通过 HTTPS 的独立鉴权接口读取接入参数，调用官方 `join --key-file`，临时密钥文件仅 root 可读、用后删除。下载凭证也授予读取接入密钥的权限，应按节点凭证保管。结果只保存程序名、地址和证书指纹。`--list-software` 不读取密钥，`--offline` 不做在线接入，`--check-software` 仅检查本地配置、worker 和服务状态，不向中心重复登记。
+
+setup 的固定顺序是：输入/确认唯一主机名 → 应用并回读运行值和 `/etc/hostname` → 安装软件 → 绑定节点。主机名修改失败（包括命令返回成功但名称实际未改变）、仍有 `hostname-pending`、运行值与持久值不一致时，不执行绑定；首次接入遇到 `ubuntu`、`debian`、`rocky` 等常见默认名称也会拒绝，先运行完整 `setup --hostname 唯一名称`。启动恢复先完成上次的主机名请求，再重试软件和接入。`--software` 使用已有主机名；不能带 `--hostname` 让该参数被静默忽略，需要改名时先走完整 setup。
+
+资产编号使用节点程序读取的 DMI 序列号；读不到有效编号时明确失败，需在该机器上用官方命令加 `--serial` 指定资产编号，再运行 setup。已经绑定同一中心的节点重复执行不重复登记，也不重启运行中的节点服务；绑定其他中心或改名造成不一致时保留原配置并停止接入。重装后的重新绑定完全遵守上游条件：DMI UUID 与中心记录相同、节点至少 5 分钟没有联系；setup 不绕过这些条件。
+
+接入失败返回软件失败，完整 setup 的开机恢复服务保留重试请求；已经完成的包安装及文件副本可复用。成功后检查官方节点配置/worker、证书指纹与启用且运行中的 `fyhocsys-node.service` / `sckocstp-node.service`，日常开机由节点自身服务连接中心。这里的检查不等于远端已收到心跳或压测功能验收；真实中心在线状态仍在对应控制台核对。FYHOC 的解锁口令是下面另一项独立功能。
 
 ## FYHOC 每次开机自动解锁（alpha.42）
 

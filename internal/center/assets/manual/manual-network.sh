@@ -23,30 +23,32 @@ activate() {
         netplan)
             # Generate in isolation. Publish only the new NIC's backend file,
             # avoiding netplan apply and a global NetworkManager reload.
-            temp=$(mktemp -d /run/ventoy-netplan.XXXXXXXX)
-            mkdir -p "$temp/etc/netplan"
-            target=$(_si_target "$nic")
-            cp -p "$target" "$temp/etc/netplan/"
+            temp=$(mktemp -d /run/ventoy-netplan.XXXXXXXX) || return 1
+            target=$(_si_target "$nic") || { rm -rf "$temp"; return 1; }
+            if ! mkdir -p "$temp/etc/netplan" || ! cp -p "$target" "$temp/etc/netplan/"; then rm -rf "$temp"; return 1; fi
             if ! netplan generate --root-dir "$temp"; then rm -rf "$temp"; return 1; fi
             if [[ $SI_RENDERER == networkd ]]; then
                 filename=10-netplan-$nic.network
                 [[ -f "$temp/run/systemd/network/$filename" ]] || { rm -rf "$temp"; return 1; }
-                install -d -m 0755 /run/systemd/network
-                install -m 0644 "$temp/run/systemd/network/$filename" "/run/systemd/network/$filename"
-                networkctl reload
-                networkctl reconfigure "$nic"
+                if ! install -d -m 0755 /run/systemd/network ||
+                   ! install -m 0644 "$temp/run/systemd/network/$filename" "/run/systemd/network/$filename" ||
+                   ! networkctl reload || ! networkctl reconfigure "$nic"; then rm -rf "$temp"; return 1; fi
             else
                 filename=netplan-$nic.nmconnection
                 [[ -f "$temp/run/NetworkManager/system-connections/$filename" ]] || { rm -rf "$temp"; return 1; }
-                install -d -m 0755 /run/NetworkManager/system-connections
-                install -m 0600 "$temp/run/NetworkManager/system-connections/$filename" "/run/NetworkManager/system-connections/$filename"
-                nmcli connection load "/run/NetworkManager/system-connections/$filename"
+                if ! install -d -m 0755 /run/NetworkManager/system-connections ||
+                   ! install -m 0600 "$temp/run/NetworkManager/system-connections/$filename" "/run/NetworkManager/system-connections/$filename" ||
+                   ! nmcli connection load "/run/NetworkManager/system-connections/$filename"; then rm -rf "$temp"; return 1; fi
                 uuid=$(sed -n 's/^uuid=//p' "/run/NetworkManager/system-connections/$filename")
-                if [[ -n $uuid ]]; then nmcli --wait 45 connection up uuid "$uuid" ifname "$nic"
-                else nmcli --wait 45 connection up "netplan-$nic" ifname "$nic"; fi
+                # Load autoconnect now even if link negotiation/cable insertion
+                # happens later; an explicit up would time out without carrier.
+                if [[ $(cat "/sys/class/net/$nic/carrier" 2>/dev/null || true) == 1 ]]; then
+                    if [[ -n $uuid ]]; then nmcli --wait 45 connection up uuid "$uuid" ifname "$nic" || { rm -rf "$temp"; return 1; }
+                    else nmcli --wait 45 connection up "netplan-$nic" ifname "$nic" || { rm -rf "$temp"; return 1; }; fi
+                fi
             fi
             rm -rf "$temp";;
-        networkd) networkctl reload; networkctl reconfigure "$nic";;
+        networkd) networkctl reload && networkctl reconfigure "$nic";;
         ifupdown|el-ifcfg) timeout 50 ifup "$nic";;
         *) return 1;;
     esac
@@ -163,7 +165,12 @@ HOOK
             # interfaces whose newly created profile is recorded above.
             ip link set dev "$nic" up
             sleep 1
-            [[ $(cat "/sys/class/net/$nic/carrier" 2>/dev/null || true) == 1 ]] || { echo "DHCP_SAVED_NO_CARRIER nic=$nic"; continue; }
+            # networkd must load the new .network even without carrier. Saving
+            # YAML alone leaves it unmanaged until a reboot/netplan apply.
+            # Netplan's NM backend likewise needs its autoconnect profile loaded.
+            if [[ $SI_BACKEND != netplan && $SI_BACKEND != networkd && $(cat "/sys/class/net/$nic/carrier" 2>/dev/null || true) != 1 ]]; then
+                echo "DHCP_SAVED_NO_CARRIER nic=$nic"; continue
+            fi
             if ! activate "$nic"; then echo "DHCP_ACTIVATION_PENDING nic=$nic"; pending=1; fi
         done < "$state/managed.tsv"
     fi

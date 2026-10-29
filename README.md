@@ -6,7 +6,7 @@
 
 安装完成后，运行新版 `sudo bash ventoy-linux-setup.run`，会从中心 `software_dir` 自动获取适合本机的 RPM / DEB 并安装或升级。包可直接集中存放，按架构和 EL 版本匹配；同一软件择新、同版本跳过、不降级。中心替换软件后再次执行即可。详见[节点软件分发](docs/deployment/node-software.md)。
 
-日常装机使用“PXE 选择系统版本 → 选择自动安装脚本 → 选择 ext4 / XFS → 自动安装”。文件系统按发行版默认选择：CentOS / Rocky / AlmaLinux / RHEL 为 XFS，Ubuntu / Debian 为 ext4，仍可手动切换。所选格式应用于 /、/tmp、/var、/home；/boot 保持 ext4、EFI 保持 FAT32。一块可用内置盘自动清空安装；多盘在 PXE 画面选盘并输入 `yes`，也可输入 `r`、两个盘号和 `yes`，重建双盘 RAID1 + LVM。单盘已有 LVM/软件 RAID 时也可选盘并输入 `yes` 重建，旧存储必须完整落在所选磁盘范围内，否则列出未选成员并停止。日常安装无需先登记带外地址或创建专属任务。详见 [PXE 菜单安装](docs/deployment/pxe-menu.md)。
+日常装机使用“PXE 选择系统版本 → 选择自动安装脚本 → 选择 ext4 / XFS → 自动安装”。文件系统按发行版默认选择：CentOS / Rocky / AlmaLinux / RHEL 为 XFS，Ubuntu / Debian 为 ext4，仍可手动切换。所选格式应用于 /、/tmp、/var、/home；/boot 保持 ext4、EFI 保持 FAT32。一块可用内置盘自动清空安装；多盘在 PXE 画面选盘并输入 `yes`，也可输入 `r`、两个盘号和 `yes`，重建双盘 RAID1 + LVM。单盘已有 LVM/软件 RAID 时也可选盘并输入 `yes` 重建（alpha.45 起还支持释放旧系统的活动 swap），旧存储必须完整落在所选磁盘范围内，否则列出未选成员并停止。日常安装无需先登记带外地址或创建专属任务。详见 [PXE 菜单安装](docs/deployment/pxe-menu.md)。
 
 配置统一 root 密码的 Ubuntu / Debian 新安装允许 root SSH 密码登录，初次启动后再次检查。Linux 自动安装设置主机名和启动网卡 DHCP，并预置 `safe-server-init`，用于安装后修改主机名及向未配置网卡补充 DHCP；保留现有网络配置与脚本的后端限制。
 

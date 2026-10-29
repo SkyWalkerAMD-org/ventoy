@@ -17,7 +17,11 @@ func TestRAIDPlanRejectsAmbiguousOrOutOfScopeDisks(t *testing.T) {
 	if err := validateStoragePlan(&plan, disks); err != nil {
 		t.Fatal(err)
 	}
-	for _, reason := range []string{"Mounted disk", "Active swap", "Read-only disk", "Duplicate disk serial", "Unknown storage state"} {
+	disks[0].Blocked = "Active swap"
+	if err := validateStoragePlan(&plan, disks); err != nil {
+		t.Fatal(err)
+	}
+	for _, reason := range []string{"Mounted disk", "Mounted disk or active swap", "Read-only disk", "Duplicate disk serial", "Unknown storage state"} {
 		bad := append([]PXEDisk(nil), disks...)
 		bad[1].Blocked = reason
 		if validateStoragePlan(&plan, bad) == nil {

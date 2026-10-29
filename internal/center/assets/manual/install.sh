@@ -39,6 +39,9 @@ No arguments applies the full configuration and installs/verifies the matching
 default software group. --apply remains a compatible alias for this default.
 Root-level archives and standalone tools from the software library are copied
 and verified in /root/ventoy-tools without extraction or execution.
+Matching DEB/RPM packages are retained there too, including on installation failure.
+Configured sckocstp/fyhocsys 0.8.6+ nodes join their pinned center after installation;
+their native services start on boot. Enrollment failures keep the setup retry request.
 --software installs that group alone; no account/network/hostname changes.
 The current persistent hostname is preserved unless --hostname NAME is given.
 An explicit hostname is applied once; later administrator changes are retained.
@@ -57,6 +60,10 @@ HELP
         exit 0;;
     *) exit 2;;
 esac
+if [[ -n "$name" && $mode != --apply ]]; then
+    echo '--hostname requires full setup; run setup --hostname NAME before software-only enrollment.' >&2
+    exit 2
+fi
 [[ $EUID == 0 && -d /run/systemd/system ]] || die 'Run as root in the installed, booted system.'
 [[ $(stat -Lc '%d:%i' /) == $(stat -Lc '%d:%i' /proc/1/root) ]] || die 'Do not run in a chroot.'
 [[ ! -e /run/anaconda && ! -e /run/casper && ! -e /lib/debian-installer ]] || die 'Do not run in the live installer.'
@@ -93,6 +100,7 @@ choose_hostname() {
     # software-only/check modes must never wait for console input.
     if [[ -z "$name" && -t 0 && -t 1 ]]; then
         printf 'Current hostname: %s\n' "$(cat /etc/hostname)"
+        echo 'Automatic node enrollment uses this hostname; choose a unique name for each machine.'
         local attempt
         for attempt in 1 2 3; do
             read -r -p 'New hostname (Enter to keep current): ' name || {
@@ -185,7 +193,9 @@ if [[ $mode == --resume ]]; then
     [[ ! -f "$state/hostname-pending" ]] || name=$(cat "$state/hostname-pending")
     case "${name,,}" in ''|localhost|localhost.localdomain) name=linux-$(cut -c1-8 /etc/machine-id);; esac
     if [[ -f "$state/hostname-pending" || $(cat /etc/hostname) != "$name" || $(hostname) != "$name" ]]; then
+        name=${name,,}
         bash "$here/safe-server-init.sh" hostname "$name" --update-hosts
+        [[ $(hostname) == "$name" && $(cat /etc/hostname) == "$name" ]] || die 'Requested hostname was not applied; node enrollment cannot run.'
     fi
     [[ $(hostname) == "$(cat /etc/hostname)" ]] || die 'Hostname verification failed.'
     cat /etc/hostname > "$state/hostname"

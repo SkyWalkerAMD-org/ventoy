@@ -86,7 +86,7 @@ inventory() {
             while read -r swap; do
                 [ "$(readlink -f "$swap")" != "$dev" ] || printf '%s\n' "$dev" > "$work/active-swap"
             done < "$work/swaps"
-            if [ -f "$work/active-swap" ]; then blocked='Active swap'; rm -f "$work/active-swap"; fi
+            if [ -f "$work/active-swap" ]; then storage_blocked='Active swap'; rm -f "$work/active-swap"; fi
             for holder in "$node"/holders/*; do [ ! -e "$holder" ] || storage_blocked='Active RAID or LVM'; done
             fs=$(blkid -o value -s TYPE "$dev" || true)
             case "$fs" in LVM2_member|linux_raid_member) storage_blocked='Existing LVM or RAID';; esac
@@ -160,7 +160,7 @@ choose_disk() {
     while [ "$index" -le "$disk_count" ]; do
         row="$work/disks/$index"
         status=$(sed -n '5p' "$row")
-        case "$status" in 'Existing LVM or RAID'|'Active RAID or LVM') status='Existing LVM/RAID: select to rebuild after membership checks';; esac
+        case "$status" in 'Existing LVM or RAID'|'Active RAID or LVM'|'Active swap') status='Old storage: select to rebuild after membership checks';; esac
         printf '%s. /dev/%s  %s GiB  %s  SERIAL=%s  %s\n' "$index" "$(sed -n '1p' "$row")" "$(sed -n '3p' "$row")" "$(sed -n '4p' "$row")" "$(sed -n '2p' "$row")" "$status" >&9
         index=$((index + 1))
     done
@@ -181,7 +181,7 @@ choose_disk() {
         if [ -z "$selected" ]; then printf 'Invalid disk number. Nothing has been erased.\n' >&9; continue; fi
         blocked=$(sed -n '5p' "$selected")
         rebuild=no
-        case "$blocked" in 'Existing LVM or RAID'|'Active RAID or LVM') rebuild=yes;; esac
+        case "$blocked" in 'Existing LVM or RAID'|'Active RAID or LVM'|'Active swap') rebuild=yes;; esac
         if { [ -n "$blocked" ] && [ "$rebuild" != yes ]; } || [ "$(sed -n '6p' "$selected")" != internal ]; then
             printf 'This disk cannot be selected: %s\n' "$(sed -n '5p' "$selected")" >&9
             continue
@@ -192,7 +192,7 @@ choose_disk() {
     [ -n "$serial" ] || fail 'No usable disk selected after 3 attempts'
     printf '\nSelected: /dev/%s  %s GiB  %s  SERIAL=%s\nALL DATA ON THIS DISK WILL BE ERASED. Other disks will not be selected for installation.\n' "$(sed -n '1p' "$selected")" "$(sed -n '3p' "$selected")" "$(sed -n '4p' "$selected")" "$serial" >&9
     if [ "$rebuild" = yes ]; then
-        printf 'Old LVM/RAID on this disk will be removed after membership checks. Storage spanning other disks will stop and list the affected disk; select all members for a rebuild.\n' >&9
+        printf 'Old partitions, swap and LVM/RAID on this disk will be removed after membership checks. Storage spanning other disks will stop and list the affected disk; select all members for a rebuild.\n' >&9
     fi
     attempt=1
     while [ "$attempt" -le 3 ]; do
@@ -236,7 +236,7 @@ VC_MEMBERS
         fi
         raid_valid=yes
         for row in "$first_row" "$second_row"; do
-            case "$(sed -n '5p' "$row")" in ''|'Existing LVM or RAID'|'Active RAID or LVM') ;; *) raid_valid=no;; esac
+            case "$(sed -n '5p' "$row")" in ''|'Existing LVM or RAID'|'Active RAID or LVM'|'Active swap') ;; *) raid_valid=no;; esac
             [ "$(sed -n '6p' "$row")" = internal ] && [ "$(sed -n '3p' "$row")" -ge 24 ] || raid_valid=no
             member=$(sed -n '2p' "$row")
             case "$member" in ''|*[!A-Za-z0-9_.:/-]*) raid_valid=no;; esac
@@ -296,7 +296,7 @@ fi
 case "$filesystem" in ext4|xfs) ;; *) fail 'Invalid authorized filesystem';; esac
 if [ -z "$serial" ]; then
     old_storage=no
-    case "$only_blocked" in 'Existing LVM or RAID'|'Active RAID or LVM') old_storage=yes;; esac
+    case "$only_blocked" in 'Existing LVM or RAID'|'Active RAID or LVM'|'Active swap') old_storage=yes;; esac
     if [ "$policy" = single-or-console ] && { [ "$internal_count" -gt 1 ] || [ "$old_storage" = yes ]; }; then
         [ -z "$automatic" ] || fail 'Controller and client selected different disks'
         choose_disk
