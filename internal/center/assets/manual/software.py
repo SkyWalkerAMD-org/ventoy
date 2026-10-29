@@ -31,6 +31,7 @@ except ImportError:
 HERE = os.path.dirname(os.path.realpath(__file__))
 STATE = '/var/lib/ventoy-center/software'
 ARCHIVES = '/root/ventoy-tools'
+STAGING = '/var/tmp'
 RPM_IDS = ('centos', 'rocky', 'almalinux', 'rhel', 'ol', 'scientific', 'anolis')
 HASH = re.compile(r'^[0-9a-f]{64}$')
 NAME = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9.+_-]*$')
@@ -473,7 +474,7 @@ def save_json(data, name):
 
 
 def archive_matches(item):
-    path = os.path.join(ARCHIVES, item['path'])
+    path = os.path.join(ARCHIVES, item['path'].rsplit('/', 1)[-1])
     if not os.path.lexists(path):
         return False
     info = os.lstat(path)
@@ -495,7 +496,7 @@ def archive_directory():
         raise RuntimeError('Archive destination must be a private, non-symlink directory: ' + ARCHIVES)
 
 
-def sync_archives(client, items):
+def sync_archives(client, items, packages=False):
     if not items:
         return
     archive_directory()
@@ -505,7 +506,7 @@ def sync_archives(client, items):
         with open(record) as f:
             records = json.load(f)
     for item in items:
-        name = item['path']
+        name = item['path'].rsplit('/', 1)[-1]
         dest = os.path.join(ARCHIVES, name)
         if archive_matches(item):
             print('FILE_VERIFIED: %s (unchanged; no download)' % dest)
@@ -529,7 +530,8 @@ def sync_archives(client, items):
             finally:
                 if os.path.exists(temp):
                     os.unlink(temp)
-            print('FILE_SAVED: %s (SHA-256 verified; not extracted or executed)' % dest)
+            purpose = 'package retained for installation and reuse' if packages else 'not extracted or executed'
+            print('FILE_SAVED: %s (SHA-256 verified; %s)' % (dest, purpose))
         records[name] = item
         save_json(records, 'archive-state.json')
 
@@ -555,9 +557,13 @@ def execute(mode):
             raise RuntimeError('No successfully installed matching software group to verify')
         verify(report['packages'], family)
         verify_archives(report.get('archives', []))
+        verify_archives(report.get('package_files', []))
         if report.get('fyhoc_unlock'):
             import fyhoc_unlock
             fyhoc_unlock.check()
+        if report.get('node_join'):
+            import node_join
+            node_join.check(report['node_join'])
         print('VERIFIED: %s packages are at the requested version or newer.' % len(report['packages']))
         return
     with open(os.path.join(HERE, 'software-client.json')) as f:
@@ -569,9 +575,6 @@ def execute(mode):
     manifest = client.manifest(wanted)
     group = manifest['group']
     archives = manifest.get('archives', []) + manifest.get('copy_files', [])
-    if group is None and not archives:
-        print('SKIPPED: no default software group for %(os)s %(version)s %(arch)s.' % wanted)
-        return
     files = group['files'] if group else []
     print('Default software group: %s (%s packages)' % (group['id'] if group else 'none', len(files)))
     for f in files:
@@ -579,6 +582,9 @@ def execute(mode):
     for f in archives:
         print('  FILE (copy only): %s  %s bytes  sha256=%s' % (f['path'], f['size'], f['sha256']))
     if mode == '--list-software':
+        return
+    if group is None and not archives and not config.get('node_join'):
+        print('SKIPPED: no default software group for %(os)s %(version)s %(arch)s.' % wanted)
         return
     # Immutable manifest hashes plus native installed versions allow repeat runs
     # to avoid retransferring already verified payloads. A replaced/new file
@@ -594,19 +600,18 @@ def execute(mode):
             unchanged = last['packages']
     except (IOError, ValueError, RuntimeError):
         pass
-    work = tempfile.mkdtemp(prefix='ventoy-software-', dir='/var/tmp')
+    work = tempfile.mkdtemp(prefix='ventoy-software-', dir=STAGING)
     report = dict(status='failed', target=wanted, group=group['id'] if group else None, manifest=manifest,
-                  time=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), packages=[], archives=archives)
+                  time=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), packages=[], archives=archives,
+                  package_files=files)
     try:
         sync_archives(client, archives)
-        space = os.statvfs(work)
-        if space.f_bavail * space.f_frsize < sum(f['size'] for f in files) + 128*1024**2:
-            raise RuntimeError('Insufficient free space to stage software packages')
+        # Also retain packages whose installed versions already satisfy the
+        # group. Old setups discarded them; the first new run backfills copies.
+        sync_archives(client, files, packages=True)
         candidates = []
         for item in (files if unchanged is None else []):
-            dest = os.path.join(work, item['path'].split('/')[-1])
-            print('Downloading and verifying: ' + item['path']);sys.stdout.flush()
-            client.download(item, dest)
+            dest = os.path.join(ARCHIVES, item['path'].split('/')[-1])
             p = metadata(dest, family, wanted['arch'])
             p['sha256'] = item['sha256']
             if family == 'rpm':
@@ -622,12 +627,17 @@ def execute(mode):
         if os.path.isdir('/var/lib/ventoy-center/kernel-policy'):
             run(['sh', policy, '--check'], echo=True)
         verify_archives(archives)
+        verify_archives(files)
         if any(name.split(':')[0] == 'fyhoc' for name in installed(family)):
             import fyhoc_unlock
             report['fyhoc_unlock'] = fyhoc_unlock.configure(client)
+        if config.get('node_join'):
+            import node_join
+            nodes = node_join.fetch(client)
+            report['node_join'] = node_join.configure(nodes, set(name.split(':')[0] for name in installed(family)))
         report['status'], report['changed'] = 'verified', changed
         if unchanged is not None:
-            print('VERIFIED: unchanged software group; installed versions checked; no package download or installation needed.')
+            print('VERIFIED: unchanged software group; installed versions and retained package files checked; no installation needed.')
         print('VERIFIED: %s packages installed; %s changed; kernel package set preserved.' % (len(report['packages']), changed))
     except Exception as e:
         report['error'] = str(e)

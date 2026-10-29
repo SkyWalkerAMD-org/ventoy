@@ -18,7 +18,7 @@ const storageSingleRebuild = "single-rebuild"
 
 func existingStorage(reason string) bool {
 	switch reason {
-	case "Existing LVM/RAID: prepare storage separately", "Existing LVM or RAID", "Active RAID or LVM":
+	case "Existing LVM/RAID: prepare storage separately", "Existing LVM or RAID", "Active RAID or LVM", "Active swap":
 		return true
 	}
 	return false
@@ -102,8 +102,9 @@ func validateStoragePlan(plan *StoragePlan, disks []PXEDisk) error {
 				return errors.New("Rebuild targets must be internal disks of at least 120 GB")
 			}
 			// The eventual installer guard independently verifies full LVM/MD
-			// membership before any destructive claim. Mounts, swap, external
-			// disks, ambiguous identifiers and unknown blocks cannot be bypassed.
+			// membership before any destructive claim. Only a confirmed rebuild
+			// may release selected old swap; mounts, external disks, ambiguous
+			// identifiers and unknown blocks cannot be bypassed.
 			if disk.Blocked != "" && !existingStorage(disk.Blocked) {
 				return fmt.Errorf("Rebuild target cannot be selected: %s", disk.Blocked)
 			}

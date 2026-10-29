@@ -20,6 +20,10 @@ if sys.platform == 'win32':
     print('SKIP: hostname shell regression runs on Linux CI')
     sys.exit(0)
 
+for mode in ('--software', '--list-software', '--check-software', '--resume'):
+    result = subprocess.run(['bash', str(ROOT/'internal/center/assets/manual/install.sh'), mode, '--hostname', 'node-intended'], capture_output=True, text=True)
+    assert result.returncode == 2 and '--hostname requires full setup' in result.stderr, result
+
 with tempfile.TemporaryDirectory(prefix='ventoy-hostname-') as temp:
     root = Path(temp)
     state = root / 'state'
@@ -35,6 +39,7 @@ set -eu
 printf '%s\\n' "$*" >> "$scratch/calls"
 [[ $1 == hostname && $3 == --update-hosts ]] || exit 98
 [[ $2 != invalid_name ]] || exit 2
+[[ ${fixture_skip_hostname:-0} != 1 ]] || exit 0
 name=${2,,}
 printf '%s\\n' "$name" > "$scratch/etc/hostname"
 printf '%s\\n' "$name" > "$scratch/runtime"
@@ -85,7 +90,7 @@ hostname() { cat "$scratch/runtime"; }
     # both the check and repeated service/interactive resumes.
     run('name=Explicit-New\n' + request + '\n' + transaction)
     verify('explicit-new')
-    assert calls() == ['hostname Explicit-New --update-hosts']
+    assert calls() == ['hostname explicit-new --update-hosts']
     assert not (state / 'hostname-pending').exists()
     rename('operator-later')
     for _ in range(2):
@@ -126,7 +131,41 @@ hostname() { cat "$scratch/runtime"; }
     verify('recovered')
     assert not (state / 'hostname-pending').exists()
 
+    # The software stage includes enrollment. It must observe the requested
+    # hostname in both places, after the pending request was consumed. A boot
+    # retry follows the same order, and even a lying successful helper cannot
+    # let enrollment use the old/default hostname.
+    completion = source[source.index('[[ $(systemctl get-default)'):]
+    assert source.index('    choose_hostname\n') < source.index('    # The current persistent hostname')
+    assert source.index('    # The current persistent hostname') < source.index(check) < source.index(completion)
+    enrollment = '''
+pending=0; mode=--resume; offline=0
+systemctl() { echo multi-user.target; }
+software_action() {
+    [[ $(hostname) == "$fixture_expected" && $(cat /etc/hostname) == "$fixture_expected" ]]
+    [[ ! -e "$state/hostname-pending" ]]
+    printf '%s\\n' "$(hostname)" >> "$scratch/bindings"
+}
+'''
+    rename('ubuntu')
+    (state / 'software-request').write_text('1\n')
+    run('fixture_expected=node-final\nname=node-final\n' + enrollment + request + transaction + check + '\n' + completion)
+    assert (root / 'bindings').read_text().splitlines() == ['node-final']
+    rename('ubuntu')
+    (state / 'hostname-pending').write_text('node-after-reboot\n')
+    (state / 'software-request').write_text('1\n')
+    run('fixture_expected=node-after-reboot\n' + enrollment + transaction + check + '\n' + completion)
+    assert (root / 'bindings').read_text().splitlines() == ['node-final', 'node-after-reboot']
+    for name, skip, code in [('invalid_name', 0, 2), ('never-applied', 1, 1)]:
+        rename('ubuntu')
+        (state / 'hostname-pending').write_text(name + '\n')
+        (state / 'software-request').write_text('1\n')
+        run('export fixture_skip_hostname=%s\nfixture_expected=%s\n' % (skip, name) + enrollment + transaction + check + '\n' + completion, code)
+        assert (root / 'bindings').read_text().splitlines() == ['node-final', 'node-after-reboot']
+        assert (state / 'hostname-pending').exists() and (state / 'software-request').read_text() == '1\n'
+
 print('PASS: hostname edits survive stale setup state, explicit requests apply once, boot retries and read-only checks preserve administrator choices')
+print('PASS: software/enrollment follows the final hostname on initial setup and boot retry; hostname failure or false success cannot bind the old name')
 
 # A real pseudo-terminal exercises the default interactive experience, while
 # pipe-based automation, explicit arguments and boot recovery stay unattended.

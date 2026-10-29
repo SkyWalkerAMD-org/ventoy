@@ -1,5 +1,15 @@
 # 开发与验证
 
+本轮强制重装、DHCP、长期密钥和包保留的本地接续步骤见 [2026-10-29 验证交接](local-validation-2026-10-29.md)。
+
+## 长期接入与安装包保留（2026-10-29，未发布）
+
+`TestNodeJoin*` 检查独立鉴权、私有文件权限、路径/目录别名隔离、两种程序的输入格式、轮换及凭据不进入清单或 setup。`scripts/validate_node_join.py` 使用真实子进程和临时密钥文件验证两种节点命令、重复执行、旧版本拒绝、错误与超时清理、日志不含密钥、失败重试，以及连接/worker/服务失败不误报成功；root 环境另生成真实 X.509 证书核对持久连接的指纹、主机名和 `0600` 权限。
+
+`scripts/validate_software.py` 增加 DEB/RPM 的副本保留、旧结果补传、失败后复用与用户改动保护。`scripts/validate_package_retention.py` 只允许在有 `/run/ventoy-policy-disposable-root` 标记的隔离 root 中运行，通过本地 HTTP 服务下载真实夹具包，再调用目标系统的 APT/RPM 安装；验证安装后原文件、重复执行、缺失补传且不重装、改动保护。CI 在现有原生包管理器容器内运行该检查。
+
+本轮云端用 Ubuntu 22.04 和 Rocky Linux 9 验证真实 DEB/RPM 流程。接入测试的中心响应、节点程序和 systemd 状态是隔离夹具；不代表已接入用户生产中心、收到真实心跳、完成开机或压测验收。上游接口依据两个仓库的 0.8.6 源码；当前环境无法连到用户的内网中心。
+
 ```sh
 go test ./...
 go vet ./...
@@ -16,6 +26,22 @@ alpha.33 增加 `TestCapacityTierLayout` 和 `scripts/validate_storage_layouts.p
 账户策略遍历所有 Linux profile，确认 `user` 和 root 使用同一已配置密码、root 密码未锁定及 SSH 密码策略已生成。手动 setup 回归覆盖旧 admin 完成标记迁移、新版重复执行不重置密码、保留密码选项，以及系统 UID 保护。实际控制台与 SSH 登录、安装后卷大小和正常重启另以隔离完整安装及物理节点证据记录。
 
 此测试只执行授权钩子，不执行安装器、真实块设备、磁盘分区或外部网络操作。保留旧接入任务测试用于兼容性；新建 `enroll: true` 必须拒绝。
+
+`scripts/validate_manual_network.py` 执行真实 setup 网络包装脚本，隔离模拟 networkd / NetworkManager 的 12 个场景，检查迟到链路时先加载持久配置、失败状态传播与重试、已有主接口保留，以及有地址后重复执行不重新激活。已由 `validate_manual_setup.py` 自动运行；此隔离检查不修改测试宿主的网卡。真实 Ubuntu 虚拟机租约与重启证据另记于进度页。
+
+### 云端旧存储重装检查
+
+`scripts/validate_raid_guard.py` 对单盘重建和双盘 RAID1 各执行 39 个隔离场景，覆盖同名但 UUID 不同的独立卷组、相同 UUID 的克隆卷组、目标卷组名称冲突、缺失身份/成员、LVM/MD 工具失败、活动 holder、挂载和 swap。卷组范围按 UUID 判断；单纯同名不扩大清盘范围，真正跨盘的成员仍必须全部选中。实际渲染的领取授权及后续准备步骤另检查授权失败不写、授权成功才按 UUID 改名、存储变化中止、临时名称冲突和改名失败。swap 预检不改变启用状态；只有成功领取才关闭所选块设备上的 swap。用例覆盖关闭失败、关闭命令返回成功但 swap 仍启用、领取期间出现新挂载/成员/设备身份变化，以及同时需要关闭 swap 和改名时的执行顺序。Python 和原生 Debian 客户端另验证 swap 进入确认选盘、取消不下发任务，挂载/只读状态不会被 swap 状态覆盖。
+
+`scripts/validate_storage_vm.py` 在 QEMU TCG 中运行实际生成的存储预检脚本，创建临时虚拟磁盘和真实 LVM/MD 元数据。需要 Debian/Ubuntu 的 `qemu-system-x86`、`linux-image-amd64`（或对应 Ubuntu 内核及模块）、`initramfs-tools`、`busybox-static`、`lvm2`、`mdadm`、`udev`、`fdisk`、`e2fsprogs`。在安装了这些依赖的隔离环境中运行：
+
+```sh
+VENTOY_TEST_OUTPUT=/tmp/ventoy-fixtures go test ./internal/center -run 'Test(SingleRebuildInstallerFiles|RAID)'
+python3 scripts/validate_storage_vm.py /tmp/ventoy-fixtures \
+  --kernel /boot/vmlinuz-实际版本 --log /tmp/ventoy-storage-vm.log
+```
+
+默认执行 27 项真实块设备检查，含所选旧卷组改名及重复准备、分区/LVM/MD 上的 swap 释放，以及未选 swap 与同名 swap 文件保持启用；可用 `--baseline 旧版导出目录` 增加一项旧版同名卷组误拦截的对照。每项检查均校验未选虚拟磁盘的完整 SHA-256。宿主只创建临时稀疏文件，无需 KVM，不映射宿主块设备，不给虚拟机配置网络。不要直接运行 `storage_vm_guest.sh`，它是测试 initramfs 的入口。检查通过只能证明存储预检与准备行为；原生安装器完整安装、硬盘重启、物理硬件和 iVentoy 网启应分别记录。
 
 Ubuntu 重启收尾由 `scripts/validate_ubuntu_reboot.py` 检查：只有 Ubuntu Casper、overlay 根文件系统、精确挂载于 `/cdrom` 的只读 ISO 才写入运行时卸载配置；已安装系统、其他安装器、缺失挂载和可写介质均不修改。另检查重复执行、daemon-reload 失败、配置回读失败和符号链接保护。模板验证保证该步骤位于目标系统配置成功之后，仍使用安装器正常 `shutdown: reboot`，首次硬盘启动验证前不报告 installed。
 

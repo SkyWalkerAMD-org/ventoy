@@ -70,3 +70,6 @@ VC_UBI_CLAIM
     -H {{sh (printf "Authorization: Bearer %s" .Token)}} -H 'Content-Type: application/json' \
     --data '{"state":"installing"}' {{sh (printf "%s/event" .Base)}}
 {{end}}
+{{if .StorageGuard}}# Metadata writes are allowed only after the one-use claim succeeds.
+vc_storage_prepare
+{{end}}

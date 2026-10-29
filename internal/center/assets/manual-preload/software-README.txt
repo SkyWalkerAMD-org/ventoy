@@ -1,5 +1,12 @@
 Ventoy node software
 
+Matching DEB/RPM files are retained with SHA-256 verification and mode 0600 in
+/root/ventoy-tools, even if installation fails. Missing copies are downloaded
+again without reinstalling packages already at the requested version or newer.
+If automatic enrollment is configured, setup joins installed sckocstp/fyhocsys
+0.8.6+ nodes using a private key file and checks their native boot services.
+--check-software checks both retained packages and configured node bindings.
+
 After booting the installed Linux system, run as root or with sudo:
 
   sudo /root/ventoy-linux-setup.run

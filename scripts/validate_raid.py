@@ -22,8 +22,9 @@ for folder in sorted(root.glob('*/*')):
     for script in (guard, installed):
         subprocess.run(['bash','-n'],input=script,text=True,check=True)
     assert guard.index('two-disk rebuild scope verified') < guard.index('"state":"installing"')
+    assert guard.index('\nvc_storage_prepare\n') > guard.index('"state":"installing"')
     assert 'Existing storage spans an unselected disk' in guard
-    assert 'Selected storage is mounted' in guard and 'Selected storage has active swap' in guard
+    assert 'Selected storage is mounted' in guard and 'Selected swap remains active' in guard
     if (folder/'user-data').exists():
         source = re.search(r"<<'VC_UBUNTU_STORAGE'\n(.*?)\nVC_UBUNTU_STORAGE",guard,re.S).group(1)
         namespace={'__name__':'raid_test'}
@@ -77,6 +78,7 @@ for folder in sorted(single_root.glob('*/*')):
     subprocess.run(['bash','-n'],input=guard,text=True,check=True)
     assert '$disk2' not in guard and 'two-disk rebuild' not in guard
     assert guard.index('single-disk rebuild scope verified') < guard.index('"state":"installing"')
+    assert guard.index('\nvc_storage_prepare\n') > guard.index('"state":"installing"')
     assert 'wipefs ' not in guard and 'vgremove ' not in guard
     if (folder/'kickstart.cfg').exists():
         version = KICKSTART_VERSIONS[folder.parent.name]

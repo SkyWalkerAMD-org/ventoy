@@ -22,6 +22,84 @@ spec.loader.exec_module(client)
 
 
 class Boundaries(unittest.TestCase):
+    def setUp(self):
+        staging = tempfile.TemporaryDirectory()
+        self.addCleanup(staging.cleanup)
+        patcher = patch.object(client, 'STAGING', staging.name)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_package_files_persist_backfill_and_retry(self):
+        for family, wanted in [('deb', dict(os='ubuntu', version='22.04', arch='amd64')),
+                               ('rpm', dict(os='rocky', version='9', arch='x86_64'))]:
+            with self.subTest(family=family), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                (root/'software-client.json').write_text('{"enabled":true}')
+                name = 'app_1_amd64.deb' if family == 'deb' else 'app-1.x86_64.rpm'
+                prefix = '/'.join([wanted['os'], wanted['version'], wanted['arch'], 'default'])
+                payload = b'fixture package bytes'
+                item = dict(path=prefix+'/'+name, size=len(payload), sha256=hashlib.sha256(payload).hexdigest())
+                group = dict(id=prefix, **wanted, files=[item])
+                manifest = dict(schema=1, target=wanted, group=group)
+                client.validate_manifest(manifest, wanted)
+                downloads, installs = [], []
+                class FakeClient:
+                    def __init__(self, config): pass
+                    def manifest(self, target): return manifest
+                    def download(self, file, dest):
+                        downloads.append(file['path'])
+                        Path(dest).write_bytes(payload)
+                package = dict(name='app', version='1', arch=wanted['arch'], target_arch=wanted['arch'])
+                def metadata(path, *args):
+                    self.assertEqual(Path(path).read_bytes(), payload)
+                    return dict(package, file=path)
+                def install(packages, *args):
+                    self.assertEqual(Path(packages[0]['file']), root/'files'/name)
+                    installs.append(1)
+                    return 1
+                with patch.object(client, 'HERE', str(root)), patch.object(client, 'STATE', str(root/'state')), \
+                     patch.object(client, 'ARCHIVES', str(root/'files')), patch.object(client, 'Client', FakeClient), \
+                     patch.object(client, 'target', return_value=wanted), patch.object(client, 'metadata', side_effect=metadata), \
+                     patch.object(client, 'transaction', side_effect=install) as transaction, \
+                     patch.object(client, 'verify'), patch.object(client, 'installed', return_value={}):
+                    client.execute('--list-software')
+                    self.assertFalse((root/'files').exists())
+                    client.execute('--software')
+                    saved = root/'files'/name
+                    self.assertEqual(saved.read_bytes(), payload)
+                    self.assertEqual(saved.stat().st_mode & 0o777, 0o600)
+                    report_path = root/'state/last-result.json'
+                    report = json.loads(report_path.read_text())
+                    self.assertEqual(report['package_files'], [item])
+                    self.assertNotIn('file', report['packages'][0])
+                    client.execute('--check-software')
+                    client.execute('--software')
+                    self.assertEqual((len(downloads), len(installs)), (1, 1))
+                    saved.unlink()
+                    with self.assertRaises(RuntimeError): client.execute('--check-software')
+                    # Upgrade from a report written by the old temporary-only setup.
+                    report.pop('package_files')
+                    report_path.write_text(json.dumps(report))
+                    client.execute('--software')
+                    self.assertEqual((len(downloads), len(installs)), (2, 1))
+                    self.assertEqual(saved.read_bytes(), payload)
+                    saved.write_bytes(b'user modified package')
+                    with self.assertRaisesRegex(RuntimeError, 'modified or is unmanaged'):
+                        client.execute('--software')
+                    self.assertEqual(saved.read_bytes(), b'user modified package')
+                    self.assertEqual(len(installs), 1)
+                    saved.write_bytes(payload)
+                    # A failed native transaction retains the verified package for retry.
+                    transaction.side_effect = RuntimeError('native install failed')
+                    with self.assertRaisesRegex(RuntimeError, 'native install failed'):
+                        client.execute('--software')
+                    self.assertEqual(saved.read_bytes(), payload)
+                    self.assertEqual(json.loads(report_path.read_text())['status'], 'failed')
+                    transaction.side_effect = install
+                    client.execute('--software')
+                    self.assertEqual(len(downloads), 2)
+                    client.execute('--check-software')
+
     def test_rpm_scriptlet_failure_with_success_exit_is_not_verified(self):
         warning = ('warning: %post(sckoct-fyh-1:1.1.8-1.el10.x86_64) '
                    'scriptlet failed, exit status 1\n'

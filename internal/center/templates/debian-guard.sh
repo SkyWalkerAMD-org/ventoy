@@ -73,6 +73,9 @@ test -s /tmp/ventoy-center-ca.crt
 wget --ca-certificate=/tmp/ventoy-center-ca.crt --tries=1 --timeout=30 \
     --header={{sh (printf "Authorization: Bearer %s" .Token)}} --header='Content-Type: application/json' \
     --post-data='{"state":"installing"}' -O /tmp/ventoy-center-claim.json {{sh (printf "%s/event" .Base)}}
+{{if .StorageGuard}}# Resolve selected duplicate VG names only after the one-use claim.
+vc_storage_prepare
+{{end}}
 printf '%s\n' "/dev/$disk" > /tmp/ventoy-center-disk
 # Only now may partman select a real disk and accept destructive confirmations.
 # Some partitioner questions have not been registered at this early hook.

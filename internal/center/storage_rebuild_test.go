@@ -9,35 +9,39 @@ import (
 )
 
 func TestPXESingleRebuildRequiresLocalBoundConfirmation(t *testing.T) {
-	s, e := pxeFixture(t, "centos-7.9")
-	inv := pxeInventory()
-	inv.Disks[0].Blocked = "Existing LVM/RAID: prepare storage separately"
-	inv.Disks = append(inv.Disks, PXEDisk{Name: "sdb", Serial: "USB-KEEP", Size: 480000000000, Location: "external", Blocked: "External disk"})
-	ticket := pxeTicket(t, s, e, inv)
-	if ticket["automatic_disk"] != "" {
-		t.Fatal("old storage was selected without confirmation")
+	for _, reason := range []string{"Existing LVM/RAID: prepare storage separately", "Active swap"} {
+		t.Run(reason, func(t *testing.T) {
+			s, e := pxeFixture(t, "centos-7.9")
+			inv := pxeInventory()
+			inv.Disks[0].Blocked = reason
+			inv.Disks = append(inv.Disks, PXEDisk{Name: "sdb", Serial: "USB-KEEP", Size: 480000000000, Location: "external", Blocked: "External disk"})
+			ticket := pxeTicket(t, s, e, inv)
+			if ticket["automatic_disk"] != "" {
+				t.Fatal("old storage was selected without confirmation")
+			}
+			plan := StoragePlan{Mode: storageSingleRebuild, DiskSerials: []string{inv.Disks[0].Serial}}
+			body := map[string]any{"ticket": ticket["ticket"], "disk_serial": inv.Disks[0].Serial, "storage_plan": plan}
+			for _, confirmation := range []string{"", "yes", "ERASE " + inv.Disks[0].Serial, "ERASE REBUILD USB-KEEP"} {
+				body["confirmation"] = confirmation
+				mustCode(t, request(s, "POST", "/pxe/"+e.ID+"/install", e.Token, body), 409)
+			}
+			body["confirmation"] = storageConfirmation(plan)
+			result := request(s, "POST", "/pxe/"+e.ID+"/install", e.Token, body)
+			mustCode(t, result, 200)
+			var payload map[string]string
+			if err := json.Unmarshal(result.Body.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(payload["preinstall"], "single-disk rebuild scope verified") || strings.Contains(payload["preinstall"], "USB-KEEP") || strings.Contains(payload["preinstall"], "VC_RAID_KS") {
+				t.Fatal("rebuild guard or scope incorrect")
+			}
+			st := s.store.snapshot()
+			if len(st.Jobs) != 1 || st.Jobs[0].Request.StoragePlan.Mode != storageSingleRebuild {
+				t.Fatal("rebuild authorization not retained")
+			}
+			mustCode(t, request(s, "POST", "/pxe/"+e.ID+"/install", e.Token, body), 409)
+		})
 	}
-	plan := StoragePlan{Mode: storageSingleRebuild, DiskSerials: []string{inv.Disks[0].Serial}}
-	body := map[string]any{"ticket": ticket["ticket"], "disk_serial": inv.Disks[0].Serial, "storage_plan": plan}
-	for _, confirmation := range []string{"", "yes", "ERASE " + inv.Disks[0].Serial, "ERASE REBUILD USB-KEEP"} {
-		body["confirmation"] = confirmation
-		mustCode(t, request(s, "POST", "/pxe/"+e.ID+"/install", e.Token, body), 409)
-	}
-	body["confirmation"] = storageConfirmation(plan)
-	result := request(s, "POST", "/pxe/"+e.ID+"/install", e.Token, body)
-	mustCode(t, result, 200)
-	var payload map[string]string
-	if err := json.Unmarshal(result.Body.Bytes(), &payload); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(payload["preinstall"], "single-disk rebuild scope verified") || strings.Contains(payload["preinstall"], "USB-KEEP") || strings.Contains(payload["preinstall"], "VC_RAID_KS") {
-		t.Fatal("rebuild guard or scope incorrect")
-	}
-	st := s.store.snapshot()
-	if len(st.Jobs) != 1 || st.Jobs[0].Request.StoragePlan.Mode != storageSingleRebuild {
-		t.Fatal("rebuild authorization not retained")
-	}
-	mustCode(t, request(s, "POST", "/pxe/"+e.ID+"/install", e.Token, body), 409)
 }
 
 func TestSingleRebuildScopeValidation(t *testing.T) {
@@ -46,7 +50,7 @@ func TestSingleRebuildScopeValidation(t *testing.T) {
 	if err := validateStoragePlan(&plan, []PXEDisk{disk}); err != nil {
 		t.Fatal(err)
 	}
-	for _, blocked := range []string{"Mounted disk", "Active swap", "Read-only disk", "Unrecognized metadata"} {
+	for _, blocked := range []string{"Mounted disk", "Mounted disk or active swap", "Read-only disk", "Unrecognized metadata"} {
 		bad := disk
 		bad.Blocked = blocked
 		if validateStoragePlan(&plan, []PXEDisk{bad}) == nil {
@@ -87,6 +91,11 @@ func TestSingleRebuildInstallerFiles(t *testing.T) {
 					t.Fatal(err)
 				}
 				guard := files["preinstall.sh"]
+				prepare := strings.Index(guard, "\nvc_storage_prepare\n")
+				claim := strings.Index(guard, `{"state":"installing"}`)
+				if claim < 0 || prepare < claim || strings.Count(guard, "\nvc_storage_prepare\n") != 1 {
+					t.Fatal("storage metadata preparation must follow the one-use claim exactly once")
+				}
 				if !strings.Contains(guard, "single-disk rebuild scope verified") || strings.Contains(guard, "$disk2") || files["raid-installed.sh"] != "" {
 					t.Fatal("single rebuild inherited RAID layout")
 				}

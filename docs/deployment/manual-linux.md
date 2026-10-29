@@ -42,6 +42,8 @@ alpha.27 保留 Ubuntu 已启用的 SSH socket 启动方式，避免首次执行
 | CLI | 默认 `multi-user.target` | 读取默认启动目标 |
 | E610 | 原生支持则保留；否则精确匹配离线驱动，或用当前内核头文件编译 | 校验 ABI/设备 ID、启动镜像、实际加载模块与 E610 绑定状态 |
 
+未发布适配：网卡链路建立较慢或稍后接网线时，先加载新增 DHCP 配置，使链路就绪后自动申请地址；之前版本可能只保存 YAML 而未加载。配置生成、发布或加载失败会报告 `DHCP_ACTIVATION_PENDING`，修复依赖/配置问题后可重新执行 setup。`DHCP_SAVED_NO_CARRIER` 表示当时没有链路，`DHCP_LEASE_PENDING` 表示有链路但尚未取得 IPv4，二者应结合实际网线、交换机和 DHCP 服务判断。
+
 已有 DHCP、静态网络、Bond/VLAN/Bridge、USB、Wi-Fi 和当前 SSH 出口保留。新增次要 DHCP 接口不接管默认路由和 DNS。支持 NetworkManager、Netplan、systemd-networkd、ifupdown 的 ISC dhclient / dhcpcd，以及符合检查的传统 ifcfg；复杂或无法确定的配置保留并报告待处理。
 
 安装包自解压，支持 Python 2.7 / Python 3 / EL8 platform-python，不要求最小化系统已有 tar。包内包含已校验的 E610 多系统 r2 离线模块与 Intel 6.4.5 源码；缺少 SSH、sudo 或精确内核构建依赖时可从系统软件源补齐，不做系统或内核升级。`--offline` 禁止下载。

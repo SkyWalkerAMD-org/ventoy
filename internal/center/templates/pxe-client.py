@@ -129,10 +129,14 @@ def inventory(mac):
             blocked = 'Read-only disk'
         elif not re.match(r'^[A-Za-z0-9_.:/-]{1,120}$', serial):
             blocked = 'Missing or unsupported serial'
-        elif output(['lsblk', '-nr', '-o', 'MOUNTPOINT', '/dev/' + name]).strip():
-            blocked = 'Mounted disk or active swap'
-        elif re.search(r'LVM2_member|linux_raid_member', output(['lsblk', '-nr', '-o', 'FSTYPE', '/dev/' + name])):
-            blocked = 'Existing LVM/RAID: prepare storage separately'
+        else:
+            mounts = output(['lsblk', '-nr', '-o', 'MOUNTPOINT', '/dev/' + name]).split()
+            if any(mount != '[SWAP]' for mount in mounts):
+                blocked = 'Mounted disk'
+            elif mounts:
+                blocked = 'Active swap'
+            elif re.search(r'LVM2_member|linux_raid_member', output(['lsblk', '-nr', '-o', 'FSTYPE', '/dev/' + name])):
+                blocked = 'Existing LVM/RAID: prepare storage separately'
         disks.append(dict(name=name,serial=serial,model=row['MODEL'],size=int(row['SIZE']),blocked=blocked,location=location))
     for disk in disks:
         if sum(d['serial'] == disk['serial'] for d in disks) != 1:
@@ -160,7 +164,7 @@ def automatic_disk(inv, policy):
         if len([d for d in inv['disks'] if d.get('location') != 'external']) > 1:
             return ''
         if any(d.get('location') == 'internal' and
-               d['blocked'] == 'Existing LVM/RAID: prepare storage separately' for d in inv['disks']):
+               d['blocked'] in ('Existing LVM/RAID: prepare storage separately', 'Active swap') for d in inv['disks']):
             return ''
     elif policy != 'single-internal':
         raise RuntimeError('Unknown PXE disk policy')
@@ -234,7 +238,7 @@ def choose_filesystem(console, default='ext4'):
     raise RuntimeError('No valid filesystem selected after 3 attempts')
 
 def choose_raid(inv, console):
-    allowed = ('', 'Existing LVM/RAID: prepare storage separately')
+    allowed = ('', 'Existing LVM/RAID: prepare storage separately', 'Active swap')
     for attempt in range(1, 4):
         print('RAID1 + LVM: enter TWO disk numbers separated by a space (example: 1 2), or q:', file=console)
         console.flush()
@@ -268,6 +272,8 @@ def choose(inv, info, console):
         status = disk['blocked']
         if info.get('disk_policy') == 'single-or-console' and status == 'Existing LVM/RAID: prepare storage separately':
             status = 'Existing LVM/RAID: select to rebuild after membership checks'
+        elif info.get('disk_policy') == 'single-or-console' and status == 'Active swap':
+            status = 'Old swap in use: select to release it and rebuild'
         print('%d. /dev/%s  %.1f GiB  %s  SERIAL=%s  %s' % (
             index,disk['name'],disk['size']/float(1024**3),disk['model'],disk['serial'],status),file=console)
     disk = None
@@ -286,7 +292,7 @@ def choose(inv, info, console):
             continue
         candidate = inv['disks'][int(value)-1]
         rebuild = (info.get('disk_policy') == 'single-or-console' and
-                   candidate['blocked'] == 'Existing LVM/RAID: prepare storage separately')
+                   candidate['blocked'] in ('Existing LVM/RAID: prepare storage separately', 'Active swap'))
         if (candidate['blocked'] and not rebuild) or candidate.get('location') != 'internal':
             print('This disk cannot be selected: ' + (candidate['blocked'] or 'Unverified internal connection'), file=console)
             continue
@@ -298,7 +304,7 @@ def choose(inv, info, console):
         disk['name'], disk['size']/float(1024**3), disk['model'], disk['serial']), file=console)
     print('ALL DATA ON THIS DISK WILL BE ERASED. Other disks will not be selected for installation.', file=console)
     if rebuild:
-        print('Old LVM/RAID on this disk will be removed. Membership will be checked before writing.\nIf it also uses another disk, installation stops and lists that disk; select all members for a rebuild.', file=console)
+        print('Old partitions and LVM/RAID on this disk will be removed; its active swap will be released.\nIf the old storage also uses another disk, installation stops and lists that disk; select all members for a rebuild.', file=console)
     for attempt in range(1, 4):
         print('Type yes to erase and install, or no / q to cancel. Attempt %d/3:' % attempt, file=console)
         console.flush()

@@ -19,6 +19,7 @@ iventoy-*-pro.zip
 *.pem
 *.token
 *.fyhocsys.json
+node-join.json
 *.log
 coverage.out
 __pycache__/
