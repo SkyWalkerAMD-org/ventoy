@@ -109,7 +109,7 @@ jobs:
               sh /tests/seed_policy_test_kernel.sh
               python3 /tests/validate_update_policy.py /policy.sh
               python3 /tests/validate_software.py --native /software.py
-              python3 /tests/validate_package_retention.py /software.py
+              python3 /tests/validate_package_retention.py /software.py --policy /policy.sh
             '
   linux-startup:
     needs: test

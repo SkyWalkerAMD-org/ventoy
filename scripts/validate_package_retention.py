@@ -1,14 +1,16 @@
 """Real HTTP -> retained DEB/RPM -> native installation in disposable roots.
 
-Usage: python3 validate_package_retention.py SOFTWARE_PY [PREBUILT_FIXTURE]
+Usage: python3 validate_package_retention.py SOFTWARE_PY [PREBUILT_FIXTURE] [--policy POLICY_SH]
 The optional fixture is a ventoy-qa-retention 1.0 package, built in another
 disposable root when the target image has no package-building tools.
 """
+import argparse
 import hashlib
 import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -17,7 +19,14 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 sys.dont_write_bytecode = True
 assert os.geteuid() == 0 and Path('/run/ventoy-policy-disposable-root').is_file(), 'Disposable root marker required'
-source = Path(sys.argv[1])
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('software', type=Path)
+parser.add_argument('fixture', nargs='?', type=Path)
+parser.add_argument('--policy', type=Path, help='real policy checker when this disposable root already has a kernel policy')
+args = parser.parse_args()
+source = args.software
+if Path('/var/lib/ventoy-center/kernel-policy').is_dir():
+    assert args.policy and args.policy.is_file(), 'Existing kernel policy requires its real --policy checker'
 spec = importlib.util.spec_from_file_location('software', source)
 client = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(client)
@@ -46,7 +55,11 @@ def build_fixture(root):
 
 with tempfile.TemporaryDirectory(prefix='vc-retention-') as folder:
     root = Path(folder)
-    package = Path(sys.argv[2]) if len(sys.argv) > 2 else build_fixture(root)
+    package = args.fixture if args.fixture else build_fixture(root)
+    # CI runs policy validation before retention in the same disposable root.
+    # Preserve the real post-install policy check when relocating client.HERE.
+    if args.policy:
+        shutil.copyfile(args.policy, root/'linux-update-policy.sh')
     payload = package.read_bytes()
     group_id = '/'.join([target['os'], target['version'], target['arch'], 'default'])
     item = dict(path=group_id+'/'+package.name, size=len(payload), sha256=hashlib.sha256(payload).hexdigest())

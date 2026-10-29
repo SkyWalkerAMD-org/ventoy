@@ -1,6 +1,6 @@
 # 开发与验证
 
-alpha.45 的旧存储重装、DHCP、长期密钥和包保留验证方法见下文；现场发布和验收范围见[当前进度](progress.md)，接入私有配置见[软件与节点接入](../deployment/node-software.md)。
+alpha.45 的旧存储重装、DHCP、长期密钥和包保留验证方法见下文；现场发布和验收范围见[当前进度](progress.md)，接入私有配置见[软件与节点接入](../deployment/node-software.md)。包副本的真实 APT/RPM 回归只运行于带 disposable 标记的可丢弃根目录；若同一环境已经设置内核策略，`validate_package_retention.py` 必须通过 `--policy` 提供对应的真实策略检查脚本，仍在安装后验证内核锁定。
 
 ## 长期接入与安装包保留（2026-10-29，未发布）
 
