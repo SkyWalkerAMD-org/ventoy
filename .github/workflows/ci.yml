@@ -20,6 +20,10 @@ jobs:
           cache: false
       - run: go vet ./...
       - run: go test ./...
+        working-directory: tools/p95-priority-helper/src
+      - run: go vet ./...
+        working-directory: tools/p95-priority-helper/src
+      - run: go test ./...
         env:
           VENTOY_TEST_OUTPUT: ${{ runner.temp }}/ventoy-template-fixtures
       - name: Parse Linux installer templates
@@ -36,6 +40,8 @@ jobs:
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_manual_setup.py
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_software.py
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_fyhoc_unlock.py
+          "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_p95_priority.py
+          "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_p95_units.py
           sudo "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_node_join.py
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_setup_prompt.py
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_root_password.py
@@ -45,6 +51,7 @@ jobs:
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_setup_preload.py "$RUNNER_TEMP/ventoy-template-fixtures"
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_unified_menu.py "$RUNNER_TEMP/ventoy-template-fixtures"
           for f in internal/center/assets/manual/*.sh; do bash -n "$f"; done
+          for f in tools/p95-priority-helper/*.sh; do bash -n "$f"; done
       - if: runner.os == 'Linux'
         run: go test -race ./...
       - run: node --check internal/center/web/app.js

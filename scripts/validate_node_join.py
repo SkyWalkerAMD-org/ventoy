@@ -216,6 +216,7 @@ if state.get('timeout'): time.sleep(10)
                  patch.object(software, 'installed', return_value={'fyhocsys-node:amd64': '0.8.6'}), \
                  patch.object(join, 'fetch', return_value=[node()]) as fetch, \
                  patch.object(join, 'configure', side_effect=RuntimeError('fixture join failed')) as configure, \
+                 patch('p95_priority.configure', return_value=[]), \
                  patch.object(join, 'check') as check:
                 software.execute('--list-software')
                 fetch.assert_not_called()
