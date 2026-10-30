@@ -6,6 +6,8 @@
 
 ## 使用
 
+P95 1.0.2 集成会在软件安装及已配置的节点接入完成后，为已安装的 fyhocsys-node / sckocstp-node 启用独立优先级助手。助手每秒将受管 P95 默认的 nice 19 工作线程调到 nice 0，源码与说明保留在 `/usr/local/share/p95-priority-helper/1.0.2/`，不修改节点项目或包内文件。软件包版本未变时也会检查助手；`--check-software` 只读核验助手，安装/核验失败沿用软件步骤失败与重试逻辑。支持 CentOS 7.9 的 systemd 219 和 EL7 工具目录；低于 systemd 219 及非 x86_64 明确跳过，其他安装错误仍报失败。已有系统需更新旧 setup 才包含此功能；也可单独执行 `bash p95-priority-setup.sh`。助手不启动压测，实际并发效果需在运行混合测试时检查两类程序的 CPU 时间。
+
 从 alpha.31 起，直接运行 `./ventoy-linux-setup.run` 即完成完整系统配置、安装或升级中心默认软件组并自动检查，无需添加 `--apply`。`--apply` 保留兼容，`--software` 仅安装软件；`--offline` 跳过软件下载。查看候选使用 `--list-software`，检查结果使用 `--check-software`。已安装相同或更高版本不会重复安装或降级；后续中心替换软件包后再次执行即可，无需重新生成 setup。
 
 匹配的软件包原文件同时保存在 `/root/ventoy-tools/`，以原名和 `0600` 权限保留，安装失败也可复用。软件已安装但包副本缺失时会补传；再次执行校验摘要后跳过下载，用户改动的同名文件会保留并报错。`--check-software` 同时检查这些副本。

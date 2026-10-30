@@ -1,6 +1,14 @@
 # 开发与验证
 
-alpha.45 的旧存储重装、DHCP、长期密钥和包保留验证方法见下文；现场发布和验收范围见[当前进度](progress.md)，接入私有配置见[软件与节点接入](../deployment/node-software.md)。包副本的真实 APT/RPM 回归只运行于带 disposable 标记的可丢弃根目录；若同一环境已经设置内核策略，`validate_package_retention.py` 必须通过 `--policy` 提供对应的真实策略检查脚本，仍在安装后验证内核锁定。
+alpha.46 增加独立 P95 助手与 CentOS 7.9 适配；现场发布和验收范围见[当前进度](progress.md)，接入私有配置见[软件与节点接入](../deployment/node-software.md)。包副本的真实 APT/RPM 回归只运行于带 disposable 标记的可丢弃根目录；若同一环境已经设置内核策略，`validate_package_retention.py` 必须通过 `--policy` 提供对应的真实策略检查脚本，仍在安装后验证内核锁定。
+
+## P95 助手与旧 systemd
+
+`tools/p95-priority-helper/src` 是独立 Go 模块，需在该目录执行 `go test ./...` 和 `go vet ./...`；根模块测试验证 setup 内嵌脚本的 SHA-256 固定值。`scripts/validate_p95_priority.py` 覆盖软件未更新时补装、失败重试、只读检查和平台范围；Linux 上 `scripts/validate_p95_units.py` 比较 systemd 219 与 235+ 的实际 unit 渲染，219 不使用会删除撤销日志的 RuntimeDirectory。
+
+离线脚本可通过 `python3 tools/p95-priority-helper/build-release.py --output /tmp/p95-release` 重建，需 Go、Bash 与 Python 3。将生成脚本同步到 `internal/center/assets/manual/p95-priority-setup.sh` 后，必须同步 `p95_priority.py` 的摘要；重新生成所有入口预置包。源代码自身包含在脚本内，目标机无需编译。
+
+目标机安装后运行 `p95-priority-fyhocsys selfcheck`、离线脚本 `--check`，确认服务 enabled/active；重复安装检查 MainPID 不变，重启助手检查运行目录保留，节点服务 MainPID 与内核不变。这里不启动硬件压测，真实混合负载的 nice 与 CPU 时间采样需另行执行，不能把空采样当成通过。
 
 ## 长期接入与安装包保留（2026-10-29，未发布）
 
