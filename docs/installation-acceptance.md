@@ -52,6 +52,9 @@ drop-in, then reload systemd. Keep the rest of the filesystem protection enabled
 Limit the firewall opening to the installation LAN rather than exposing the
 listener on every network. Cache misses queue with a bounded wait; existing
 objects remain readable while another package downloads.
+Cold downloads allow up to ten minutes upstream and five minutes queued; APT's
+HTTP timeout is twenty minutes so a slow first fetch can finish before the
+installer abandons it. Failed/incomplete downloads are never published.
 
 Ubuntu automatic configs, supported manual Subiquity defaults and Debian mirror
 selection use the cache. Native preload hooks rewrite only recognized official

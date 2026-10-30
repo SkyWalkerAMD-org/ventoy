@@ -11,7 +11,9 @@ if [[ $mode == --apply ]]; then
     if ! command -v sshd >/dev/null || ! command -v ssh >/dev/null || ! command -v sudo >/dev/null; then
         [[ ${VC_MANUAL_OFFLINE:-0} == 0 ]] || die 'SSH/sudo packages missing in offline mode. Install from your OS media and rerun.'
         if [[ $family == apt ]]; then
-            apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=20 update
+            apt_timeout=20
+            [[ ! -f /etc/apt/apt.conf.d/90ventoy-installer-cache ]] || apt_timeout=1200
+            apt-get -o Acquire::Retries=1 -o "Acquire::http::Timeout=$apt_timeout" update
             DEBIAN_FRONTEND=noninteractive apt-get -y --no-upgrade --no-install-recommends install openssh-server openssh-client sudo
         else
             manager=yum; command -v dnf >/dev/null && manager=dnf

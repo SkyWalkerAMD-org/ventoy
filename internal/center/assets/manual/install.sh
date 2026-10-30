@@ -214,7 +214,9 @@ if [[ $mode == --resume ]]; then
         if ! command -v python3 >/dev/null && ! command -v python >/dev/null && [[ ! -x /usr/libexec/platform-python ]]; then
             [[ $offline == 0 ]] || die 'Python is required for safe network parsing; install it from the OS media.'
             if [[ $family == apt ]]; then
-                apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=20 update
+                apt_timeout=20
+                [[ ! -f /etc/apt/apt.conf.d/90ventoy-installer-cache ]] || apt_timeout=1200
+                apt-get -o Acquire::Retries=1 -o "Acquire::http::Timeout=$apt_timeout" update
                 DEBIAN_FRONTEND=noninteractive apt-get -y --no-upgrade --no-install-recommends install python3
             else
                 manager=yum; command -v dnf >/dev/null && manager=dnf

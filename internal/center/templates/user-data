@@ -22,7 +22,7 @@ autoinstall:
     security:
       - arches: [default]
         uri: {{if .InstallerCache}}{{.InstallerCache}}/ubuntu-{{if .Target.Archived}}archive{{else}}security{{end}}{{else}}https://{{if .Target.Archived}}old-releases{{else}}security{{end}}.ubuntu.com/ubuntu{{end}}
-    conf: 'Acquire::Retries "10"; Acquire::AllowInsecureRepositories "false";'
+    conf: 'Acquire::Retries "10"; Acquire::http::Timeout "1200"; Acquire::AllowInsecureRepositories "false";'
   packages:
     - curl
 {{if .RAIDSetup}}    - mdadm

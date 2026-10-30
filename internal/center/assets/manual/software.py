@@ -423,7 +423,8 @@ def transaction(packages, family, work, allow_dependencies=True):
                 print('Resolving missing dependencies from configured repositories (no upgrade command).')
                 # Refresh indices only for this explicit invocation. Timers and
                 # periodic-update settings remain disabled. No repository added.
-                run(['apt-get', '-o', 'APT::Update::Error-Mode=any', '-o', 'Acquire::Retries=1', '-o', 'Acquire::http::Timeout=30', '-o', 'Acquire::https::Timeout=30', 'update'], echo=True)
+                http_timeout = '1200' if os.path.isfile('/etc/apt/apt.conf.d/90ventoy-installer-cache') else '30'
+                run(['apt-get', '-o', 'APT::Update::Error-Mode=any', '-o', 'Acquire::Retries=1', '-o', 'Acquire::http::Timeout='+http_timeout, '-o', 'Acquire::https::Timeout=30', 'update'], echo=True)
                 base = ['apt-get', '--no-remove', '--no-install-recommends', '--no-install-suggests',
                         '-o', 'Dpkg::Options::=--force-confold']
                 plan = run(base + ['--simulate', 'install'] + files, echo=True)

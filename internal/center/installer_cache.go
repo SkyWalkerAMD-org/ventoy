@@ -27,6 +27,7 @@ var installerOrigins = map[string]string{
 }
 
 const installerObjectLimit = 256 << 20
+const installerDownloadTimeout = 10 * time.Minute
 
 var cacheObjectRE = regexp.MustCompile(`^[a-f0-9]{64}\.data$`)
 
@@ -56,7 +57,7 @@ func installerUpstream(origin, name string) (string, error) {
 }
 
 func installerHTTPClient() *http.Client {
-	return &http.Client{Timeout: 180 * time.Second, CheckRedirect: func(r *http.Request, via []*http.Request) error {
+	return &http.Client{Timeout: installerDownloadTimeout, CheckRedirect: func(r *http.Request, via []*http.Request) error {
 		if len(via) >= 4 {
 			return errors.New("too many repository redirects")
 		}
@@ -157,7 +158,7 @@ func (s *Server) installerCache(w http.ResponseWriter, r *http.Request) {
 	// Serialize misses, not hits. Queue normal APT pipelining instead of making
 	// every parallel request fail/retry with exponential package-manager delays.
 	// Bound the queue wait and honor disconnects without starting extra downloads.
-	wait := time.NewTimer(60 * time.Second)
+	wait := time.NewTimer(5 * time.Minute)
 	defer wait.Stop()
 	poll := time.NewTicker(100 * time.Millisecond)
 	defer poll.Stop()
@@ -179,7 +180,7 @@ func (s *Server) installerCache(w http.ResponseWriter, r *http.Request) {
 	if serve() {
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 180*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), installerDownloadTimeout)
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, upstream, nil)
 	client := s.cacheClient

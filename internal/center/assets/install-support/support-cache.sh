@@ -29,5 +29,5 @@ for f in "$target/etc/apt/sources.list" "$target"/etc/apt/sources.list.d/*.list 
     else rm -f "$tmp"; fi
 done
 mkdir -p "$target/etc/apt/apt.conf.d"
-printf 'Acquire::Retries "10";\nAcquire::AllowInsecureRepositories "false";\n' > "$target/etc/apt/apt.conf.d/90ventoy-installer-cache"
+printf 'Acquire::Retries "10";\nAcquire::http::Timeout "1200";\nAcquire::AllowInsecureRepositories "false";\n' > "$target/etc/apt/apt.conf.d/90ventoy-installer-cache"
 chmod 0644 "$target/etc/apt/apt.conf.d/90ventoy-installer-cache"

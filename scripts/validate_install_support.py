@@ -42,6 +42,9 @@ with tempfile.TemporaryDirectory() as directory:
     assert sources.read_text() == wanted
     assert custom.read_text().startswith('deb https://archiveXubuntuYcom')
     assert 'trusted=yes' not in sources.read_text()
+    apt_config = (target/'etc/apt/apt.conf.d/90ventoy-installer-cache').read_text()
+    assert 'Acquire::http::Timeout "1200"' in apt_config
+    assert 'Acquire::AllowInsecureRepositories "false"' in apt_config
     run(src/'support-install.sh', target)
     assert (target/'etc/hostname').read_text() == 'keep-my-host\n'
     assert (target/'var/lib/ventoy-center/install-mode').read_text() == 'manual\n'

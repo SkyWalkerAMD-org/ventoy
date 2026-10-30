@@ -59,7 +59,7 @@ def prepare(path, release, packages, lock, version, cache=''):
             raise ValueError('Invalid deployment cache URL')
         config['apt']['primary'][0]['uri'] = cache + ('/ubuntu-archive' if archived else '/ubuntu')
         config['apt']['security'][0]['uri'] = cache + ('/ubuntu-archive' if archived else '/ubuntu-security')
-        config['apt']['conf'] += 'Acquire::Retries "10";\nAcquire::AllowInsecureRepositories "false";\n'
+        config['apt']['conf'] += 'Acquire::Retries "10";\nAcquire::http::Timeout "1200";\nAcquire::AllowInsecureRepositories "false";\n'
     # Share the automatic installer's media-kernel pin and UU blacklist.
     # No disk, identity, network, or automatic reboot answers are supplied.
     with tempfile.TemporaryDirectory(prefix='ventoy-manual-kernel-') as tmp:
