@@ -23,7 +23,7 @@ request() {
     done
 }
 event() { request -H 'Content-Type: application/json' --data "{\"state\":\"$1\"}" {{sh (printf "%s/event" .Base)}}; }
-trap 'event failed >/dev/null 2>&1 || true' ERR
+trap 'event failed >/dev/null 2>&1 || true; [ ! -f /usr/local/lib/ventoy-install-support/support-diagnostic.sh ] || /bin/sh /usr/local/lib/ventoy-install-support/support-diagnostic.sh failure "First-boot validation failed" || true' ERR
 [ "$(hostname | tr '[:lower:]' '[:upper:]')" = {{sh .Machine.Name}} ]
 {{.VersionCheck}}
 {{.FilesystemCheck}}
@@ -55,6 +55,11 @@ systemctl is-active --quiet fyhocsys-node.service
 event enrolled
 {{else}}event installed
 {{end}}trap - ERR
+mkdir -p /var/lib/ventoy-center
+printf 'boot=%s\nchecks=ssh,filesystem,kernel,update-policy,account\n' "$(cat /proc/sys/kernel/random/boot_id)" > /var/lib/ventoy-center/automatic-checks
+if [ -f /usr/local/lib/ventoy-install-support/support-report.sh ]; then
+    /bin/sh /usr/local/lib/ventoy-install-support/support-report.sh || true
+fi
 systemctl disable ventoy-center-bootstrap.service
 rm -f -- "$work/connection.json" "$work/node.rpm" "$work/node.deb" "$work/ca.crt"
 rm -f -- /usr/local/sbin/ventoy-center-bootstrap

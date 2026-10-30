@@ -17,7 +17,7 @@ var manualPreloadAssets embed.FS
 
 // manualPreloadInjection retains interactive installation and stages setup.
 // APT installers also receive the independently requested update policy.
-func manualPreloadInjection(launcher []byte) ([]byte, error) {
+func manualPreloadInjection(launcher []byte, settings ...map[string][]byte) ([]byte, error) {
 	reboot, err := templates.ReadFile("templates/ubuntu-reboot.sh")
 	if err != nil {
 		return nil, err
@@ -26,6 +26,14 @@ func manualPreloadInjection(launcher []byte) ([]byte, error) {
 		"ventoy-manual-preload/ventoy-linux-setup.run": launcher,
 		"ventoy-manual-preload/setup.sha256":           []byte(fmt.Sprintf("%x  ventoy-linux-setup.run\n", sha256.Sum256(launcher))),
 		"ventoy-manual-preload/ubuntu-reboot.sh":       bytes.ReplaceAll(reboot, []byte("\r\n"), []byte("\n")),
+	}
+	if err := addInstallSupport(files, "ventoy-manual-preload/"); err != nil {
+		return nil, err
+	}
+	for _, configured := range settings {
+		for name, value := range configured {
+			files["ventoy-manual-preload/"+name] = value
+		}
 	}
 	for _, name := range []string{"linux-update-policy.sh", "ubuntu-kernel.py"} {
 		body, err := render(name, renderData{KernelPackages: kernelPackagePatterns()})
@@ -55,6 +63,10 @@ func manualPreloadInjection(launcher []byte) ([]byte, error) {
 			name = "usr/lib/finish-install.d/93ventoy-manual-preload"
 		case "finish-debian-policy":
 			name = "usr/lib/post-base-installer.d/93ventoy-update-policy"
+		case "finish-debian-cache":
+			name = "usr/lib/pre-pkgsel.d/93ventoy-installer-cache"
+		case "start-debian-watch.sh":
+			name = "lib/debian-installer-startup.d/S99ventoy-diagnostics"
 		}
 		files[name] = bytes.ReplaceAll(b, []byte("\r\n"), []byte("\n"))
 	}
@@ -70,6 +82,9 @@ func manualPreloadInjection(launcher []byte) ([]byte, error) {
 		mode := int64(0755)
 		if strings.HasSuffix(name, ".run") || strings.HasSuffix(name, ".sha256") || strings.HasSuffix(name, ".txt") {
 			mode = 0644
+		}
+		if strings.HasSuffix(name, "support-curl.conf") || strings.HasSuffix(name, "support-wget.conf") {
+			mode = 0600
 		}
 		if err := t.WriteHeader(&tar.Header{Name: name, Typeflag: tar.TypeReg, Mode: mode, Size: int64(len(files[name])), Format: tar.FormatUSTAR}); err != nil {
 			return nil, err
@@ -105,7 +120,7 @@ func (s *Server) addLinuxSetupPreload(profile string, files map[string]string) e
 	if err != nil {
 		return fmt.Errorf("Linux setup preload is required but unavailable: %w", err)
 	}
-	preload, err := manualPreloadInjection(manualSetupLauncher(bundle))
+	preload, err := manualPreloadInjection(manualSetupLauncher(bundle), s.supportSettings())
 	if err != nil {
 		return err
 	}

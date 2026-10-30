@@ -35,6 +35,10 @@ type renderData struct {
 	UbuntuStorage   string
 	UbuntuSizes     string
 	StorageSizing   string
+	StoragePreview  string
+	InstallerCache  string
+	CacheHost       string
+	CacheDirectory  string
 	StorageGuard    string
 	StorageRecipe   string
 	DataFilesystem  string
@@ -113,6 +117,7 @@ func (s *Server) renderFiles(j PrivateJob) (map[string]string, error) {
 		return nil, err
 	}
 	d := renderData{PrivateJob: j, Target: p, Base: s.config.PublicURL + "/bootstrap/" + j.ID, CA: string(s.ca), Partition: 3, OfflineMedia: debianDVD(p, j.ISO)}
+	s.cacheRenderSettings(&d)
 	if p.OS != "windows" {
 		d.DataFilesystem, err = linuxFilesystem(j.Request.Filesystem)
 		if err != nil {

@@ -82,7 +82,9 @@ if ! native_support; then
             if [[ ${VC_MANUAL_OFFLINE:-0} == 0 ]]; then
                 case "$ID" in
                     ubuntu|debian)
-                        apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=20 update
+                        apt_timeout=20
+                        [[ ! -f /etc/apt/apt.conf.d/90ventoy-installer-cache ]] || apt_timeout=1200
+                        apt-get -o Acquire::Retries=1 -o "Acquire::http::Timeout=$apt_timeout" update
                         DEBIAN_FRONTEND=noninteractive apt-get -y --no-upgrade --no-install-recommends install build-essential "linux-headers-$kver" libelf-dev openssl initramfs-tools kmod
                         ;;
                     *)

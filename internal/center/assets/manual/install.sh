@@ -167,7 +167,12 @@ offline=$(cat "$state/offline"); keep_passwords=$(cat "$state/keep-passwords")
 export VC_MANUAL_OFFLINE=$offline
 exec > >(tee -a /var/log/ventoy-manual-init.log) 2>&1
 printf '\n[%s] mode=%s os=%s/%s kernel=%s\n' "$(date -Is)" "$mode" "$ID" "$VERSION_ID" "$(uname -r)"
-trap 'rc=$?; flock -u 7; if ((rc != 0 && rc != 3)); then printf "failed exit=%s time=%s\n" "$rc" "$(date -Is)" > "$state/status"; fi' EXIT
+trap 'rc=$?; flock -u 7; if ((rc != 0 && rc != 3)); then printf "failed exit=%s time=%s\n" "$rc" "$(date -Is)" > "$state/status"; fi; if [[ -f "$here/support-report.sh" ]]; then /bin/sh "$here/support-report.sh" || true; fi' EXIT
+if [[ $mode == --resume ]]; then
+    /bin/sh "$here/support-install.sh" /
+    systemctl daemon-reload
+    systemctl start ventoy-install-report.timer
+fi
 printf 'running %s\n' "$(date -Is)" > "$state/status"
 pending=0
 if [[ $mode == --resume ]]; then
@@ -209,7 +214,9 @@ if [[ $mode == --resume ]]; then
         if ! command -v python3 >/dev/null && ! command -v python >/dev/null && [[ ! -x /usr/libexec/platform-python ]]; then
             [[ $offline == 0 ]] || die 'Python is required for safe network parsing; install it from the OS media.'
             if [[ $family == apt ]]; then
-                apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=20 update
+                apt_timeout=20
+                [[ ! -f /etc/apt/apt.conf.d/90ventoy-installer-cache ]] || apt_timeout=1200
+                apt-get -o Acquire::Retries=1 -o "Acquire::http::Timeout=$apt_timeout" update
                 DEBIAN_FRONTEND=noninteractive apt-get -y --no-upgrade --no-install-recommends install python3
             else
                 manager=yum; command -v dnf >/dev/null && manager=dnf

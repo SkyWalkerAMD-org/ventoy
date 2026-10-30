@@ -3,9 +3,11 @@
 set -eu
 umask 077
 export LC_ALL=C
+{{.StoragePreview}}
 fail() {
     echo "Ventoy Center stopped: $*" >&2
     if [ "${console_open:-}" = yes ]; then printf '\nVentoy Center stopped: %s\nNo installation will start. Boot PXE again after correcting this condition.\n' "$*" >&9; fi
+    [ ! -f /ventoy-manual-preload/support-diagnostic.sh ] || /bin/sh /ventoy-manual-preload/support-diagnostic.sh failure "$*" || true
     exit 1
 }
 work=$(mktemp -d /tmp/ventoy-pxe.XXXXXX)
@@ -96,7 +98,7 @@ inventory() {
         model=$(printf '%s\n' "$properties" | sed -n 's/^ID_MODEL=//p' | cut -c1-120)
         disk_count=$((disk_count + 1))
         # Fixed lines are data only, never sourced or evaluated as shell code.
-        printf '%s\n' "$name" "$disk_serial" "$((sectors / 2097152))" "$model" "$blocked" "$location" > "$work/disks/$disk_count"
+        printf '%s\n' "$name" "$disk_serial" "$((sectors / 2097152))" "$model" "$blocked" "$location" "$((sectors * 512))" > "$work/disks/$disk_count"
         if [ "$location" != external ]; then
             internal_count=$((internal_count + 1))
             only_serial=$disk_serial
@@ -190,6 +192,7 @@ choose_disk() {
         break
     done
     [ -n "$serial" ] || fail 'No usable disk selected after 3 attempts'
+    vc_preview "$(sed -n '7p' "$selected")" "$filesystem" "$firmware" single-disk >&9 || fail 'Cannot fit the partition layout'
     printf '\nSelected: /dev/%s  %s GiB  %s  SERIAL=%s\nALL DATA ON THIS DISK WILL BE ERASED. Other disks will not be selected for installation.\n' "$(sed -n '1p' "$selected")" "$(sed -n '3p' "$selected")" "$(sed -n '4p' "$selected")" "$serial" >&9
     if [ "$rebuild" = yes ]; then
         printf 'Old partitions, swap and LVM/RAID on this disk will be removed after membership checks. Storage spanning other disks will stop and list the affected disk; select all members for a rebuild.\n' >&9
@@ -237,7 +240,7 @@ VC_MEMBERS
         raid_valid=yes
         for row in "$first_row" "$second_row"; do
             case "$(sed -n '5p' "$row")" in ''|'Existing LVM or RAID'|'Active RAID or LVM'|'Active swap') ;; *) raid_valid=no;; esac
-            [ "$(sed -n '6p' "$row")" = internal ] && [ "$(sed -n '3p' "$row")" -ge 24 ] || raid_valid=no
+            [ "$(sed -n '6p' "$row")" = internal ] && [ "$(sed -n '7p' "$row")" -ge 120000000000 ] || raid_valid=no
             member=$(sed -n '2p' "$row")
             case "$member" in ''|*[!A-Za-z0-9_.:/-]*) raid_valid=no;; esac
         done
@@ -245,6 +248,9 @@ VC_MEMBERS
         serial=$(sed -n '2p' "$first_row")
         second_serial=$(sed -n '2p' "$second_row")
         [ "$serial" != "$second_serial" ] || fail 'Duplicate member serials'
+        capacity=$(sed -n '7p' "$first_row"); second_capacity=$(sed -n '7p' "$second_row")
+        [ "$capacity" -le "$second_capacity" ] || capacity=$second_capacity
+        vc_preview "$capacity" "$filesystem" "$firmware" RAID1-LVM >&9 || fail 'Cannot fit the partition layout'
         printf '\nALL DATA ON BOTH SELECTED DISKS WILL BE ERASED:\n%s\n%s\nRebuild RAID1 mirror + LVM; capacity approximately the smaller disk.\n' "$serial" "$second_serial" >&9
         attempt=1
         while [ "$attempt" -le 3 ]; do
@@ -304,6 +310,11 @@ if [ -z "$serial" ]; then
         [ "$internal_count" -eq 1 ] && [ "$only_location" = internal ] && [ -z "$only_blocked" ] || fail 'A single usable internal disk is required'
         [ "$automatic" = "$only_serial" ] || fail 'Controller and client selected different disks'
         serial=$automatic
+        for row in "$work"/disks/*; do
+            if [ "$(sed -n '2p' "$row")" = "$serial" ]; then
+                vc_preview "$(sed -n '7p' "$row")" "$filesystem" "$firmware" single-disk >&9 || fail 'Cannot fit the partition layout'
+            fi
+        done
     fi
 fi
 case "$serial" in ''|*[!A-Za-z0-9_.:/-]*) fail 'No authorized target disk';; esac

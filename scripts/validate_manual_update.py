@@ -21,7 +21,7 @@ with tempfile.TemporaryDirectory() as tmp:
     manual.prepare(path, release, packages, kernel['lock_installer_kernel'], '22.04')
     before = path.read_bytes()
     config = yaml.safe_load(before)
-    assert set(config) == {'version', 'interactive-sections', 'refresh-installer', 'apt', 'kernel'}
+    assert set(config) == {'version', 'interactive-sections', 'refresh-installer', 'apt', 'kernel', 'error-commands'}
     assert {'storage', 'identity', 'network', 'apt', 'source', 'ssh'} <= set(config['interactive-sections'])
     assert not {'*', 'refresh-installer'} & set(config['interactive-sections'])
     assert config['kernel'] == {'package': 'linux-image-' + release}

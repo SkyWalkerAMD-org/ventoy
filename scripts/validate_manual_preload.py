@@ -21,6 +21,8 @@ with tempfile.TemporaryDirectory(prefix='ventoy-preload-test-') as temp:
     base = Path(temp)
     src = base / 'payload'
     shutil.copytree(ASSETS, src)
+    for support in (ROOT / 'internal/center/assets/install-support').iterdir(): shutil.copy2(support, src / support.name)
+    (src / 'support-version').write_text('validation-release\n')
     # Full setup is inert, but a separately tested APT policy now runs in the
     # target. Stub it here so this copy-hook test never configures its runner.
     (src / 'target-update-policy.sh').write_text('#!/bin/sh\ntest -f "$1/root/ventoy-linux-setup.run"\n')
@@ -45,7 +47,7 @@ with tempfile.TemporaryDirectory(prefix='ventoy-preload-test-') as temp:
     assert (target / 'root/ventoy-linux-setup.run').read_bytes() == payload
     assert (target / 'root/ventoy-linux-setup.run').stat().st_mode & 0o777 == 0o700
     assert (target / 'root/README-ventoy-software.txt').read_bytes() == (src / 'software-README.txt').read_bytes()
-    assert {p.name: p.read_bytes() for p in (target / 'etc').iterdir()} == baseline
+    assert {name: (target / 'etc' / name).read_bytes() for name in baseline} == baseline
     assert not sentinel.exists()
     assert (target / 'var/lib/ventoy-center/manual-setup-preloaded').read_text().startswith('PRELOADED_ONLY\n')
     # Refresh a baked, unused managed package; never replace a user file or an

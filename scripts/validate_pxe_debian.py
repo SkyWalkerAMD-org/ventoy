@@ -39,7 +39,7 @@ def check_debian_client(wrapper):
             def disk(name, serial, external=False):
                 p = devices / ("usb1/1-1" if external else name) / name
                 p.mkdir(parents=True)
-                for field, value in {"size":"200000", "dev":"8:0" if name == "sda" else "8:16", "removable":"1" if external else "0", "ro":"0", "serial":serial}.items():
+                for field, value in {"size":"268435456", "dev":"8:0" if name == "sda" else "8:16", "removable":"1" if external else "0", "ro":"0", "serial":serial}.items():
                     (p / field).write_text(value+"\n")
                 (blocks / name).symlink_to(p)
                 return p
@@ -51,6 +51,7 @@ def check_debian_client(wrapper):
             if scenario.startswith('raid-'):
                 (first/'size').write_text('268435456\n')
                 if scenario!='raid-small': (second/'size').write_text('268435456\n')
+                else: (second/'size').write_text('200000\n')
                 if scenario=='raid-readonly': (second/'ro').write_text('1\n')
             if scenario in ("readonly", "swap-readonly"): (first / "ro").write_text("1\n")
             if scenario == "unknown":

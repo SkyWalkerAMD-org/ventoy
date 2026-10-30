@@ -30,7 +30,12 @@ func (s *Server) renderPXEFiles(e PrivatePXEEntry) (map[string]string, error) {
 	}
 	settings, _ := json.Marshal(map[string]string{"url": s.config.PublicURL + "/pxe/" + e.ID, "token": e.Token, "ca": string(s.ca), "iso": path.Base(e.ISO), "installer": p.Installer, "disk_policy": policy})
 	d := renderData{Target: p, PXEMenu: true, PXEISO: path.Base(e.ISO), PXESettings: base64.StdEncoding.EncodeToString(settings), OfflineMedia: debianDVD(p, e.ISO)}
+	s.cacheRenderSettings(&d)
 	if p.Installer == "preseed" {
+		d.StoragePreview, err = render("storage-preview.sh", d)
+		if err != nil {
+			return nil, err
+		}
 		d.Base = s.config.PublicURL + "/pxe/" + e.ID
 		d.Token = e.Token
 		d.CA = string(s.ca)

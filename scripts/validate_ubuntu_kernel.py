@@ -62,7 +62,10 @@ def check_kernel_binding(config):
             assert pins[0] == {"package": "linux-generic", "pin": "version 5.15.0.78.75", "pin-priority": 1001}
             assert pins[-1]["pin-priority"] == -1 and "linux-image*" in pins[-1]["package"]
             assert "linux-firmware" not in str(pins) and "5.15.0-79" not in str(pins)
-            assert 'Package-Blacklist { ".*"; }' in actual["apt"].pop("conf")
+            apt_conf = actual["apt"].pop("conf")
+            assert 'Package-Blacklist { ".*"; }' in apt_conf
+            original_conf = original["apt"].pop("conf", "")
+            assert apt_conf.startswith(original_conf), "Existing signature/retry policy lost"
             assert result == document, "Unrelated installer settings changed"
         for bad_release, bad_packages in (("5.15.0-99-generic", packages), (release, ""), ("../bad", packages), (release, packages.replace("5.15.0-78.85", "*"))):
             path.write_text(yaml.safe_dump(config), encoding="utf-8")

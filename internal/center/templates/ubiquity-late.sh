@@ -1,6 +1,8 @@
 #!/bin/sh
 set -eu
 umask 077
+mkdir -p /target/var/lib/ventoy-center
+printf 'automatic\n' > /target/var/lib/ventoy-center/install-mode
 {{if .SetupPreload}}/bin/sh /usr/local/lib/ventoy-preload/copy-to-target.sh /target
 {{end}}
 test -f "/target/boot/vmlinuz-$(uname -r)"
