@@ -564,9 +564,6 @@ def execute(mode):
         if report.get('node_join'):
             import node_join
             node_join.check(report['node_join'])
-        if report.get('p95_priority'):
-            import p95_priority
-            p95_priority.check(report['p95_priority'])
         print('VERIFIED: %s packages are at the requested version or newer.' % len(report['packages']))
         return
     with open(os.path.join(HERE, 'software-client.json')) as f:
@@ -638,11 +635,6 @@ def execute(mode):
             import node_join
             nodes = node_join.fetch(client)
             report['node_join'] = node_join.configure(nodes, set(name.split(':')[0] for name in installed(family)))
-        installed_names = set(name.split(':')[0] for name in installed(family))
-        report['p95_priority'] = []
-        if installed_names.intersection(('fyhocsys-node', 'sckocstp-node')):
-            import p95_priority
-            report['p95_priority'] = p95_priority.configure(installed_names)
         report['status'], report['changed'] = 'verified', changed
         if unchanged is not None:
             print('VERIFIED: unchanged software group; installed versions and retained package files checked; no installation needed.')

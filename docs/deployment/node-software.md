@@ -99,19 +99,25 @@ CentOS 7.9 与 Ubuntu Desktop 26.04 隔离系统已分别用真实 `fyhoc 1.1.24
 
 ## 自动选择与升级
 
-### 独立 P95 优先级助手（alpha.46）
+### 手动运行的 P95 优先级助手（alpha.47）
 
-setup 软件步骤在安装、验证软件包并完成已配置的节点接入后，检查本机是否安装 `fyhocsys-node` / `sckocstp-node`。在 Linux x86_64、systemd 219+ 上，执行 setup 内置并固定 SHA-256 的 `p95-priority-setup.sh`，安装独立助手；每秒把受管 mprime 压测线程默认的 nice 19 调到普通优先级 nice 0。普通 tools 文件继续只复制，不执行任意下载脚本。
+P95 修复不再集成到 `ventoy-linux-setup.run`。将仓库的 `tools/p95-priority-setup.sh` 放到中心 `/home/ventoy-center/iventoy/tools/`；节点执行 setup 时只把它复制到 `/root/ventoy-tools/` 并校验 SHA-256，不安装、启停、修复或检查 P95 助手服务。需要时由管理员手动执行：
 
-源码、测试、构建脚本及说明保留在 `/usr/local/share/p95-priority-helper/1.0.2/`，仓库源码在 `tools/p95-priority-helper/`。助手不修改 fyhocsys/sckocstp 项目文件或 prime.txt，也不启动压测。相同版本且检查正常时保持助手运行；缺失/停止时重复执行 setup 的软件步骤可补装/恢复，即使节点包版本未变。助手安装失败使软件事务失败并保留重试请求；`--check-software` 只读检查已记录的助手。
+```bash
+bash /root/ventoy-tools/p95-priority-setup.sh
+# 只检查已安装的独立助手：
+bash /root/ventoy-tools/p95-priority-setup.sh --check
+```
+
+独立脚本安装后将源码、测试、构建脚本及说明保留在 `/usr/local/share/p95-priority-helper/1.0.2/`，仓库源码在 `tools/p95-priority-helper/`。助手每秒把受管 mprime 线程默认的 nice 19 调到 nice 0；不修改 fyhocsys/sckocstp 项目文件或 prime.txt，也不启动压测。相同版本且检查正常时保持助手运行；缺失/停止时再次手动运行独立脚本可补装/恢复。完整 setup 的 `--check-software` 只检查下载的脚本文件，不检查 P95 服务；读取 alpha.46 的旧结果记录也不会恢复 P95 检查。
 
 CentOS 7.9 的 systemd 219 已加入适配：使用旧版支持的 systemctl 参数，由助手维护 root 所有的 `0700` 运行目录，在助手崩溃或重启后保留优先级撤销日志；235+ 使用 `RuntimeDirectoryPreserve=yes`。工具识别增加固定的 `workloads/0.1.0-el7/mprime/mprime` 和 `workloads/extra-0.2.0/memtester/memtester`，仍核对服务 cgroup、工作目录、启动参数和进程/线程启动时间。依据 [systemd 219 服务执行配置](https://raw.githubusercontent.com/systemd/systemd/v219/man/systemd.exec.xml) 生成兼容单元。
 
-低于 systemd 219 或非 x86_64 明确记为 `P95_PRIORITY_SKIPPED`。已有节点上的旧 setup 不会自行包含新文件，需要更新 setup；普通 tools 文件同步也不会执行其中的脚本。`--offline` 仍跳过 Ventoy 软件步骤，独立 P95 脚本自身可离线安装。
+独立脚本要求 Linux x86_64 和 systemd 219+，平台不满足时明确报错。中心替换独立脚本后，再运行新版完整 setup 会更新受管副本，不自动运行；已被用户修改的副本会保留并报错。`--offline` 跳过 tools 同步；独立 P95 脚本自身可以离线安装。已有节点需要更新至 alpha.47 或更新版完整 setup，旧版仍有原来的自动 P95 步骤；新版不会自动卸载已经安装的助手。
 
 运行混合测试时在节点执行 `/usr/local/sbin/p95-priority-fyhocsys status --seconds 10`，检查线程 nice、两种工具实际消耗的 CPU 核数及 cgroup/autogroup 信息。看到进程或少量 CPU 时间增长不足以证明负载充分，更不代表算法测试通过。停用时先执行 `systemctl stop p95-priority-fyhocsys.service`，再执行 `systemctl disable p95-priority-fyhocsys.service`；正常停止会恢复本工具记录的原优先级。sckocstp 使用对应产品名，并给状态命令加 `--product sckocstp`。
 
-该集成只改变 setup 的软件收尾流程；发布状态与实机验收范围见[当前进度](../development/progress.md)。助手安装/自检通过不等于真实 AMD 混合负载已验收。
+发布状态与实机验收范围见[当前进度](../development/progress.md)。助手安装/自检通过不等于真实 AMD 混合负载已验收。
 
 - Ubuntu / Debian 选择本机架构的 DEB；EL 系列选择本机架构的 RPM。`all` / `noarch` 包也可使用。默认根据 RPM 的 EL 大版本匹配；例如 `.el9` 不发给 EL8。
 - 名称、版本、Epoch、Release、架构以包内元数据为准。不同发行版之间的依赖兼容性由本机包管理器检查。

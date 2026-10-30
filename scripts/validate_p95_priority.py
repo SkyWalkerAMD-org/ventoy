@@ -1,10 +1,14 @@
-"""P95 setup integration tests; no installation or system service is executed."""
+"""P95 stays an independent tools file: copy/update/check without executing it."""
+import base64
 import contextlib
+import hashlib
 import io
 import json
 import os
 from pathlib import Path
+import re
 import sys
+import tarfile
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -12,103 +16,90 @@ from unittest.mock import patch
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT/'internal/center/assets/manual'))
-import p95_priority as helper
 import software
 
 
-class PriorityIntegrationTests(unittest.TestCase):
-    def test_bundled_script_matches_pin(self):
-        helper.verify_setup()
+class PriorityStandaloneTests(unittest.TestCase):
+    def test_standalone_payload_integrity_and_version(self):
+        # Check the actual distributed file without starting its installer.
+        script = (ROOT/'tools/p95-priority-setup.sh').read_bytes()
+        header, payload = script.split(b'\n__P95_PAYLOAD_BELOW__\n', 1)
+        archive = base64.b64decode(payload)
+        def pin(name):
+            return re.search(rb"^"+name+rb"='([^']+)'$", header, re.M).group(1).decode()
+        self.assertEqual(hashlib.sha256(archive).hexdigest(), pin(b'archive_sha'))
+        self.assertEqual(pin(b'release'), '1.0.2')
+        with tarfile.open(fileobj=io.BytesIO(archive), mode='r:gz') as tf:
+            data = {m.name: tf.extractfile(m).read() for m in tf if m.isfile()}
+            manifest = data['p95-priority-helper/SHA256SUMS']
+            self.assertEqual(hashlib.sha256(manifest).hexdigest(), pin(b'manifest_sha'))
+            for line in manifest.decode().splitlines():
+                digest, name = line.split('  ', 1)
+                self.assertEqual(hashlib.sha256(data['p95-priority-helper/'+name]).hexdigest(), digest)
+            self.assertEqual(hashlib.sha256(data['p95-priority-helper/p95-priority']).hexdigest(), pin(b'binary_sha'))
 
-    def test_no_node_changes_nothing(self):
-        with patch.object(helper, 'command') as command:
-            self.assertEqual(helper.configure({'fyhoc'}), [])
-            command.assert_not_called()
-
-    def test_old_systemd_is_explicitly_skipped(self):
-        with patch.object(helper.platform, 'machine', return_value='x86_64'), \
-                patch.object(helper, 'command', return_value='systemd 218') as command:
-            records = helper.configure({'fyhocsys-node'})
-            self.assertEqual(records[0]['status'], 'skipped')
-            self.assertEqual(command.call_count, 1)
-            helper.check(records)
-            self.assertEqual(command.call_count, 1)
-
-    def test_centOS7_is_installed_and_checked(self):
-        with patch.object(helper.platform, 'machine', return_value='x86_64'), \
-                patch.object(helper, 'command', return_value='systemd 219') as command:
-            records = helper.configure({'fyhocsys-node'})
-            self.assertEqual(records[0]['status'], 'verified')
-            command.assert_any_call(['bash', helper.SETUP, '--product', 'fyhocsys'], echo=True)
-            command.assert_any_call(['bash', helper.SETUP, '--check', '--product', 'fyhocsys'], echo=True)
-            helper.check(records)
-            self.assertEqual(command.call_count, 4)
-
-    def test_wrong_architecture_skips_without_commands(self):
-        with patch.object(helper.platform, 'machine', return_value='aarch64'), \
-                patch.object(helper, 'command') as command:
-            self.assertEqual(helper.configure({'fyhocsys-node'})[0]['status'], 'skipped')
-            command.assert_not_called()
-
-    def test_configure_and_readonly_check(self):
-        with patch.object(helper.platform, 'machine', return_value='x86_64'), \
-                patch.object(helper, 'command', return_value='systemd 239') as command:
-            records = helper.configure({'fyhocsys-node', 'sckocstp-node'})
-            for product in ('fyhocsys','sckocstp'):
-                command.assert_any_call(['bash',helper.SETUP,'--product',product],echo=True)
-                command.assert_any_call(['bash',helper.SETUP,'--check','--product',product],echo=True)
-            command.reset_mock()
-            helper.check(records)
-            self.assertEqual(command.call_count, 2)
-            self.assertTrue(all('--check' in call.args[0] for call in command.call_args_list))
-
-    def test_tampered_script_never_executes(self):
-        with tempfile.TemporaryDirectory() as folder:
-            script=Path(folder)/'bad.sh'; script.write_text('echo bad\n')
-            with patch.object(helper,'SETUP',str(script)), patch.object(helper.platform,'machine',return_value='x86_64'), \
-                    patch.object(helper,'command',return_value='systemd 239') as command:
-                with self.assertRaisesRegex(RuntimeError,'checksum mismatch'):
-                    helper.configure({'fyhocsys-node'})
-                self.assertEqual(command.call_count,1)
-
-    def test_install_failure_propagates(self):
-        def fail(args,echo=False):
-            if args[0]=='systemctl':return 'systemd 239'
-            raise RuntimeError('fixture installation failed')
-        with patch.object(helper.platform,'machine',return_value='x86_64'), patch.object(helper,'command',side_effect=fail):
-            with self.assertRaisesRegex(RuntimeError,'installation failed'):
-                helper.configure({'fyhocsys-node'})
-
-    def test_software_failure_retry_and_unchanged_group(self):
-        wanted=dict(os='rocky',version='8.10',arch='x86_64')
-        manifest=dict(schema=1,target=wanted,group=dict(id='fixture',files=[]))
-        records=[dict(program='fyhocsys',status='verified',version=helper.VERSION)]
-        class Client:
-            def __init__(self,config):pass
-            def manifest(self,target):return manifest
-        with tempfile.TemporaryDirectory() as folder:
-            base=Path(folder)
-            (base/'software-client.json').write_text('{"enabled":true}')
-            with patch.object(software,'HERE',folder), patch.object(software,'STATE',folder), \
-                    patch.object(software,'STAGING',folder), patch.object(software,'target',return_value=wanted), \
-                    patch.object(software,'Client',Client), patch.object(software,'installed',return_value={'fyhocsys-node:x86_64':'0.8.6'}), \
-                    patch.object(software,'verify'), patch.object(software,'verify_archives'), \
-                    patch.object(software,'sync_archives'), patch.object(software,'transaction') as transaction, \
-                    patch.object(software.os,'rename',side_effect=os.replace), \
-                    patch.object(helper,'configure',side_effect=RuntimeError('fixture failure')) as configure, \
-                    patch.object(helper,'check') as check:
-                software.execute('--list-software'); configure.assert_not_called()
-                with self.assertRaisesRegex(RuntimeError,'fixture failure'):software.execute('--software')
-                self.assertEqual(json.loads((base/'last-result.json').read_text())['status'],'failed')
-                configure.side_effect=None;configure.return_value=records
-                software.execute('--software')
-                saved=json.loads((base/'last-result.json').read_text())
-                self.assertEqual(saved['status'],'verified');self.assertEqual(saved['p95_priority'],records)
-                software.execute('--software')
-                self.assertEqual(configure.call_count,3)
-                software.execute('--check-software');check.assert_called_once_with(records)
-                transaction.assert_not_called()
+    @unittest.skipUnless(sys.platform.startswith('linux'), 'real POSIX file publishing')
+    def test_software_copies_and_updates_script_without_managing_helper(self):
+        for system, version in [('centos', '7.9'), ('rocky', '9.2'), ('ubuntu', '22.04'), ('debian', '13')]:
+            with self.subTest(system=system), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                (root/'software-client.json').write_text('{"enabled":true}')
+                wanted = dict(os=system, version=version, arch='x86_64' if system in ('centos', 'rocky') else 'amd64')
+                # If a downloaded script is ever invoked, fail visibly. Every
+                # command entry point is also trapped below, including checks.
+                payload = b'#!/bin/sh\necho UNEXPECTED_P95_EXECUTION >&2\nexit 99\n'
+                def item():
+                    return dict(path='p95-priority-setup.sh', size=len(payload), sha256=hashlib.sha256(payload).hexdigest())
+                manifest = dict(schema=1, target=wanted, group=dict(id='fixture', files=[]), copy_files=[item()])
+                downloads = []
+                class Client:
+                    def __init__(self, config): pass
+                    def manifest(self, target): return manifest
+                    def download(self, file, dest):
+                        downloads.append(file['sha256'])
+                        Path(dest).write_bytes(payload)
+                with patch.object(software, 'HERE', folder), patch.object(software, 'STATE', str(root/'state')), \
+                     patch.object(software, 'STAGING', folder), patch.object(software, 'ARCHIVES', str(root/'files')), \
+                     patch.object(software, 'target', return_value=wanted), patch.object(software, 'Client', Client), \
+                     patch.object(software, 'installed', return_value={'fyhocsys-node': '0.8.6', 'sckocstp-node': '0.8.6'}), \
+                     patch.object(software, 'verify'), patch.object(software, 'transaction') as transaction, \
+                     patch.object(software, 'run', side_effect=AssertionError('setup invoked a system command')) as command, \
+                     contextlib.redirect_stdout(io.StringIO()):
+                    software.execute('--list-software')
+                    self.assertFalse((root/'files').exists())
+                    software.execute('--software')
+                    copied = root/'files/p95-priority-setup.sh'
+                    self.assertEqual(copied.read_bytes(), payload)
+                    self.assertEqual(copied.stat().st_mode & 0o777, 0o600)
+                    report_path = root/'state/last-result.json'
+                    report = json.loads(report_path.read_text())
+                    self.assertEqual(report['status'], 'verified')
+                    self.assertNotIn('p95_priority', report)
+                    software.execute('--software')
+                    software.execute('--check-software')
+                    self.assertEqual(len(downloads), 1)
+                    # Reports from alpha46 must not make the new checker invoke
+                    # an obsolete embedded module or require a P95 service.
+                    report['p95_priority'] = [dict(program='fyhocsys', status='verified', version='1.0.1')]
+                    report_path.write_text(json.dumps(report))
+                    software.execute('--check-software')
+                    payload += b'# replacement from controller\n'
+                    manifest['copy_files'] = [item()]
+                    software.execute('--software')
+                    software.execute('--check-software')
+                    self.assertEqual(copied.read_bytes(), payload)
+                    self.assertEqual(len(downloads), 2)
+                    # Preserve the normal integrity/user-edit protection for
+                    # the standalone file as well as regular tools downloads.
+                    copied.write_bytes(b'local administrator modification\n')
+                    with self.assertRaisesRegex(RuntimeError, 'missing or changed'):
+                        software.execute('--check-software')
+                    with self.assertRaisesRegex(RuntimeError, 'modified or is unmanaged'):
+                        software.execute('--software')
+                    self.assertEqual(copied.read_bytes(), b'local administrator modification\n')
+                    command.assert_not_called()
+                    transaction.assert_not_called()
 
 
-if __name__=='__main__':
+if __name__ == '__main__':
     unittest.main()

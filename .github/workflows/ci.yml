@@ -52,6 +52,7 @@ jobs:
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_unified_menu.py "$RUNNER_TEMP/ventoy-template-fixtures"
           for f in internal/center/assets/manual/*.sh; do bash -n "$f"; done
           for f in tools/p95-priority-helper/*.sh; do bash -n "$f"; done
+          bash -n tools/p95-priority-setup.sh
       - if: runner.os == 'Linux'
         run: go test -race ./...
       - run: node --check internal/center/web/app.js
