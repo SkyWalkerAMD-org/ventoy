@@ -1,0 +1,5 @@
+#!/bin/sh
+# Native d-i pre-pkgsel hook: base system/kernel is already installed from DVD.
+# Cache official mirror dependencies before tasksel (SSH) and grub-installer.
+set -eu
+/bin/sh /ventoy-manual-preload/support-cache.sh /target

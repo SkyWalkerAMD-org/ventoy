@@ -167,7 +167,12 @@ offline=$(cat "$state/offline"); keep_passwords=$(cat "$state/keep-passwords")
 export VC_MANUAL_OFFLINE=$offline
 exec > >(tee -a /var/log/ventoy-manual-init.log) 2>&1
 printf '\n[%s] mode=%s os=%s/%s kernel=%s\n' "$(date -Is)" "$mode" "$ID" "$VERSION_ID" "$(uname -r)"
-trap 'rc=$?; flock -u 7; if ((rc != 0 && rc != 3)); then printf "failed exit=%s time=%s\n" "$rc" "$(date -Is)" > "$state/status"; fi' EXIT
+trap 'rc=$?; flock -u 7; if ((rc != 0 && rc != 3)); then printf "failed exit=%s time=%s\n" "$rc" "$(date -Is)" > "$state/status"; fi; if [[ -f "$here/support-report.sh" ]]; then /bin/sh "$here/support-report.sh" || true; fi' EXIT
+if [[ $mode == --resume ]]; then
+    /bin/sh "$here/support-install.sh" /
+    systemctl daemon-reload
+    systemctl start ventoy-install-report.timer
+fi
 printf 'running %s\n' "$(date -Is)" > "$state/status"
 pending=0
 if [[ $mode == --resume ]]; then

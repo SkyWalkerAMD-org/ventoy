@@ -2,12 +2,17 @@
 # Run only from Subiquity's fatal error hook. No disk or network configuration
 # changes: release this job's unfinished state after installation has stopped.
 import ssl
+import os
+import subprocess
 import sys
 import urllib.error
 import urllib.request
 
 
 def report_failure():
+    support = '/usr/local/lib/ventoy-preload/support-diagnostic.sh'
+    if os.path.isfile(support):
+        subprocess.call(['/bin/sh', support, 'failure', 'Subiquity installation failed'])
     ca = {{yaml .CA}}
     context = ssl.create_default_context(cadata=ca or None)
     request = urllib.request.Request(

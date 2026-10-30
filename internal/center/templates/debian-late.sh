@@ -2,6 +2,8 @@
 set -eu
 umask 077
 {{.FailureShell}}
+mkdir -p /var/lib/ventoy-center
+printf 'automatic\n' > /var/lib/ventoy-center/install-mode
 trap 'vc_result=$?; [ "$vc_result" = 0 ] || vc_install_failed' EXIT
 {{if .RAIDSetup}}printf '%s' {{sh (b64 .RAIDSetup)}} | base64 -d > /usr/local/sbin/ventoy-center-raid
 chmod 0700 /usr/local/sbin/ventoy-center-raid

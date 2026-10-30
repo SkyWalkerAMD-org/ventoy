@@ -237,7 +237,34 @@ def choose_filesystem(console, default='ext4'):
         print('Invalid filesystem. No disk has been erased.', file=console)
     raise RuntimeError('No valid filesystem selected after 3 attempts')
 
-def choose_raid(inv, console):
+def partition_preview(disks, filesystem, firmware):
+    """Same decimal disk tiers and MiB allocations as storage-sizing.sh."""
+    capacity = min(d['size'] for d in disks)
+    if capacity < 120000000000:
+        raise RuntimeError('Default partition layout requires at least 120 GB per disk')
+    quarters, threshold = 1, 240000000000
+    while capacity >= threshold:
+        quarters *= 2
+        threshold *= 2
+    sizes = [('UEFI /boot/efi (each disk)' if firmware == 'uefi' else 'BIOS boot (each disk)',
+              1024 if firmware == 'uefi' else 1, 'FAT32' if firmware == 'uefi' else 'bios_grub'),
+             ('/boot', 2048, 'ext4'), ('/tmp', 1280*quarters, filesystem),
+             ('SWAP', 8192*quarters, 'swap'), ('/var', 16384*quarters, filesystem),
+             ('/', 32768*quarters, filesystem)]
+    remaining = capacity // 1048576 - sum(row[1] for row in sizes)
+    lines = ['\nPARTITION PREVIEW - no changes yet',
+             'Layout: ' + ('RAID1 mirror + LVM' if len(disks) == 2 else 'single disk'),
+             'Capacity basis: %.2f GiB (RAID1 uses the smaller disk)' % (capacity/float(1024**3))]
+    for d in disks:
+        lines.append('Target: /dev/%s  SERIAL=%s' % (d['name'], d['serial']))
+    for mount, size, fs in sizes:
+        lines.append('  %-30s %9.2f GiB  %s' % (mount, size/1024.0, fs))
+    lines.append('  /home: remaining, approximately %.2f-%.2f GiB  %s' %
+                 ((remaining-256)/1024.0, remaining/1024.0, filesystem))
+    lines.append('Final sizes vary slightly with partition alignment and RAID/LVM metadata.\n')
+    return '\n'.join(lines)
+
+def choose_raid(inv, console, filesystem='ext4'):
     allowed = ('', 'Existing LVM/RAID: prepare storage separately', 'Active swap')
     for attempt in range(1, 4):
         print('RAID1 + LVM: enter TWO disk numbers separated by a space (example: 1 2), or q:', file=console)
@@ -259,11 +286,12 @@ def choose_raid(inv, console):
         serials = [d['serial'] for d in members]
         for d in members:
             print('Selected RAID member: /dev/%s  %.1f GiB  SERIAL=%s' % (d['name'], d['size']/float(1024**3), d['serial']), file=console)
+        print(partition_preview(members, filesystem, inv.get('firmware', 'uefi')), file=console)
         confirm_erase(console, 'ALL DATA ON BOTH SELECTED DISKS WILL BE ERASED.\nRebuild: RAID1 mirror + LVM. Usable capacity is approximately the smaller disk.\nStorage spanning any unselected disk will stop this installation.')
         return serials[0], 'ERASE RAID1 ' + ' '.join(serials), dict(mode='raid1-lvm', disk_serials=serials)
     raise RuntimeError('No valid RAID member pair selected after 3 attempts')
 
-def choose(inv, info, console):
+def choose(inv, info, console, filesystem='ext4'):
     print('\nVentoy Center - PXE automatic installation', file=console)
     print('System: ' + SETTINGS['iso'], file=console)
     print('Boot MAC: ' + inv['mac'], file=console)
@@ -286,7 +314,7 @@ def choose(inv, info, console):
         if value.lower() == 'q':
             raise RuntimeError('Installation canceled at the console')
         if value.lower() == 'r' and raid:
-            return choose_raid(inv, console)
+            return choose_raid(inv, console, filesystem)
         if not value.isdigit() or not 1 <= int(value) <= len(inv['disks']):
             print('Invalid disk number. Nothing has been erased.', file=console)
             continue
@@ -303,6 +331,7 @@ def choose(inv, info, console):
     print('\nSelected: /dev/%s  %.1f GiB  %s  SERIAL=%s' % (
         disk['name'], disk['size']/float(1024**3), disk['model'], disk['serial']), file=console)
     print('ALL DATA ON THIS DISK WILL BE ERASED. Other disks will not be selected for installation.', file=console)
+    print(partition_preview([disk], filesystem, inv.get('firmware', 'uefi')), file=console)
     if rebuild:
         print('Old partitions and LVM/RAID on this disk will be removed; its active swap will be released.\nIf the old storage also uses another disk, installation stops and lists that disk; select all members for a rebuild.', file=console)
     for attempt in range(1, 4):
@@ -391,10 +420,11 @@ def main():
         console.flush()
     if serial and info.get('automatic_disk'):
         print('Ventoy Center: installing %s on the only internal disk, SERIAL=%s' % (SETTINGS['iso'], serial))
+        print(partition_preview([d for d in inv['disks'] if d['serial'] == serial], filesystem, inv['firmware']), file=console or sys.stdout)
     elif not serial and policy in ('console', 'single-or-console'):
         # Keep installer UI and keyboard input separate. No dependency on the
         # caller having a controlling terminal (Subiquity runs as a service).
-        serial, confirmation, storage_plan = choose(inv,info,console)
+        serial, confirmation, storage_plan = choose(inv,info,console,filesystem)
     if inventory(mac) != inv:
         raise RuntimeError('Hardware or mount state changed before installation')
     body = dict(ticket=info['ticket'], disk_serial=serial, confirmation=confirmation, filesystem=filesystem)
@@ -419,7 +449,8 @@ def main():
         raise RuntimeError('Hardware or mount state changed while obtaining installation config')
     # Guard rechecks OS, MAC, serial, storage and firmware, then atomically claims
     # the job. The real installer cannot run before this returns successfully.
-    subprocess.check_call(['/bin/bash',work + '/preinstall.sh'])
+    with open('/tmp/ventoy-center-guard.log', 'w') as guardlog:
+        subprocess.check_call(['/bin/bash',work + '/preinstall.sh'], stdout=guardlog, stderr=subprocess.STDOUT)
     if installer == 'ubiquity':
         subprocess.check_call(['debconf-set-selections', destination])
     if console:
@@ -435,6 +466,10 @@ if __name__ == '__main__':
     try:
         main()
     except Exception as exc:
+        for support in ('/usr/local/lib/ventoy-preload', '/ventoy-manual-preload'):
+            if os.path.isfile(support + '/support-diagnostic.sh'):
+                subprocess.call(['/bin/sh', support + '/support-diagnostic.sh', 'failure', str(exc)])
+                break
         message = 'Ventoy Center stopped: ' + str(exc)
         print(message,file=sys.stderr)
         try:

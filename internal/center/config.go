@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-const Version = "0.3.0-alpha.47"
+const Version = "0.3.0-alpha.48"
 
 type Config struct {
 	Listen                   string         `json:"listen"`
@@ -23,6 +23,10 @@ type Config struct {
 	ISODir                   string         `json:"iso_dir"`
 	PackageDir               string         `json:"package_dir"`
 	SoftwareDir              string         `json:"software_dir,omitempty"`
+	InstallerCacheDir        string         `json:"installer_cache_dir,omitempty"`
+	InstallerCacheListen     string         `json:"installer_cache_listen,omitempty"`
+	InstallerCacheURL        string         `json:"installer_cache_url,omitempty"`
+	InstallerCacheMaxBytes   int64          `json:"installer_cache_max_bytes,omitempty"`
 	SoftwareRPMMinEL         map[string]int `json:"software_rpm_min_el,omitempty"`
 	FYHOCUnlockPasswordFile  string         `json:"fyhoc_unlock_password_file,omitempty"`
 	NodeJoinConfigFile       string         `json:"node_join_config_file,omitempty"`
@@ -109,7 +113,10 @@ func loadConfig(path string) (Config, error) {
 		return c, errors.New("linux_admin_username must be a valid non-root administrator name")
 	}
 	base, _ := filepath.Abs(filepath.Dir(path))
-	for _, p := range []*string{&c.DataDir, &c.ISODir, &c.PackageDir, &c.SoftwareDir, &c.FYHOCUnlockPasswordFile, &c.NodeJoinConfigFile, &c.AdminTokenFile, &c.TLSCert, &c.TLSKey, &c.BootstrapCA, &c.IVentoyRoot} {
+	if c.InstallerCacheMaxBytes < 0 {
+		return c, errors.New("installer_cache_max_bytes must not be negative")
+	}
+	for _, p := range []*string{&c.DataDir, &c.ISODir, &c.PackageDir, &c.SoftwareDir, &c.InstallerCacheDir, &c.FYHOCUnlockPasswordFile, &c.NodeJoinConfigFile, &c.AdminTokenFile, &c.TLSCert, &c.TLSKey, &c.BootstrapCA, &c.IVentoyRoot} {
 		if *p != "" && !filepath.IsAbs(*p) {
 			*p = filepath.Join(base, *p)
 		}
@@ -132,6 +139,14 @@ func loadConfig(path string) (Config, error) {
 	u, err := url.Parse(c.PublicURL)
 	if err != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path != "" || (u.Scheme != "http" && u.Scheme != "https") {
 		return c, errors.New("public_url must be an HTTP(S) origin without a path or credentials")
+	}
+	if c.InstallerCacheListen != "" || c.InstallerCacheURL != "" {
+		cu, ce := url.Parse(c.InstallerCacheURL)
+		ch, cp, le := net.SplitHostPort(c.InstallerCacheListen)
+		ip := net.ParseIP(u.Hostname())
+		if ce != nil || le != nil || c.InstallerCacheDir == "" || cu.Scheme != "http" || cu.Hostname() != u.Hostname() || cu.Port() != cp || cu.User != nil || cu.Path != "" || cu.RawQuery != "" || cu.Fragment != "" || ip == nil || ip.To4() == nil || !(ip.IsPrivate() || ip.IsLoopback()) || (ch != u.Hostname() && ch != "0.0.0.0" && ch != "::") {
+			return c, errors.New("installer cache requires a dedicated HTTP listener on the private controller address, matching URL and a cache directory")
+		}
 	}
 	host, _, err := net.SplitHostPort(c.Listen)
 	if err != nil {

@@ -13,6 +13,30 @@ dest=$root/usr/local/lib/ventoy-preload
 for name in ventoy-linux-setup.run setup.sha256 copy-to-target.sh README.txt software-README.txt subiquity-launch.sh subiquity-legacy.py subiquity-desktop.sh finish-subiquity ubuntu-reboot.sh linux-update-policy.sh target-update-policy.sh ubuntu-kernel.py manual-ubuntu-policy.py; do
     cp -p "$src/$name" "$dest/$name"
 done
+if [ -f "$src/support-cache.sh" ]; then /bin/sh "$src/support-cache.sh" "$root"; fi
+for item in "$src"/support-*; do
+    [ ! -f "$item" ] || cp -p "$item" "$dest/"
+done
+cp -p "$src/acceptance.sh" "$dest/acceptance.sh"
+if [ -d "$root/etc/systemd/system" ]; then
+    cat > "$root/etc/systemd/system/ventoy-install-watch.service" <<'UNIT'
+[Unit]
+Description=Collect original installer errors without changing the installation
+[Service]
+Type=oneshot
+ExecStart=/bin/sh /usr/local/lib/ventoy-preload/support-watch.sh
+TimeoutStartSec=25
+UNIT
+    cat > "$root/etc/systemd/system/ventoy-install-watch.timer" <<'UNIT'
+[Timer]
+OnBootSec=25s
+OnUnitActiveSec=30s
+[Install]
+WantedBy=timers.target
+UNIT
+    mkdir -p "$root/etc/systemd/system/timers.target.wants"
+    ln -sf ../ventoy-install-watch.timer "$root/etc/systemd/system/timers.target.wants/ventoy-install-watch.timer"
+fi
 if [ -d "$root/usr/share/anaconda/post-scripts" ]; then
     cp -p "$src/finish-anaconda.ks" "$root/usr/share/anaconda/post-scripts/99-ventoy-preload.ks"
 elif [ -x "$root/usr/bin/ubiquity" ]; then

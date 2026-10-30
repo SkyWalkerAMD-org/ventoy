@@ -18,10 +18,11 @@ autoinstall:
     geoip: false
     primary:
       - arches: [default]
-        uri: https://{{if .Target.Archived}}old-releases{{else}}archive{{end}}.ubuntu.com/ubuntu
+        uri: {{if .InstallerCache}}{{.InstallerCache}}/ubuntu{{if .Target.Archived}}-archive{{end}}{{else}}https://{{if .Target.Archived}}old-releases{{else}}archive{{end}}.ubuntu.com/ubuntu{{end}}
     security:
       - arches: [default]
-        uri: https://{{if .Target.Archived}}old-releases{{else}}security{{end}}.ubuntu.com/ubuntu
+        uri: {{if .InstallerCache}}{{.InstallerCache}}/ubuntu-{{if .Target.Archived}}archive{{else}}security{{end}}{{else}}https://{{if .Target.Archived}}old-releases{{else}}security{{end}}.ubuntu.com/ubuntu{{end}}
+    conf: 'Acquire::Retries "10"; Acquire::AllowInsecureRepositories "false";'
   packages:
     - curl
 {{if .RAIDSetup}}    - mdadm
@@ -99,6 +100,8 @@ autoinstall:
     - |
       set -eu
       umask 077
+      mkdir -p /target/var/lib/ventoy-center
+      printf 'automatic\n' > /target/var/lib/ventoy-center/install-mode
 {{if .SetupPreload}}      /bin/sh /usr/local/lib/ventoy-preload/copy-to-target.sh /target
 {{end}}
 {{if .RAIDSetup}}      printf '%s' {{sh (b64 .RAIDSetup)}} | base64 -d > /target/usr/local/sbin/ventoy-center-raid

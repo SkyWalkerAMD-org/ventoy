@@ -1,0 +1,49 @@
+#!/bin/sh
+# Install an observer, never configure accounts, partitions or software.
+set -eu
+src=$(CDPATH= cd -- "${0%/*}" && pwd)
+target=${1:?target root required}
+[ -f "$target/etc/os-release" ] || exit 1
+target=$(readlink -f "$target")
+[ "$target" != / ] || target=
+for part in /usr /usr/local /usr/local/lib /etc /etc/systemd /etc/systemd/system /var /var/lib /var/lib/ventoy-center; do
+    [ ! -L "$target$part" ] || { echo "Unsafe support destination: $part" >&2; exit 1; }
+done
+dest=$target/usr/local/lib/ventoy-install-support
+mkdir -p "$dest" "$target/var/lib/ventoy-center" "$target/etc/systemd/system/timers.target.wants" "$target/etc/profile.d"
+chmod 0700 "$dest"
+for name in acceptance.sh support-report.sh support-diagnostic.sh support-watch.sh support-version support-url support-ca.crt support-curl.conf support-wget.conf support-cache-url; do
+    [ ! -f "$src/$name" ] || { cp "$src/$name" "$dest/$name"; chmod 0600 "$dest/$name"; }
+done
+chmod 0700 "$dest/acceptance.sh"
+cat > "$target/etc/systemd/system/ventoy-install-report.service" <<'UNIT'
+[Unit]
+Description=Ventoy installation result and console login information
+[Service]
+Type=oneshot
+ExecStart=/bin/sh /usr/local/lib/ventoy-install-support/support-report.sh
+TimeoutStartSec=45
+UMask=0077
+UNIT
+# A timer avoids ordering getty/multi-user.target after cloud-final (which can
+# create an ordering cycle). No getty restart, injected Enter or shell takeover.
+cat > "$target/etc/systemd/system/ventoy-install-report.timer" <<'UNIT'
+[Unit]
+Description=Refresh Ventoy login information after first-boot services settle
+[Timer]
+OnBootSec=10s
+OnUnitActiveSec=20s
+Unit=ventoy-install-report.service
+[Install]
+WantedBy=timers.target
+UNIT
+ln -sf ../ventoy-install-report.timer "$target/etc/systemd/system/timers.target.wants/ventoy-install-report.timer"
+cat > "$target/etc/profile.d/90-ventoy-install-report.sh" <<'PROFILE'
+case "$-" in *i*) [ ! -r /run/ventoy-install-report.txt ] || cat /run/ventoy-install-report.txt;; esac
+PROFILE
+chmod 0644 "$target/etc/profile.d/90-ventoy-install-report.sh"
+state=$target/var/lib/ventoy-center
+if [ ! -f "$state/install-mode" ]; then printf 'manual\n' > "$state/install-mode"; fi
+cp "$src/support-version" "$state/install-release"
+date -u '+%Y-%m-%dT%H:%M:%SZ' > "$state/install-hook-completed"
+echo 'Ventoy: setup is preloaded; the first boot report distinguishes pending and completed checks.'

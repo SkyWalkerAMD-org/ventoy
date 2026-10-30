@@ -18,7 +18,7 @@ def ubuntu_version(path=Path('/etc/os-release')):
     raise ValueError('Missing Ubuntu VERSION_ID; cannot select the installation mirror')
 
 
-def prepare(path, release, packages, lock, version):
+def prepare(path, release, packages, lock, version, cache=''):
     path = Path(path)
     marker = path.parent / 'run/ventoy-manual-policy-config.json'
     if path.exists() or path.is_symlink():
@@ -50,6 +50,16 @@ def prepare(path, release, packages, lock, version):
             'conf': 'APT::Periodic::Enable "0";\n',
         },
     }
+    config['error-commands'] = [
+        '/bin/sh /usr/local/lib/ventoy-preload/support-diagnostic.sh failure "Manual installation failed" || true']
+    if cache:
+        from urllib.parse import urlsplit
+        parsed = urlsplit(cache)
+        if parsed.scheme != 'http' or parsed.path != '/installer-cache' or parsed.username or parsed.query or parsed.fragment:
+            raise ValueError('Invalid deployment cache URL')
+        config['apt']['primary'][0]['uri'] = cache + ('/ubuntu-archive' if archived else '/ubuntu')
+        config['apt']['security'][0]['uri'] = cache + ('/ubuntu-archive' if archived else '/ubuntu-security')
+        config['apt']['conf'] += 'Acquire::Retries "10";\nAcquire::AllowInsecureRepositories "false";\n'
     # Share the automatic installer's media-kernel pin and UU blacklist.
     # No disk, identity, network, or automatic reboot answers are supplied.
     with tempfile.TemporaryDirectory(prefix='ventoy-manual-kernel-') as tmp:
@@ -77,5 +87,7 @@ if __name__ == '__main__':
     if not any(line.startswith('linux-image-' + release + '\t') and line.endswith('\tinstalled')
                for line in packages.splitlines()):
         packages += kernel.media_kernel_metadata(release)
-    prepare('/autoinstall.yaml', release, packages, kernel.lock_installer_kernel, ubuntu_version())
+    cache_file = Path(__file__).with_name('support-cache-url')
+    cache = cache_file.read_text().strip() if cache_file.is_file() else ''
+    prepare('/autoinstall.yaml', release, packages, kernel.lock_installer_kernel, ubuntu_version(), cache)
     print('Ventoy manual install: interactive screens retained; media kernel pinned; automatic package upgrades blocked.')

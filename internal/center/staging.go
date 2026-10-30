@@ -332,11 +332,17 @@ func (s *Server) prepareFiles(root *os.Root, j PrivateJob, write bool) (*Prepara
 }
 
 func readManagedFile(root *os.Root, name string) ([]byte, error) {
+	limit := int64(2 << 20)
+	// Injected driver/setup bundles are larger than text answers. Retain a
+	// bounded read while allowing an already prepared real preload to be checked.
+	if strings.HasSuffix(name, ".tar.gz") {
+		limit = 256 << 20
+	}
 	info, err := root.Lstat(name)
 	if err != nil {
 		return nil, err
 	}
-	if !info.Mode().IsRegular() || info.Size() > 2<<20 {
+	if !info.Mode().IsRegular() || info.Size() > limit {
 		return nil, errors.New("安装文件类型或大小发生变化，保留现场")
 	}
 	f, err := root.Open(name)
@@ -344,8 +350,8 @@ func readManagedFile(root *os.Root, name string) ([]byte, error) {
 		return nil, err
 	}
 	defer f.Close()
-	b, err := io.ReadAll(io.LimitReader(f, (2<<20)+1))
-	if len(b) > 2<<20 {
+	b, err := io.ReadAll(io.LimitReader(f, limit+1))
+	if int64(len(b)) > limit {
 		return nil, errors.New("安装文件超过大小限制")
 	}
 	return b, err

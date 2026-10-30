@@ -49,6 +49,9 @@ func manualSetupFiles(driverArchive []byte) (map[string][]byte, error) {
 	files["safe-server-init.sh"] = []byte(serverInit)
 	files["VERSION"] = []byte(Version + "\n")
 	files["software-client.json"] = []byte("{\"schema\":1,\"enabled\":false}\n")
+	if err := addInstallSupport(files, ""); err != nil {
+		return nil, err
+	}
 	if err := addManualDrivers(files, driverArchive, e610ArchiveSHA); err != nil {
 		return nil, err
 	}
@@ -122,6 +125,9 @@ func packManualSetup(files map[string][]byte) ([]byte, error) {
 		if strings.HasSuffix(name, ".sh") || strings.HasSuffix(name, ".run") {
 			mode = 0755
 		}
+		if name == "support-curl.conf" || name == "support-wget.conf" {
+			mode = 0600
+		}
 		if err := t.WriteHeader(&tar.Header{Name: "ventoy-manual-setup/" + name, Typeflag: tar.TypeReg, Mode: mode, Size: int64(len(files[name])), ModTime: time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC)}); err != nil {
 			return nil, err
 		}
@@ -168,6 +174,9 @@ func (s *Server) manualSetupBundle() ([]byte, error) {
 		return nil, err
 	}
 	s.addSoftwareClient(files)
+	for name, value := range s.supportSettings() {
+		files[name] = value
+	}
 	bundle, err := packManualSetup(files)
 	if err != nil {
 		return nil, err
@@ -187,7 +196,7 @@ func (s *Server) linuxManualSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.URL.Query().Get("format") == "injection" {
-		bundle, err = manualPreloadInjection(manualSetupLauncher(bundle))
+		bundle, err = manualPreloadInjection(manualSetupLauncher(bundle), s.supportSettings())
 		if err != nil {
 			http.Error(w, "Cannot build installer preload hooks", 500)
 			return

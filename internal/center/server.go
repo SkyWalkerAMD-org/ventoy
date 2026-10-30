@@ -13,6 +13,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -35,6 +36,10 @@ type Server struct {
 	preparationMu  sync.Mutex
 	manualBundleMu sync.Mutex
 	manualBundle   []byte
+	reportMu       sync.Mutex
+	lastReport     time.Time
+	cacheMu        sync.Mutex
+	cacheClient    *http.Client
 }
 type Media struct {
 	Path             string `json:"path"`
@@ -80,11 +85,33 @@ func Serve(path string) error {
 	h := &http.Server{Addr: c.Listen, Handler: s.Handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10, TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12}}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	var cacheServer *http.Server
+	if c.InstallerCacheListen != "" {
+		// Only public, originally signed repository objects use this listener.
+		// Controller APIs, credentials and reports remain on the HTTPS listener.
+		mux := http.NewServeMux()
+		mux.HandleFunc("GET /installer-cache/{origin}/{path...}", s.installerCache)
+		cacheServer = &http.Server{Addr: c.InstallerCacheListen, Handler: mux, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 8 << 10}
+		listener, listenErr := net.Listen("tcp", c.InstallerCacheListen)
+		if listenErr != nil {
+			return fmt.Errorf("installer cache: %w", listenErr)
+		}
+		defer cacheServer.Close()
+		go func() {
+			if e := cacheServer.Serve(listener); e != nil && !errors.Is(e, http.ErrServerClosed) {
+				log.Printf("Installer cache stopped: %v", e)
+				stop()
+			}
+		}()
+	}
 	go func() {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		h.Shutdown(shutdown)
+		if cacheServer != nil {
+			cacheServer.Shutdown(shutdown)
+		}
 	}()
 	log.Printf("Ventoy Center %s listening on %s", Version, c.Listen)
 	if c.TLSCert != "" {
@@ -107,6 +134,11 @@ func (s *Server) Handler() http.Handler {
 	m.HandleFunc("GET /api/linux-update-policy", s.auth(s.linuxUpdatePolicy))
 	m.HandleFunc("GET /api/linux-manual-setup", s.auth(s.linuxManualSetup))
 	m.HandleFunc("GET /api/software", s.auth(s.softwareOverview))
+	m.HandleFunc("POST /diagnostics/v1/report", s.receiveInstallationReport)
+	m.HandleFunc("GET /api/installation-reports", s.auth(s.installationReports))
+	m.HandleFunc("GET /api/installation-reports/{id}", s.auth(s.installationReports))
+	m.HandleFunc("GET /installer-cache/{origin}/{path...}", s.installerCache)
+	m.HandleFunc("GET /api/installer-cache", s.auth(s.installerCacheStatus))
 	m.HandleFunc("GET /software/v1/manifest", s.softwareAuth(s.softwareManifest))
 	m.HandleFunc("GET /software/v1/package", s.softwareAuth(s.softwarePackage))
 	m.HandleFunc("GET /software/v1/fyhoc-unlock", s.softwareAuth(s.softwareFYHOCUnlock))

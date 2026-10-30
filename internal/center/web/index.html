@@ -13,6 +13,7 @@
       <a href="#overview" data-nav="overview">◫ <span>部署总览</span></a>
       <a href="#machines" data-nav="machines">▦ <span>目标机器</span></a>
       <a href="#jobs" data-nav="jobs">↗ <span>安装任务</span></a>
+      <a href="#reports" data-nav="reports">☑ <span>安装结果与诊断</span></a>
       <a href="#pxe" data-nav="pxe">▤ <span>PXE 自动安装</span></a>
       <a href="#images" data-nav="images">▱ <span>镜像管理</span></a>
       <a href="#software" data-nav="software">▣ <span>软件分发</span></a>
@@ -52,9 +53,15 @@
       </section>
       <section id="pxe" class="page" hidden>
         <div class="page-heading"><div><div class="eyebrow">PXE INSTALL MENU</div><h1>一个系统入口，两种安装方式</h1><p>从发行版目录选择系统，再选择手动安装或自动安装脚本。</p></div><button class="primary" data-action="new-pxe">＋ 添加系统入口</button></div>
-        <div class="note"><span>↳</span><p>网启选择系统 → 选择自动安装脚本 → 单内置盘自动安装。多盘在 PXE 画面选盘、输入 yes，随后自动安装并重启，无需在后台创建任务。默认锁定内核，关闭自动更新；现有 LVM / RAID 磁盘需先单独处理。各入口的选盘方式见下表。</p></div>
+        <div class="note"><span>↳</span><p>网启选择系统 → 选择自动安装脚本 → 选择文件系统。单个可用内置盘按入口规则自动安装；多盘或旧 LVM / RAID 在本机选择目标盘或 RAID1，查看分区容量后输入 yes。跨越未选磁盘的旧存储会停止并指出原因。默认锁定内核，关闭自动更新。</p></div>
         <div id="pxe-table" class="panel"></div>
-        <p class="muted">当前菜单覆盖 CentOS、Rocky、Debian、Ubuntu Server 22.04／24.04。普通 ISO 仍用于手动安装。请将自动安装菜单用于受控装机局域网。</p>
+        <p class="muted">当前入口共用发行版目录中的 ISO，脚本选择手动或自动安装。实际系统版本见下表；入口覆盖与实机验收分别记录。请将自动安装用于受控装机局域网。</p>
+      </section>
+      <section id="reports" class="page" hidden>
+        <div class="page-heading"><div><div class="eyebrow">INSTALLATION RESULTS</div><h1>安装结果与诊断</h1><p>收集手动和自动安装的启动报告及原始错误。报告不代替实机验收。</p></div></div>
+        <div class="panel padded"><p>自动安装分别记录安装完成、从硬盘启动及首次检查结果。手动安装保留安装器里选择的账户和网络；预置 setup 代表文件已复制，完整配置仍需运行 <code>./ventoy-linux-setup.run</code>。Ubuntu / Debian 的更新保护在安装阶段应用。</p><p>报告会注明 setup 版本、校验值及执行状态。观察到疑似错误不会自动取消任务或清盘。网络不可用时，在安装器 <code>/tmp/ventoy-install-diagnostic.log</code> 查看本地日志。</p><p id="installer-cache-state">正在读取安装依赖缓存…</p></div>
+        <div class="section-heading"><h2>最近报告</h2><span class="muted">保留最近 500 份 · 仅管理员可读取</span></div><div id="installation-report-table" class="panel"></div>
+        <div class="panel padded"><h2>验收范围</h2><p>入口生成、脚本回归与依赖缓存检查属于软件验证；不代表每个系统都在所有 Intel / AMD / E610 设备上完成实装。每个待验收组合需记录手动或自动模式、旧分区重装、两次正常硬盘启动、SSH、DHCP、内核和更新策略，以及 setup 的独立执行结果。</p><p>可在系统中运行 <code>sudo /usr/local/lib/ventoy-install-support/acceptance.sh</code>（或 <code>sudo sh /usr/local/lib/ventoy-install-support/acceptance.sh</code>）导出只读检查结果。首次、再次启动的报告使用不同 boot ID，便于核验重启。</p></div>
       </section>
       <section id="profiles" class="page" hidden>
         <div class="page-heading"><div><div class="eyebrow">OPERATING SYSTEMS</div><h1>系统版本</h1><p>Linux 优先。当前阶段完成装机，压测与监控接入后续再做。</p></div></div>

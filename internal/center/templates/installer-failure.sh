@@ -2,6 +2,12 @@
 # shared menu/admin credential. Power/network loss is not treated as success.
 vc_install_failed() (
     umask 077
+    for vc_support in /usr/local/lib/ventoy-preload /ventoy-manual-preload /usr/local/lib/ventoy-install-support; do
+        if [ -f "$vc_support/support-diagnostic.sh" ]; then
+            /bin/sh "$vc_support/support-diagnostic.sh" failure 'Installer command failed; inspect original logs below' || true
+            break
+        fi
+    done
     vc_failure_dir=$(mktemp -d /tmp/ventoy-install-failure.XXXXXX) || exit 0
     trap 'rm -rf -- "$vc_failure_dir"' EXIT
     printf '%s' {{sh .CA}} > "$vc_failure_dir/ca.crt"

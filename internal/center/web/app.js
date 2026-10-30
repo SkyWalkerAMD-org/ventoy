@@ -23,7 +23,7 @@ function showLogin() { if (!$('#login-dialog').open) $('#login-dialog').showModa
 function closeDialog(event) { event.target.closest('dialog').close(); }
 $$('[data-close]').forEach(b => b.addEventListener('click', closeDialog));
 $('#login-dialog').addEventListener('cancel', event => event.preventDefault());
-function route() { const page = location.hash.slice(1) || 'overview'; const chosen = ['overview','machines','jobs','images','software','profiles','pxe'].includes(page) ? page : 'overview'; $$('.page').forEach(p => {p.hidden = p.id !== chosen;}); $$('[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === chosen)); $('#breadcrumb').textContent = {overview:'部署总览',machines:'目标机器',jobs:'安装任务',images:'镜像管理',software:'软件分发',profiles:'系统版本',pxe:'PXE 自动安装'}[chosen]; if(chosen==='software' && token) refreshSoftware(); }
+function route() { const page = location.hash.slice(1) || 'overview'; const chosen = ['overview','machines','jobs','images','software','profiles','pxe','reports'].includes(page) ? page : 'overview'; $$('.page').forEach(p => {p.hidden = p.id !== chosen;}); $$('[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === chosen)); $('#breadcrumb').textContent = {overview:'部署总览',machines:'目标机器',jobs:'安装任务',images:'镜像管理',software:'软件分发',profiles:'系统版本',pxe:'PXE 自动安装',reports:'安装结果与诊断'}[chosen]; if(chosen==='software' && token) refreshSoftware(); if(chosen==='reports' && token) refreshReports(); }
 window.addEventListener('hashchange', route); route();
 function empty(target, title, description, action) { const box = el('div',null,'empty'); box.append(el('div','↗','empty-symbol'),el('h2',title),el('p',description)); if (action) {const b=el('button',action[0],'primary'); b.addEventListener('click',action[1]);box.append(b);} target.replaceChildren(box); }
 function table(target, headings, rows) { const t=el('table'); const head=el('thead'); const tr=el('tr'); headings.forEach(h=>tr.append(el('th',h))); head.append(tr); const body=el('tbody'); rows.forEach(row=>{const r=el('tr'); row.forEach(cell=>{const c=el('td'); if(cell instanceof Node)c.append(cell);else c.textContent=cell; r.append(c);});body.append(r);});t.append(head,body);target.replaceChildren(t); }
@@ -47,6 +47,7 @@ function renderAll() {
   renderJobs($('#recent-jobs'),data.jobs.slice(0,6));renderJobs($('#all-jobs'),data.jobs);
   renderMachines(); renderBoot(); renderImages(); renderProfiles(); renderPXE();
   if(location.hash==='#software')refreshSoftware();
+  if(location.hash==='#reports')refreshReports();
   const link=$('#iventoy-link');link.hidden=!data.iventoy_url;if(data.iventoy_url)link.href=data.iventoy_url;
   $('#warnings').hidden=!data.warnings.length;$('#warnings').textContent=data.warnings.join('；');
 }
@@ -202,4 +203,18 @@ function pxeDetails(entry){
   root.append(steps,el('p',local?'多盘、旧 LVM / RAID 或旧系统 swap 占用时，可在 PXE 画面选择目标盘并输入 yes 覆盖重装。旧存储须完整位于所选磁盘内，随后自动分区、安装和重启，无需登记机器或在后台创建任务。安装完成后从硬盘启动。':automatic?'此入口使用旧策略：多盘先指定目标盘并授权任务。迁移入口后可改为在 PXE 选盘。已有 LVM / RAID 仍需单独处理。':'已有匹配的待启动任务会使用原授权。再次网启已安装的机器需要重新确认。'));
   root.append(button('准备 / 核对菜单文件',async()=>{const updated=await (await post(`/api/pxe/entries/${entry.id}/prepare`)).json();await refresh(true);pxeDetails(updated);},'primary'));
   if(!$('#preparation-dialog').open)$('#preparation-dialog').showModal();
+}
+
+async function refreshReports() {
+  try {
+    const [reports, cache] = await Promise.all([api('/api/installation-reports').then(r=>r.json()), api('/api/installer-cache').then(r=>r.json())]);
+    $('#installer-cache-state').textContent = cache.enabled ? `中心安装依赖缓存：${(cache.bytes/1073741824).toFixed(2)} / ${(cache.max_bytes/1073741824).toFixed(1)} GiB。APT 验证原厂签名；未命中的依赖仍需要上游软件源。红帽系安装依赖优先使用 DVD。` : '中心安装依赖缓存未启用。';
+    if(!reports.length){empty($('#installation-report-table'),'尚无安装报告','更新后的入口会在失败或首次硬盘启动时上传；没有报告不代表已经验收通过。');return;}
+    const kinds={failure:'失败回报',observed:'疑似错误（待核对）',result:'硬盘启动报告'};
+    table($('#installation-report-table'),['时间','来源','类型 / 归类','建议','报告'],reports.map(r=>[stamp(r.time),r.source,`${kinds[r.kind]||r.kind} / ${r.category}`,r.advice,button('查看 / 下载',async()=>{
+      const report=await (await api(`/api/installation-reports/${r.id}`)).json();
+      const box=$('#job-detail');box.replaceChildren(el('h3',kinds[report.kind]||report.kind),el('p',report.advice),el('pre',report.text));
+      box.append(button('下载 JSON',()=>{const u=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}));const a=el('a');a.href=u;a.download=`installation-${r.id}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);}));$('#detail-dialog').showModal();
+    })]));
+  } catch(error) { notify(error.message); }
 }
