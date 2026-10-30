@@ -88,7 +88,8 @@ installed_ok() {
     cmp -s /etc/systemd/system/"$unit" <(bash "$stored/install.sh" --print-unit "$product") || return 1
     systemctl is-enabled --quiet "$unit" || return 1
     systemctl is-active --quiet "$unit" || return 1
-    "$binary" preflight --product "$product" >/dev/null
+    "$binary" preflight --product "$product" >/dev/null || return 1
+    "$binary" check-scheduling --product "$product" >/dev/null
 }
 
 if [[ $mode == check ]]; then
@@ -110,7 +111,7 @@ if [[ -e $shared ]]; then
 else
     install -d -m 0755 "$shared"
 fi
-# Serialize standalone and Ventoy setup invocations without disturbing node services.
+# Serialize standalone installations without disturbing node services.
 exec 8>"$shared/.setup.lock"
 flock -n 8 || die 'Another priority-helper installation is in progress.'
 if [[ -e $stored || -L $stored ]]; then

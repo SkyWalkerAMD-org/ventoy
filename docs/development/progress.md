@@ -1,5 +1,13 @@
 # Ventoy Center 当前进度
 
+## alpha.47 独立 P95 分发与 CPU 分组修复（2026-10-30）
+
+[PR #21](https://github.com/SkyWalkerAMD-org/ventoy/pull/21) 已合入 main，13 项 CI 通过。中心已发布 `0.3.0-alpha.47`，iVentoy 为 `1.0.48` 专业版。全部 52 个 Linux 手动/自动共享入口与 tools 中的完整 setup 已逐一校验，共同 SHA-256 为 `a7e45907fde193645aa533222f18bae5ce4363f1d386f7b36dc04c7150490ed1`。
+
+**完整 setup 不再集成 P95 修复**，只将中心 tools 中的独立脚本同步到 `/root/ventoy-tools/p95-priority-setup.sh`，需要时由管理员手动执行；不会自动安装、升级、重启或检查已装的助手。
+
+独立助手 `1.0.3` 增加实际 CPU 控制器检查与默认权重配置，解决仅调整 nice 后 P95 仍被大量 memtester 会话挤占的问题。Rocky 9.2 / 9995WX 已完成 33 秒、1% 内存的隔离对比测试，P95 和 memtester 均有 192 个工作线程取得 CPU 时间进展，节点服务及内核保持。数据、边界及复查方式见 [P95 CPU 分组验收记录](p95-cpu-sharing-2026-10-30.md)。CentOS 7 保留 systemd 219 渲染和 cgroup v1 夹具验证，不能将本次 Rocky 实测推广为所有平台的混合压测验收。
+
 ## alpha.46 P95 集成与 CentOS 7.9 适配（2026-10-30）
 
 [PR #20](https://github.com/SkyWalkerAMD-org/ventoy/pull/20) 已合入 main，13 项 CI 全部通过。中心 `192.168.1.2` 已发布 `0.3.0-alpha.46`，iVentoy 保持 `1.0.48` 专业版。tools 中的 `ventoy-linux-setup.run` 与全部 52 个 Linux 手动/自动共享入口均已更新；发布后逐项核对预置包，共同 SHA-256 为 `253d647f0fd1aee4b0365a466b4c73e00389f1f2a74453da1fcdf5205f6ac084`。59 个 ISO、菜单绑定、其他 tools 文件及私有接入配置核对保持。
