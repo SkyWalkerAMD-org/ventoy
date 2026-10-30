@@ -25,6 +25,8 @@ class UnitCompatibilityTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertNotIn('RuntimeDirectory', result.stdout)
             self.assertIn('Type=notify', result.stdout)
+            self.assertIn('CPUShares=1024', result.stdout)
+            self.assertNotIn('CPUWeight=', result.stdout)
             self.assertIn('CapabilityBoundingSet=CAP_SYS_NICE CAP_SYS_PTRACE', result.stdout)
             self.assertIn('ExecStart=/usr/local/sbin/p95-priority-'+product+' watch --product '+product, result.stdout)
 
@@ -33,6 +35,9 @@ class UnitCompatibilityTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('RuntimeDirectory=p95-priority-fyhocsys', result.stdout)
         self.assertIn('RuntimeDirectoryPreserve=yes', result.stdout)
+        self.assertIn('CPUWeight=100', result.stdout)
+        self.assertIn('CPUShares=1024', result.stdout)
+        self.assertNotIn('CPUQuota=', result.stdout)
 
     def test_too_old_systemd_rejected(self):
         result = self.render(218)

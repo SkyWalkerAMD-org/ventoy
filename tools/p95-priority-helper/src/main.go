@@ -18,7 +18,7 @@ import (
 	"time"
 )
 
-const version = "1.0.2"
+const version = "1.0.3"
 
 func notifyReady() error {
 	address := os.Getenv("NOTIFY_SOCKET")
@@ -195,8 +195,19 @@ func runController(product, action string) error {
 	fmt.Println("Scope: node service cgroup + packaged mprime + torture arguments + node working directory.")
 	var loopErr error
 	ready := false
+	checkedGroup := ""
 	for ctx.Err() == nil {
 		group, err := serviceGroup(product)
+		if err == nil && group != "" {
+			if group != checkedGroup {
+				_, err = checkScheduling(product)
+				if err == nil {
+					checkedGroup = group
+				}
+			}
+		} else if group == "" {
+			checkedGroup = ""
+		}
 		if err == nil && group != "" {
 			var n int
 			n, err = c.adjust(group)
@@ -349,18 +360,19 @@ func observe(product string, seconds int) error {
 	elapsed := time.Since(start).Seconds()
 	active, _ := command("systemctl", "is-active", "p95-priority-"+product+".service")
 	steps := summarize(before, after, elapsed, hz)
+	scheduling, schedulingErr := checkScheduling(product)
 	ag, _ := os.ReadFile("/proc/sys/kernel/sched_autogroup_enabled")
 	if steps == nil {
 		steps = []stepSummary{}
 	}
-	jsonPrint(map[string]any{"version": version, "product": product, "helper_service_active": active == "active", "node_cgroup": group, "sched_autogroup_enabled": strings.TrimSpace(string(ag)),
+	jsonPrint(map[string]any{"version": version, "product": product, "helper_service_active": active == "active", "node_cgroup": group, "sched_autogroup_enabled": strings.TrimSpace(string(ag)), "cpu_scheduling": scheduling,
 		"sample_seconds": elapsed, "steps": steps, "note": "CPU cores is summed CPU seconds / wall seconds. Progress is not a computation-correctness verdict. Empty steps means no recognized active workload; do not treat it as success."})
-	return nil
+	return schedulingErr
 }
 
 func run() error {
 	if len(os.Args) < 2 {
-		return errors.New("usage: p95-priority preflight|selfcheck|watch|status|restore [--product fyhocsys|sckocstp] [--seconds 10]")
+		return errors.New("usage: p95-priority preflight|selfcheck|check-scheduling|watch|status|restore [--product fyhocsys|sckocstp] [--seconds 10]")
 	}
 	action := os.Args[1]
 	if action == "--version" || action == "version" {
@@ -385,6 +397,10 @@ func run() error {
 		return nil
 	case "selfcheck":
 		return selfcheck()
+	case "check-scheduling":
+		state, err := checkScheduling(*product)
+		jsonPrint(state)
+		return err
 	case "watch", "restore":
 		return runController(*product, action)
 	case "status":

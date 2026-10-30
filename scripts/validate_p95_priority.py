@@ -28,7 +28,7 @@ class PriorityStandaloneTests(unittest.TestCase):
         def pin(name):
             return re.search(rb"^"+name+rb"='([^']+)'$", header, re.M).group(1).decode()
         self.assertEqual(hashlib.sha256(archive).hexdigest(), pin(b'archive_sha'))
-        self.assertEqual(pin(b'release'), '1.0.2')
+        self.assertEqual(pin(b'release'), '1.0.3')
         with tarfile.open(fileobj=io.BytesIO(archive), mode='r:gz') as tf:
             data = {m.name: tf.extractfile(m).read() for m in tf if m.isfile()}
             manifest = data['p95-priority-helper/SHA256SUMS']
