@@ -130,7 +130,11 @@ func (s *Server) auditRelease(w http.ResponseWriter, r *http.Request) {
 		rows = append(rows, map[string]any{"iso": e.ISO, "passed": len(problems) == 0, "problems": problems})
 	}
 	diskHash, er := fileDigest(filepath.Join(s.config.SoftwareDir, "ventoy-linux-setup.run"))
-	respond(w, 200, map[string]any{"version": Version, "setup_sha256": expected, "tools_setup_matches": er == nil && diskHash == expected, "entries": rows})
+	readError := ""
+	if er != nil {
+		readError = "文件缺失或管理服务无权读取"
+	}
+	respond(w, 200, map[string]any{"version": Version, "setup_sha256": expected, "tools_setup_matches": er == nil && diskHash == expected, "tools_setup_error": readError, "entries": rows})
 }
 
 func (s *Server) diskUsage(w http.ResponseWriter, r *http.Request) {

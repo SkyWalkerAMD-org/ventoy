@@ -172,6 +172,13 @@ func TestSetupReleaseCapabilityAndAudit(t *testing.T) {
 	if a["tools_setup_matches"] != true || a["entries"].([]any)[0].(map[string]any)["passed"] != true {
 		t.Fatal(a)
 	}
+	if err := os.Remove(filepath.Join(s.config.SoftwareDir, "ventoy-linux-setup.run")); err != nil {
+		t.Fatal(err)
+	}
+	missing := audit()
+	if missing["tools_setup_matches"] != false || missing["tools_setup_error"] == "" {
+		t.Fatal("missing/unreadable setup must be distinguished from a checksum mismatch", missing)
+	}
 	os.WriteFile(filepath.Join(s.config.IVentoyRoot, e.Preparation.ScriptPath), []byte("tampered"), 0600)
 	if audit()["entries"].([]any)[0].(map[string]any)["passed"] != false {
 		t.Fatal("tampered entry accepted")

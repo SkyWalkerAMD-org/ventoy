@@ -41,6 +41,8 @@ python3 deploy/release.py activate --releases /home/ventoy-center/releases --nam
 
 `activate` 默认只核对；`--apply` 才发布。它检查活动任务及网络镜像连接，备份原二进制、setup、入口配置，短暂停止服务后原子替换。失败会恢复旧版本。任务记录不会被历史快照覆盖。服务健康与文件一致性属于软件验证，不代表所有硬件安装成功。
 
+tools 中的 setup 保持 root 所有，给予管理数据所属组只读权限（0740），供管理服务核对实际文件。发布完成前还会用管理服务身份校验全部入口和 tools 文件；无法读取或内容不一致都会回退。回退恢复原来的文件权限。
+
 ```bash
 python3 deploy/release.py rollback --releases /home/ventoy-center/releases --name alpha49
 python3 deploy/release.py rollback --releases /home/ventoy-center/releases --name alpha49 --apply

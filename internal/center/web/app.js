@@ -244,7 +244,7 @@ async function refreshOperations(){
 }
 $('#audit-release').addEventListener('click',async event=>{
   const b=event.currentTarget;b.disabled=true;$('#release-audit').textContent='正在校验预置包和全部入口文件…';
-  try{const a=await(await post('/api/operations/audit')).json();const failed=a.entries.filter(e=>!e.passed);$('#release-audit').textContent=`文件校验：${a.entries.length-failed.length}/${a.entries.length} 个入口通过；tools 中的 setup ${a.tools_setup_matches?'一致':'不一致'}。`;
+  try{const a=await(await post('/api/operations/audit')).json();const failed=a.entries.filter(e=>!e.passed);$('#release-audit').textContent=`文件校验：${a.entries.length-failed.length}/${a.entries.length} 个入口通过；tools 中的 setup ${a.tools_setup_matches?'一致':(a.tools_setup_error||'内容不一致')}。`;
     table($('#release-entries'),['系统入口','文件校验','详情'],a.entries.map(e=>[e.iso,e.passed?'通过':'未通过',e.problems.join('；')||'版本和校验值一致']));
   }catch(error){$('#release-audit').textContent='校验未完成：'+error.message;}finally{b.disabled=false;}
 });
