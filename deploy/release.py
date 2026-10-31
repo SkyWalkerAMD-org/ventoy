@@ -174,6 +174,61 @@ class Release:
             time.sleep(.5)
         raise RuntimeError('iVentoy network did not restore its previous state')
 
+    def native_view(self, include_images):
+        view = dict(config=self.native('get_config_all'))
+        if include_images:
+            def images(nodes, base=''):
+                for node in nodes:
+                    path = base + node['name']
+                    if node.get('isParent'):
+                        yield from images(node.get('children', []), path+'/')
+                    else:
+                        yield path, node['imgid']
+            view['images'] = {}
+            for path, image_id in images(self.native('get_img_tree')):
+                if path in view['images']:
+                    raise ValueError('Duplicate native image path')
+                # iVentoy serializes this endpoint; avoid overlapping its work.
+                time.sleep(.08)
+                view['images'][path] = {k: v for k, v in self.native('get_img_info', id=image_id).items() if k != 'id'}
+        return view
+
+    def backup_native(self, network):
+        # Native config writes are not atomic. A quick service rollback can
+        # interrupt a save and make the next start silently use factory defaults.
+        path = real(self.root/'data/config.dat')
+        saved = self.dir/'backup/native-config.dat'
+        st = path.stat()
+        before = digest(path)
+        view = self.native_view(network['status'] == 'running')
+        replace(saved, path.read_bytes())
+        if digest(saved) != before or digest(path) != before:
+            raise ValueError('Native configuration changed during backup')
+        save(self.dir/'backup/native.json', dict(sha256=before, uid=st.st_uid,
+             gid=st.st_gid, mode=st.st_mode & 0o777, view=view))
+
+    def verified_native_backup(self):
+        record = read(self.dir/'backup/native.json')
+        saved = real(self.dir/'backup/native-config.dat')
+        if digest(saved) != record['sha256']:
+            raise ValueError('Native configuration backup integrity check failed')
+        return record, saved
+
+    def restore_native_file(self):
+        record, saved = self.verified_native_backup()
+        target = real(self.root/'data/config.dat')
+        replace(target, saved.read_bytes())
+        os.chown(target, record['uid'], record['gid'])
+        os.chmod(target, record['mode'])
+
+    def audit_native(self):
+        record, _ = self.verified_native_backup()
+        expected = record['view']
+        # get_img_info blocks while ready, so preserve its on-disk configuration
+        # without starting a server that the operator intentionally stopped.
+        if self.native_view('images' in expected) != expected:
+            raise RuntimeError('Native settings or image bindings changed after restart')
+
     def stage(self):
         self.dir.mkdir(mode=0o700)
         (self.dir/'.release-owned').write_text('ventoy-center release schema 1\n')
@@ -299,14 +354,18 @@ class Release:
         save(backup/'release-status.json', read(old_public) if old_public.exists() else {})
         network = self.network_snapshot()
         save(backup/'network.json', network)
+        self.backup_native(network)
         self.idle()
         if self.state.read_bytes() != state_raw:
             raise ValueError('State changed during backup; publication deferred')
+        if digest(self.root/'data/config.dat') != read(backup/'native.json')['sha256']:
+            raise ValueError('Native configuration changed before stop; publication deferred')
         save(self.dir/'transaction.json', dict(state='activating', version=m['version']))
         try:
             subprocess.run(['systemctl', 'stop', 'iventoy.service', 'ventoy-center.service'], check=True)
             if self.state.read_bytes() != state_raw:
                 raise ValueError('State changed during stop')
+            self.restore_native_file()
             for src, target in targets:
                 replace(target, src.read_bytes())
             # The manager hashes the actual tools copy as its service account.
@@ -329,6 +388,7 @@ class Release:
             os.chown(old_public, st.st_uid, st.st_gid)
             subprocess.run(['systemctl', 'start', 'ventoy-center.service', 'iventoy.service'], check=True)
             self.restore_network(network)
+            self.audit_native()
             self.healthy(m['version'])
             for src, target in targets:
                 if digest(src) != digest(target):
@@ -349,6 +409,7 @@ class Release:
         for r in records:
             if digest(child(self.dir/'backup', r['saved'])) != r['sha256']:
                 raise ValueError('Backup integrity check failed')
+        self.verified_native_backup()
         state = read(self.state)
         previous = {e['id']: e for e in read(self.dir/'backup/entries.json')}
         if set(previous) != {e['id'] for e in state['pxe_entries']}:
@@ -370,8 +431,10 @@ class Release:
         save(self.data/'release-status.json', read(self.dir/'backup/release-status.json'))
         st = self.state.stat()
         os.chown(self.data/'release-status.json', st.st_uid, st.st_gid)
+        self.restore_native_file()
         subprocess.run(['systemctl', 'start', 'ventoy-center.service', 'iventoy.service'], check=True)
         self.restore_network(read(self.dir/'backup/network.json'))
+        self.audit_native()
         self.healthy(m['previous_version'])
         save(self.dir/'transaction.json', dict(state='rolled-back', version=m['previous_version']))
         print('ROLLED_BACK '+m['previous_version'])

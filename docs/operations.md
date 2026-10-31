@@ -45,6 +45,8 @@ tools 中的 setup 保持 root 所有，给予管理数据所属组只读权限�
 
 发布与回退均保存并恢复 iVentoy 的网络运行状态、接口和地址参数；检查原生 PXE 状态，不能仅以 systemd 进程在线判断已恢复。原先正在服务的中心必须回到 `running`，原先主动停止的中心保持 `ready`。
 
+iVentoy 的原生 `data/config.dat` 同样单独备份并校验，停止服务后原子恢复，再启动。这样可避免原生配置保存被中断，重启后默默回到默认 DHCP/Secure Boot 设置或丢失安装脚本绑定。运行中的中心会对全部镜像绑定及全局设置逐项回读；差异导致发布失败并回退。备份期间若检测到操作员修改原生配置，发布停止。
+
 ```bash
 python3 deploy/release.py rollback --releases /home/ventoy-center/releases --name alpha49
 python3 deploy/release.py rollback --releases /home/ventoy-center/releases --name alpha49 --apply
