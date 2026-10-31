@@ -15,13 +15,14 @@ import (
 )
 
 type InstallationReport struct {
-	ID       string    `json:"id"`
-	Time     time.Time `json:"time"`
-	Kind     string    `json:"kind"`
-	Source   string    `json:"source"`
-	Category string    `json:"category"`
-	Advice   string    `json:"advice"`
-	Text     string    `json:"text,omitempty"`
+	ID       string            `json:"id"`
+	Time     time.Time         `json:"time"`
+	Kind     string            `json:"kind"`
+	Source   string            `json:"source"`
+	Category string            `json:"category"`
+	Advice   string            `json:"advice"`
+	Text     string            `json:"text,omitempty"`
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 var reportIDRE = regexp.MustCompile(`^[a-f0-9]{32}$`)
@@ -138,6 +139,7 @@ func (s *Server) receiveInstallationReport(w http.ResponseWriter, r *http.Reques
 		}
 	}
 	entry := InstallationReport{ID: randomID(16), Time: time.Now().UTC(), Kind: kind, Source: r.RemoteAddr, Category: category, Advice: advice, Text: text}
+	entry.Metadata = reportMetadata(text)
 	raw, _ := json.MarshalIndent(entry, "", "  ")
 	if err = writeNew(filepath.Join(dir, entry.ID+".json"), raw); err != nil {
 		fail(w, 500, "无法保存报告")

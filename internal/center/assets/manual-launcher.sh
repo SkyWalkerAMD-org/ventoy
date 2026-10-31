@@ -2,6 +2,7 @@
 # Ventoy Center complete manual-install configuration package.
 set -Eeuo pipefail
 umask 077
+if [[ ${1:-} == --version ]]; then echo 'Ventoy setup @SETUP_VERSION@'; exit 0; fi
 if (($# == 0)); then set -- --apply; fi
 if [[ ${1:---help} == --help || ${1:-} == -h ]]; then
     echo 'Usage: sudo ./ventoy-linux-setup.run [--hostname NAME] [--offline] [--keep-passwords]'
@@ -11,6 +12,7 @@ if [[ ${1:---help} == --help || ${1:-} == -h ]]; then
     echo '--apply remains a compatible alias; --offline skips software downloads.'
     echo 'Software only: sudo ./ventoy-linux-setup.run --software'
     echo 'Inspect/verify: --check / --list-software / --check-software'
+    echo 'Runner version: --version / --check-version. Verified replacement only: --update-setup (rerun afterward).'
     exit 0
 fi
 [[ $EUID == 0 ]] || { echo 'Run with root or sudo.' >&2; exit 1; }
@@ -53,6 +55,12 @@ with tarfile.open(fileobj=io.BytesIO(data), mode='r:gz') as archive:
         os.chmod(target,0o755 if name.endswith(('.sh','.run')) else 0o644)
 PY
 setup_rc=0
+echo 'Ventoy setup @SETUP_VERSION@'
+case "${1:-}" in
+    --check-version|--update-setup)
+        "$python" "$stage/ventoy-manual-setup/setup-release.py" "$1" "$0"
+        exit $?;;
+esac
 bash "$stage/ventoy-manual-setup/install.sh" "$@" || setup_rc=$?
 if (( (setup_rc == 0 || setup_rc == 3 || setup_rc == 4) && refresh_prompt)) && [[ -t 0 && -t 1 && -t 2 ]]; then
     # Status 4 means system checks reached the software step, which failed.
@@ -61,6 +69,12 @@ if (( (setup_rc == 0 || setup_rc == 3 || setup_rc == 4) && refresh_prompt)) && [
     bash "$stage/ventoy-manual-setup/root-password.sh" || password_rc=$?
     if ((password_rc && setup_rc != 4)); then setup_rc=$password_rc; fi
 fi
+case "$setup_rc" in
+    0) echo 'SETUP_SUMMARY: requested checks completed; see /var/log/ventoy-manual-init.log and /var/lib/ventoy-center/software/last-result.json';;
+    3) echo 'SETUP_SUMMARY: pending DHCP/driver reboot/firmware; use --check after resolving the pending item';;
+    4) echo 'SETUP_SUMMARY: software failed. Review pending system checks above; retry --software after fixing the reported package error';;
+    *) echo "SETUP_SUMMARY: incomplete (exit $setup_rc). Inspect the first failed stage before retrying";;
+esac
 # A child cannot replace its caller's cached Bash hostname. After a verified
 # interactive rename, use a fresh shell on this same terminal. Never put a
 # background/service/check invocation into an interactive shell, and clean the

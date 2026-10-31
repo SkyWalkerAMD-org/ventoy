@@ -9,6 +9,7 @@ case "$kind" in failure|observed|result) ;; *) exit 2;; esac
 tmp=$(mktemp -d /tmp/ventoy-diagnostic.XXXXXX) || exit 1
 trap 'rm -rf -- "$tmp"' EXIT HUP INT TERM
 {
+    [ ! -f "$src/support-metadata.sh" ] || sh "$src/support-metadata.sh"
     printf 'Ventoy release: '; cat "$src/support-version" 2>/dev/null
     printf 'Kind: %s\nReason: %s\n' "$kind" "${2:-Installer failure detected; see log excerpts}"
     date -u; uname -r

@@ -23,6 +23,8 @@ const managedScripts = "user/scripts/ventoy-center"
 var jobIDRE = regexp.MustCompile(`^[a-f0-9]{24}$`)
 
 type Preparation struct {
+	Release        string            `json:"release,omitempty"`
+	SetupSHA256    string            `json:"setup_sha256,omitempty"`
 	PreparedAt     time.Time         `json:"prepared_at"`
 	Root           string            `json:"root"`
 	ISOPath        string            `json:"iso_path"`
@@ -248,6 +250,14 @@ func (s *Server) prepareFiles(root *os.Root, j PrivateJob, write bool) (*Prepara
 	}
 	isoPath := path.Join(isoDir, "image.iso")
 	result := &Preparation{Root: s.config.IVentoyRoot, ISOPath: isoPath, ScriptPath: path.Join(scriptDir, script), SourceSize: sourceInfo.Size(), SourceModified: sourceInfo.ModTime(), Files: map[string]string{}}
+	result.Release = Version
+	if s.config.LinuxSetupPreload && j.OS != "windows" {
+		bundle, er := s.manualSetupBundle()
+		if er != nil {
+			return nil, er
+		}
+		result.SetupSHA256 = fmt.Sprintf("%x", sha256.Sum256(manualSetupLauncher(bundle)))
+	}
 	for name, content := range files {
 		result.Files[name] = fmt.Sprintf("%x", sha256.Sum256([]byte(content)))
 	}

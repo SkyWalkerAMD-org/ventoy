@@ -25,10 +25,14 @@ func main() {
 			log.Fatal(err)
 		}
 		fmt.Println("Created configuration and admin.token in", *dir)
-	case "serve":
+	case "serve", "stage":
 		path := f.String("config", "runtime/config.json", "configuration file")
 		f.Parse(os.Args[2:])
-		if err := center.Serve(*path); err != nil {
+		serve := center.Serve
+		if os.Args[1] == "stage" {
+			serve = center.ServeStaging
+		}
+		if err := serve(*path); err != nil {
 			log.Fatal(err)
 		}
 	default:

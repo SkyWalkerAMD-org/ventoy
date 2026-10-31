@@ -48,6 +48,7 @@ printf '%s\\n' "$name" > "$scratch/runtime"
 die() { echo "$*" >&2; exit 1; }
 hostname() { cat "$scratch/runtime"; }
 '''
+    prefix += next(line for line in source.splitlines() if line.startswith('setup_stage() {')) + '\n'
     prefix += '\nexport scratch=' + shlex.quote(str(root))
     prefix += '\nstate=' + shlex.quote(str(state))
     prefix += '\nhere=' + shlex.quote(str(here)) + '\n'

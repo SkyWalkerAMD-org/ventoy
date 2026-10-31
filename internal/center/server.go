@@ -40,6 +40,11 @@ type Server struct {
 	lastReport     time.Time
 	cacheMu        sync.Mutex
 	cacheClient    *http.Client
+	cacheFlights   map[string]chan struct{}
+	cacheReserved  int64
+	cacheHits      uint64
+	cacheDownloads uint64
+	cacheFailures  uint64
 }
 type Media struct {
 	Path             string `json:"path"`
@@ -74,9 +79,35 @@ func NewServer(c Config) (*Server, error) {
 }
 
 func Serve(path string) error {
+	return serve(path, false)
+}
+
+// ServeStaging retains the production cache URL in generated files without
+// binding its live listener. It is restricted to the loopback preparation API.
+func ServeStaging(path string) error {
+	return serve(path, true)
+}
+
+func stagingConfig(c Config) (Config, error) {
+	host, _, err := net.SplitHostPort(c.Listen)
+	ip := net.ParseIP(host)
+	if err != nil || ip == nil || !ip.IsLoopback() {
+		return c, errors.New("staging controller must listen on loopback")
+	}
+	c.InstallerCacheListen = ""
+	return c, nil
+}
+
+func serve(path string, staging bool) error {
 	c, err := loadConfig(path)
 	if err != nil {
 		return err
+	}
+	if staging {
+		c, err = stagingConfig(c)
+		if err != nil {
+			return err
+		}
 	}
 	s, err := NewServer(c)
 	if err != nil {
@@ -134,6 +165,13 @@ func (s *Server) Handler() http.Handler {
 	m.HandleFunc("GET /api/linux-update-policy", s.auth(s.linuxUpdatePolicy))
 	m.HandleFunc("GET /api/linux-manual-setup", s.auth(s.linuxManualSetup))
 	m.HandleFunc("GET /api/software", s.auth(s.softwareOverview))
+	m.HandleFunc("GET /api/operations", s.auth(s.operations))
+	m.HandleFunc("POST /api/operations/audit", s.auth(s.auditRelease))
+	m.HandleFunc("GET /api/operations/storage", s.auth(s.diskUsage))
+	m.HandleFunc("GET /api/acceptance", s.auth(s.acceptanceMatrix))
+	m.HandleFunc("POST /api/acceptance", s.auth(s.recordAcceptance))
+	m.HandleFunc("GET /software/v1/setup-release", s.softwareAuth(s.setupRelease))
+	m.HandleFunc("GET /software/v1/setup-release/download", s.softwareAuth(s.setupRelease))
 	m.HandleFunc("POST /diagnostics/v1/report", s.receiveInstallationReport)
 	m.HandleFunc("GET /api/installation-reports", s.auth(s.installationReports))
 	m.HandleFunc("GET /api/installation-reports/{id}", s.auth(s.installationReports))
