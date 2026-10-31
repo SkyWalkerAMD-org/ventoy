@@ -52,6 +52,8 @@ class Lifecycle(unittest.TestCase):
         self.check.start();self.addCleanup(self.check.stop)
         self.health=mock.patch.object(self.r,'healthy');self.health.start();self.addCleanup(self.health.stop)
         self.audit=mock.patch.object(self.r,'audit_published');self.audit.start();self.addCleanup(self.audit.stop)
+        self.network=mock.patch.object(self.r,'network_snapshot',return_value={'status':'running','start':{'ip':'192.168.1.2'}});self.network.start();self.addCleanup(self.network.stop)
+        self.restore_net=mock.patch.object(self.r,'restore_network');self.restore_net.start();self.addCleanup(self.restore_net.stop)
 
     def test_publish_and_rollback_preserve_jobs_and_modes(self):
         self.binary.chmod(0o755)
@@ -70,6 +72,28 @@ class Lifecycle(unittest.TestCase):
         self.assertEqual(self.binary.stat().st_mode&0o777,0o755)
         self.assertEqual(release.read(self.r.state)['jobs'],state['jobs'])
         self.assertEqual((self.iv/'iso/test.iso').read_bytes(),b'fake ISO')
+        self.assertEqual(self.r.restore_network.call_count,2)
+
+    def test_network_snapshot_preserves_configured_interface(self):
+        self.r.cfg['public_url']='https://192.168.1.2:26080'
+        network=dict(ip='192.168.1.2',mask='255.255.254.0',gw='192.168.1.1',pool_begin='192.168.1.10',pool_end='192.168.1.200',dns_server='192.168.1.1')
+        with mock.patch.object(self.r,'native',side_effect=[{'status':'running'},[network]]):
+            self.assertEqual(release.Release.network_snapshot(self.r),{'status':'running','start':network})
+
+    def test_restore_network_starts_pxe_after_ready_process(self):
+        snapshot={'status':'running','start':{'ip':'192.168.1.2','mask':'255.255.254.0'}}
+        with mock.patch.object(self.r,'native',side_effect=[release.subprocess.CalledProcessError(7,['curl']),{'status':'ready'},{'result':'success'},{'status':'running'}]) as native, mock.patch.object(release.time,'sleep'):
+            release.Release.restore_network(self.r,snapshot)
+            self.assertIn(mock.call('start_server',**snapshot['start']),native.call_args_list)
+        with mock.patch.object(self.r,'native',return_value={'status':'ready'}) as native:
+            release.Release.restore_network(self.r,{'status':'ready'})
+            native.assert_called_once_with('query_status')
+
+    def test_failed_pxe_restore_rolls_back(self):
+        self.r.restore_network.side_effect=[RuntimeError('PXE not running'),None]
+        with self.assertRaisesRegex(RuntimeError,'PXE not running'):self.r.activate()
+        self.assertEqual(self.binary.read_bytes(),b'old binary')
+        self.assertEqual(release.read(self.r.dir/'transaction.json')['state'],'rolled-back')
 
     def test_api_uses_production_bind_and_loopback_staging(self):
         self.r.cfg['public_url']='https://192.168.1.2:26080'

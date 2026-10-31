@@ -43,6 +43,8 @@ python3 deploy/release.py activate --releases /home/ventoy-center/releases --nam
 
 tools 中的 setup 保持 root 所有，给予管理数据所属组只读权限（0740），供管理服务核对实际文件。发布完成前还会用管理服务身份校验全部入口和 tools 文件；无法读取或内容不一致都会回退。回退恢复原来的文件权限。
 
+发布与回退均保存并恢复 iVentoy 的网络运行状态、接口和地址参数；检查原生 PXE 状态，不能仅以 systemd 进程在线判断已恢复。原先正在服务的中心必须回到 `running`，原先主动停止的中心保持 `ready`。
+
 ```bash
 python3 deploy/release.py rollback --releases /home/ventoy-center/releases --name alpha49
 python3 deploy/release.py rollback --releases /home/ventoy-center/releases --name alpha49 --apply
