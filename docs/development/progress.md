@@ -1,5 +1,9 @@
 # Ventoy Center 当前进度
 
+## iVentoy 1.0.49 专业版升级（2026-10-31）
+
+中心已运行 iVentoy **1.0.49 Pro**，管理端保持 **0.3.0-alpha.49**。升级前无活动安装或镜像连接；授权、全部全局配置、59 个镜像配置和 52 个 Linux 共享手动／自动入口的脚本及注入包逐项核对通过。ISO 元数据、用户文件与 tools 内容摘要保持一致，两个服务及 PXE 网络均正常。升级包摘要、备份和回退方法见[升级记录](../deployment/iventoy-upgrade.md)。本轮未重装客户端，实机安装验收由用户继续执行。
+
 ## alpha.47 独立 P95 分发与 CPU 分组修复（2026-10-30）
 
 [PR #21](https://github.com/SkyWalkerAMD-org/ventoy/pull/21) 已合入 main，13 项 CI 通过。中心已发布 `0.3.0-alpha.47`，iVentoy 为 `1.0.48` 专业版。全部 52 个 Linux 手动/自动共享入口与 tools 中的完整 setup 已逐一校验，共同 SHA-256 为 `a7e45907fde193645aa533222f18bae5ce4363f1d386f7b36dc04c7150490ed1`。
