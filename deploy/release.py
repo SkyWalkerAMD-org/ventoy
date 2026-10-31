@@ -131,6 +131,49 @@ class Release:
         if not audit.get('tools_setup_matches') or len(entries) != count or not all(e.get('passed') for e in entries):
             raise RuntimeError('Published setup or entry audit failed')
 
+    def native(self, method, **values):
+        url = self.cfg.get('iventoy_url', 'http://127.0.0.1:26000').rstrip('/')
+        result = subprocess.run(['curl', '--fail', '--silent', '--show-error', '--max-time', '10',
+            '-H', 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8',
+            '--data-binary', '@-', url+'/iventoy/json'],
+            input=json.dumps(dict(method=method, **values)), stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, universal_newlines=True, check=True)
+        return json.loads(result.stdout)
+
+    def network_snapshot(self):
+        status = self.native('query_status')['status']
+        if status not in ('ready', 'running'):
+            raise RuntimeError('iVentoy network is transitioning; publication deferred')
+        snapshot = dict(status=status)
+        if status == 'running':
+            host = urlsplit(self.cfg['public_url']).hostname
+            networks = [n for n in self.native('sys_ip_list') if n.get('ip') == host]
+            if len(networks) != 1:
+                raise RuntimeError('Cannot uniquely preserve the iVentoy network interface')
+            snapshot['start'] = {k: networks[0][k] for k in ('ip', 'mask', 'gw', 'pool_begin', 'pool_end', 'dns_server')}
+        return snapshot
+
+    def restore_network(self, snapshot):
+        # systemd active only means the web process is alive; PXE may be ready.
+        # Preserve the pre-release choice, including an intentionally idle server.
+        changed = False
+        for _ in range(60):
+            try:
+                status = self.native('query_status')['status']
+            except (subprocess.CalledProcessError, ValueError, KeyError):
+                time.sleep(.5)
+                continue
+            if status == snapshot['status']:
+                return
+            if not changed and status in ('ready', 'running'):
+                action = 'start_server' if snapshot['status'] == 'running' else 'stop_server'
+                result = self.native(action, **(snapshot.get('start', {}) if action == 'start_server' else {}))
+                if result.get('result') != 'success':
+                    raise RuntimeError('Cannot restore iVentoy network state')
+                changed = True
+            time.sleep(.5)
+        raise RuntimeError('iVentoy network did not restore its previous state')
+
     def stage(self):
         self.dir.mkdir(mode=0o700)
         (self.dir/'.release-owned').write_text('ventoy-center release schema 1\n')
@@ -254,6 +297,8 @@ class Release:
         save(backup/'files.json', records)
         old_public = self.data/'release-status.json'
         save(backup/'release-status.json', read(old_public) if old_public.exists() else {})
+        network = self.network_snapshot()
+        save(backup/'network.json', network)
         self.idle()
         if self.state.read_bytes() != state_raw:
             raise ValueError('State changed during backup; publication deferred')
@@ -283,6 +328,7 @@ class Release:
             st = self.state.stat()
             os.chown(old_public, st.st_uid, st.st_gid)
             subprocess.run(['systemctl', 'start', 'ventoy-center.service', 'iventoy.service'], check=True)
+            self.restore_network(network)
             self.healthy(m['version'])
             for src, target in targets:
                 if digest(src) != digest(target):
@@ -325,6 +371,7 @@ class Release:
         st = self.state.stat()
         os.chown(self.data/'release-status.json', st.st_uid, st.st_gid)
         subprocess.run(['systemctl', 'start', 'ventoy-center.service', 'iventoy.service'], check=True)
+        self.restore_network(read(self.dir/'backup/network.json'))
         self.healthy(m['previous_version'])
         save(self.dir/'transaction.json', dict(state='rolled-back', version=m['previous_version']))
         print('ROLLED_BACK '+m['previous_version'])
