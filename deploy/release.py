@@ -125,6 +125,12 @@ class Release:
                 time.sleep(.5)
         raise RuntimeError('Service health check failed')
 
+    def audit_published(self, count):
+        audit = json.loads(self.api('/api/operations/audit', {}))
+        entries = audit.get('entries', [])
+        if not audit.get('tools_setup_matches') or len(entries) != count or not all(e.get('passed') for e in entries):
+            raise RuntimeError('Published setup or entry audit failed')
+
     def stage(self):
         self.dir.mkdir(mode=0o700)
         (self.dir/'.release-owned').write_text('ventoy-center release schema 1\n')
@@ -258,6 +264,12 @@ class Release:
                 raise ValueError('State changed during stop')
             for src, target in targets:
                 replace(target, src.read_bytes())
+            # The manager hashes the actual tools copy as its service account.
+            # Retain root ownership; grant only its state-file group read access.
+            # Original owner/mode are recorded above and restored on rollback.
+            setup = real(Path(self.cfg['software_dir'])/'ventoy-linux-setup.run')
+            os.chown(setup, setup.stat().st_uid, self.state.stat().st_gid)
+            os.chmod(setup, 0o740)
             staged = {e['id']: e for e in m['entries']}
             for e in state['pxe_entries']:
                 e['preparation'] = staged[e['id']]['preparation']
@@ -275,6 +287,7 @@ class Release:
             for src, target in targets:
                 if digest(src) != digest(target):
                     raise ValueError('Published file mismatch')
+            self.audit_published(m['entry_count'])
             save(self.dir/'transaction.json', dict(state='published', **public))
             print('PUBLISHED '+m['version'], flush=True)
         except Exception:

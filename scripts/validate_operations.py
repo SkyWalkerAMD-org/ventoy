@@ -51,15 +51,21 @@ class Lifecycle(unittest.TestCase):
         self.check=mock.patch.object(release.subprocess,'check_output',return_value='')
         self.check.start();self.addCleanup(self.check.stop)
         self.health=mock.patch.object(self.r,'healthy');self.health.start();self.addCleanup(self.health.stop)
+        self.audit=mock.patch.object(self.r,'audit_published');self.audit.start();self.addCleanup(self.audit.stop)
 
     def test_publish_and_rollback_preserve_jobs_and_modes(self):
         self.binary.chmod(0o755)
+        self.setup.chmod(0o700)
         self.r.activate()
         self.assertEqual(self.binary.read_bytes(),b'new binary')
+        self.assertEqual(self.setup.stat().st_mode&0o777,0o740)
+        self.assertEqual(self.setup.stat().st_gid,self.r.state.stat().st_gid)
+        self.r.audit_published.assert_called_once_with(1)
         state=release.read(self.r.state);state['jobs']=[dict(id='new-observation',state='installed')];release.save(self.r.state,state)
         self.r.rollback()
         self.assertEqual(self.binary.read_bytes(),b'old binary')
         self.assertEqual(self.setup.read_bytes(),b'old setup')
+        self.assertEqual(self.setup.stat().st_mode&0o777,0o700)
         self.assertEqual(self.script.read_bytes(),b'old script')
         self.assertEqual(self.binary.stat().st_mode&0o777,0o755)
         self.assertEqual(release.read(self.r.state)['jobs'],state['jobs'])
@@ -81,6 +87,25 @@ class Lifecycle(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError,'unhealthy'):self.r.activate()
         self.assertEqual(self.binary.read_bytes(),b'old binary')
         self.assertEqual(release.read(self.r.dir/'transaction.json')['state'],'rolled-back')
+
+    def test_failed_service_file_audit_rolls_back(self):
+        self.setup.chmod(0o700)
+        self.r.audit_published.side_effect=RuntimeError('Published setup or entry audit failed')
+        with self.assertRaisesRegex(RuntimeError,'audit failed'):self.r.activate()
+        self.assertEqual(self.setup.read_bytes(),b'old setup')
+        self.assertEqual(self.setup.stat().st_mode&0o777,0o700)
+        self.assertEqual(release.read(self.r.dir/'transaction.json')['state'],'rolled-back')
+
+    def test_service_file_audit_requires_setup_and_all_entries(self):
+        for report in [{'tools_setup_matches':False,'entries':[{'passed':True}]},
+                       {'tools_setup_matches':True,'entries':[]},
+                       {'tools_setup_matches':True,'entries':[{'passed':False}]}]:
+            with mock.patch.object(self.r,'api',return_value=json.dumps(report).encode()):
+                with self.assertRaisesRegex(RuntimeError,'audit failed'):
+                    release.Release.audit_published(self.r,1)
+        report={'tools_setup_matches':True,'entries':[{'passed':True}]}
+        with mock.patch.object(self.r,'api',return_value=json.dumps(report).encode()):
+            release.Release.audit_published(self.r,1)
 
     def test_active_task_blocks_before_stop(self):
         state=release.read(self.r.state);state['jobs']=[dict(id='running',state='installing')];release.save(self.r.state,state)
