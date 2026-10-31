@@ -24,8 +24,9 @@ class Lifecycle(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root=Path(self.tmp.name).resolve()
         self.iv=self.root/'iventoy';self.data=self.root/'data';self.base=self.root/'releases'
-        for p in [self.iv/'iso',self.iv/'user/scripts/menu',self.data,self.root/'tools']:
+        for p in [self.iv/'iso',self.iv/'data',self.iv/'user/scripts/menu',self.data,self.root/'tools']:
             p.mkdir(parents=True)
+        self.native_config=self.iv/'data/config.dat';self.native_config.write_bytes(b'valid native settings and bindings');self.native_config.chmod(0o600)
         self.binary=self.root/'ventoy-center';self.binary.write_bytes(b'old binary')
         (self.root/'admin').write_text('fixture-only')
         self.setup=self.root/'tools/ventoy-linux-setup.run';self.setup.write_bytes(b'old setup')
@@ -54,6 +55,7 @@ class Lifecycle(unittest.TestCase):
         self.audit=mock.patch.object(self.r,'audit_published');self.audit.start();self.addCleanup(self.audit.stop)
         self.network=mock.patch.object(self.r,'network_snapshot',return_value={'status':'running','start':{'ip':'192.168.1.2'}});self.network.start();self.addCleanup(self.network.stop)
         self.restore_net=mock.patch.object(self.r,'restore_network');self.restore_net.start();self.addCleanup(self.restore_net.stop)
+        self.native_view=mock.patch.object(self.r,'native_view',return_value={'config':{'dhcp_mode':4,'sb_level':0},'images':{'test.iso':{'auto_scripts':['old script']}}});self.native_view.start();self.addCleanup(self.native_view.stop)
 
     def test_publish_and_rollback_preserve_jobs_and_modes(self):
         self.binary.chmod(0o755)
@@ -73,6 +75,50 @@ class Lifecycle(unittest.TestCase):
         self.assertEqual(release.read(self.r.state)['jobs'],state['jobs'])
         self.assertEqual((self.iv/'iso/test.iso').read_bytes(),b'fake ISO')
         self.assertEqual(self.r.restore_network.call_count,2)
+
+    def test_native_save_interrupted_by_stop_is_restored_before_start(self):
+        original=self.native_config.read_bytes()
+        def service(args,**kwargs):
+            self.calls.append(args)
+            if args[:2]==['systemctl','stop']:self.native_config.write_bytes(b'partial native save')
+            elif args[:2]==['systemctl','start']:self.assertEqual(self.native_config.read_bytes(),original)
+        release.subprocess.run.side_effect=service
+        self.r.activate()
+        self.r.rollback()
+        self.assertEqual(self.native_config.read_bytes(),original)
+        self.assertEqual(self.native_config.stat().st_mode&0o777,0o600)
+
+    def test_native_binding_reset_is_detected_and_rolled_back(self):
+        expected=self.r.native_view.return_value
+        self.r.native_view.side_effect=[expected,{'config':{'dhcp_mode':0,'sb_level':1},'images':{}},expected]
+        with self.assertRaisesRegex(RuntimeError,'bindings changed'):self.r.activate()
+        self.assertEqual(release.read(self.r.dir/'transaction.json')['state'],'rolled-back')
+        self.assertEqual(self.binary.read_bytes(),b'old binary')
+
+    def test_tampered_native_backup_blocks_rollback_before_stop(self):
+        self.r.activate();self.calls.clear()
+        (self.r.dir/'backup/native-config.dat').write_bytes(b'tampered')
+        with self.assertRaisesRegex(ValueError,'Native configuration backup integrity'):self.r.rollback()
+        self.assertFalse(any('stop' in c for c in self.calls))
+
+    def test_native_view_uses_paths_and_does_not_read_images_when_ready(self):
+        config={'dhcp_mode':4,'sb_level':0}
+        tree=[{'name':'Ubuntu','isParent':True,'children':[{'name':'test.iso','imgid':9}]}]
+        info={'id':9,'auto_scripts':['/script'],'injection':'/preload'}
+        with mock.patch.object(self.r,'native',side_effect=[config,tree,info]),mock.patch.object(release.time,'sleep'):
+            self.assertEqual(release.Release.native_view(self.r,True),{'config':config,'images':{'Ubuntu/test.iso':{'auto_scripts':['/script'],'injection':'/preload'}}})
+        with mock.patch.object(self.r,'native',return_value=config) as native:
+            self.assertEqual(release.Release.native_view(self.r,False),{'config':config})
+            native.assert_called_once_with('get_config_all')
+
+    def test_native_config_change_during_backup_blocks_before_stop(self):
+        expected=self.r.native_view.return_value
+        def changing(*args):
+            self.native_config.write_bytes(b'new operator settings')
+            return expected
+        self.r.native_view.side_effect=changing
+        with self.assertRaisesRegex(ValueError,'changed during backup'):self.r.activate()
+        self.assertFalse(any('stop' in c for c in self.calls))
 
     def test_network_snapshot_preserves_configured_interface(self):
         self.r.cfg['public_url']='https://192.168.1.2:26080'
