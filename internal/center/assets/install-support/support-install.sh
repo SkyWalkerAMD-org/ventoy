@@ -12,7 +12,7 @@ done
 dest=$target/usr/local/lib/ventoy-install-support
 mkdir -p "$dest" "$target/var/lib/ventoy-center" "$target/etc/systemd/system/timers.target.wants" "$target/etc/profile.d"
 chmod 0700 "$dest"
-for name in acceptance.sh support-report.sh support-diagnostic.sh support-watch.sh support-version support-url support-ca.crt support-curl.conf support-wget.conf support-cache-url; do
+for name in acceptance.sh support-metadata.sh support-report.sh support-diagnostic.sh support-watch.sh support-version support-url support-ca.crt support-curl.conf support-wget.conf support-cache-url; do
     [ ! -f "$src/$name" ] || { cp "$src/$name" "$dest/$name"; chmod 0600 "$dest/$name"; }
 done
 chmod 0700 "$dest/acceptance.sh"
@@ -43,6 +43,7 @@ case "$-" in *i*) [ ! -r /run/ventoy-install-report.txt ] || cat /run/ventoy-ins
 PROFILE
 chmod 0644 "$target/etc/profile.d/90-ventoy-install-report.sh"
 state=$target/var/lib/ventoy-center
+[ -f "$state/install-attempt" ] || cat /proc/sys/kernel/random/uuid > "$state/install-attempt"
 if [ ! -f "$state/install-mode" ]; then printf 'manual\n' > "$state/install-mode"; fi
 cp "$src/support-version" "$state/install-release"
 date -u '+%Y-%m-%dT%H:%M:%SZ' > "$state/install-hook-completed"

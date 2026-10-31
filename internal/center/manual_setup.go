@@ -147,6 +147,7 @@ func packManualSetup(files map[string][]byte) ([]byte, error) {
 func manualSetupLauncher(bundle []byte) []byte {
 	header := strings.ReplaceAll(manualLauncher, "\r\n", "\n")
 	header = strings.ReplaceAll(header, "@ARCHIVE_SHA256@", fmt.Sprintf("%x", sha256.Sum256(bundle)))
+	header = strings.ReplaceAll(header, "@SETUP_VERSION@", Version)
 	return append([]byte(strings.TrimRight(header, "\n")+"\n"), bundle...)
 }
 

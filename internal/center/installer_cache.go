@@ -111,8 +111,17 @@ func cacheFiles(dir string) ([]cacheFile, int64) {
 }
 
 func (s *Server) installerCacheStatus(w http.ResponseWriter, r *http.Request) {
+	s.cacheMu.Lock()
+	defer s.cacheMu.Unlock()
 	_, total := cacheFiles(s.config.InstallerCacheDir)
-	respond(w, 200, map[string]any{"enabled": s.config.InstallerCacheDir != "", "bytes": total, "max_bytes": s.cacheLimit(), "origins": installerOrigins, "package_signatures": "verified by the original package manager", "metadata_ttl_seconds": 600, "rpm_installation": "EL installers use their local DVD repositories"})
+	respond(w, 200, map[string]any{"enabled": s.config.InstallerCacheDir != "", "bytes": total, "max_bytes": s.cacheLimit(), "origins": installerOrigins, "package_signatures": "verified by the original package manager", "metadata_ttl_seconds": 600, "rpm_installation": "EL installers use their local DVD repositories", "concurrency": s.cacheConcurrency(), "active_downloads": len(s.cacheFlights), "reserved_bytes": s.cacheReserved, "hits": s.cacheHits, "downloads": s.cacheDownloads, "failures": s.cacheFailures, "statistics_since": "process start", "warm_evidence": s.cacheWarmEvidence()})
+}
+
+func (s *Server) cacheConcurrency() int {
+	if s.config.InstallerCacheConcurrency > 0 {
+		return s.config.InstallerCacheConcurrency
+	}
+	return 4
 }
 
 func (s *Server) installerCache(w http.ResponseWriter, r *http.Request) {
@@ -148,6 +157,9 @@ func (s *Server) installerCache(w http.ResponseWriter, r *http.Request) {
 			return false
 		}
 		w.Header().Set("X-Ventoy-Cache", "HIT")
+		s.cacheMu.Lock()
+		s.cacheHits++
+		s.cacheMu.Unlock()
 		w.Header().Set("Content-Type", "application/octet-stream")
 		http.ServeContent(w, r, path.Base(name), st.ModTime(), f)
 		return true
@@ -155,14 +167,33 @@ func (s *Server) installerCache(w http.ResponseWriter, r *http.Request) {
 	if serve() {
 		return
 	}
-	// Serialize misses, not hits. Queue normal APT pipelining instead of making
-	// every parallel request fail/retry with exponential package-manager delays.
-	// Bound the queue wait and honor disconnects without starting extra downloads.
+	// One transfer per object; unrelated objects can progress concurrently.
+	// Reserve bytes after response headers, before receiving the body. Known
+	// small files need not evict an entire object-limit worth of offline hits.
 	wait := time.NewTimer(5 * time.Minute)
 	defer wait.Stop()
 	poll := time.NewTicker(100 * time.Millisecond)
 	defer poll.Stop()
-	for !s.cacheMu.TryLock() {
+	limit := int64(installerObjectLimit)
+	if s.cacheLimit() < limit {
+		limit = s.cacheLimit()
+	}
+	var completed chan struct{}
+	var reserved int64
+	for completed == nil {
+		s.cacheMu.Lock()
+		other := s.cacheFlights[key]
+		if other == nil && len(s.cacheFlights) < s.cacheConcurrency() {
+			if s.cacheFlights == nil {
+				s.cacheFlights = make(map[string]chan struct{})
+			}
+			completed = make(chan struct{})
+			s.cacheFlights[key] = completed
+		}
+		s.cacheMu.Unlock()
+		if completed != nil {
+			break
+		}
 		select {
 		case <-r.Context().Done():
 			return
@@ -170,14 +201,32 @@ func (s *Server) installerCache(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Retry-After", "2")
 			fail(w, 503, "缓存正在下载其他依赖，请重试")
 			return
+		case <-other:
+			if !serve() {
+				fail(w, 502, "同一依赖的下载失败，请重试")
+			}
+			return
 		case <-poll.C:
 			if serve() {
 				return
 			}
 		}
 	}
-	defer s.cacheMu.Unlock()
+	success := false
+	defer func() {
+		s.cacheMu.Lock()
+		delete(s.cacheFlights, key)
+		s.cacheReserved -= reserved
+		if success {
+			s.cacheDownloads++
+		} else {
+			s.cacheFailures++
+		}
+		close(completed)
+		s.cacheMu.Unlock()
+	}()
 	if serve() {
+		success = true
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), installerDownloadTimeout)
@@ -201,35 +250,51 @@ func (s *Server) installerCache(w http.ResponseWriter, r *http.Request) {
 		fail(w, code, "软件源未提供该文件")
 		return
 	}
-	limit := int64(installerObjectLimit)
-	if s.cacheLimit() < limit {
-		limit = s.cacheLimit()
-	}
 	if res.ContentLength > limit {
 		fail(w, 413, "依赖文件超过缓存对象上限")
 		return
 	}
-	files, total := cacheFiles(dir)
-	// Reserve the full object bound before downloading, including unknown sizes.
-	for total+limit > s.cacheLimit() && len(files) > 0 {
-		old := files[0]
-		files = files[1:]
-		if err = os.Remove(filepath.Join(dir, old.name)); err != nil {
-			fail(w, 507, "缓存空间不足")
-			return
-		}
-		total -= old.size
+	allocation := limit
+	if res.ContentLength >= 0 {
+		allocation = res.ContentLength
 	}
+	s.cacheMu.Lock()
+	if s.cacheReserved+allocation > s.cacheLimit() {
+		s.cacheMu.Unlock()
+		w.Header().Set("Retry-After", "2")
+		fail(w, 503, "其他下载已预留缓存空间，请重试")
+		return
+	}
+	files, total := cacheFiles(dir)
+	for _, old := range files {
+		if total+s.cacheReserved+allocation <= s.cacheLimit() {
+			break
+		}
+		if s.cacheFlights[old.name] != nil && old.name != key {
+			continue
+		}
+		if os.Remove(filepath.Join(dir, old.name)) == nil {
+			total -= old.size
+		}
+	}
+	if total+s.cacheReserved+allocation > s.cacheLimit() {
+		s.cacheMu.Unlock()
+		fail(w, 507, "缓存空间不足")
+		return
+	}
+	reserved = allocation
+	s.cacheReserved += reserved
+	s.cacheMu.Unlock()
 	tmp, err := os.CreateTemp(dir, ".download-")
 	if err != nil {
 		fail(w, 507, "缓存空间不足")
 		return
 	}
 	defer os.Remove(tmp.Name())
-	n, err := io.Copy(tmp, io.LimitReader(res.Body, limit+1))
+	n, err := io.Copy(tmp, io.LimitReader(res.Body, allocation+1))
 	syncErr := tmp.Sync()
 	closeErr := tmp.Close()
-	if err != nil || syncErr != nil || closeErr != nil || n > limit || (res.ContentLength >= 0 && n != res.ContentLength) {
+	if err != nil || syncErr != nil || closeErr != nil || n > allocation || (res.ContentLength >= 0 && n != res.ContentLength) {
 		fail(w, 502, "依赖下载不完整；未发布缓存文件")
 		return
 	}
@@ -237,6 +302,7 @@ func (s *Server) installerCache(w http.ResponseWriter, r *http.Request) {
 		fail(w, 500, "缓存发布失败")
 		return
 	}
+	success = true
 	// Do not rewrite Release/Packages or bypass APT signatures/hash checks.
 	if !serve() {
 		fail(w, 500, "缓存读取失败")

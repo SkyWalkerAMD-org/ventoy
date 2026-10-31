@@ -167,7 +167,9 @@ offline=$(cat "$state/offline"); keep_passwords=$(cat "$state/keep-passwords")
 export VC_MANUAL_OFFLINE=$offline
 exec > >(tee -a /var/log/ventoy-manual-init.log) 2>&1
 printf '\n[%s] mode=%s os=%s/%s kernel=%s\n' "$(date -Is)" "$mode" "$ID" "$VERSION_ID" "$(uname -r)"
-trap 'rc=$?; flock -u 7; if ((rc != 0 && rc != 3)); then printf "failed exit=%s time=%s\n" "$rc" "$(date -Is)" > "$state/status"; fi; if [[ -f "$here/support-report.sh" ]]; then /bin/sh "$here/support-report.sh" || true; fi' EXIT
+current_stage=initialization
+setup_stage() { current_stage=$1; printf '\nSETUP_STAGE: %s\n' "$current_stage"; }
+trap 'rc=$?; flock -u 7; if ((rc != 0 && rc != 3)); then printf "failed stage=%s exit=%s time=%s\n" "$current_stage" "$rc" "$(date -Is)" > "$state/status"; echo "SETUP_FAILED_STAGE: $current_stage (exit $rc)" >&2; fi; if [[ -f "$here/support-report.sh" ]]; then /bin/sh "$here/support-report.sh" || true; fi' EXIT
 if [[ $mode == --resume ]]; then
     /bin/sh "$here/support-install.sh" /
     systemctl daemon-reload
@@ -189,11 +191,13 @@ if [[ $mode == --resume ]]; then
         fi
     fi
     # The driver step never unloads a live NIC driver or upgrades the kernel.
+    setup_stage 'E610 driver preparation'
     rc=0; bash "$here/e610-driver.sh" --apply "$here/e610" || rc=$?
     case "$rc" in 0) ;; 3) pending=1;; *) die "E610 preparation failed (exit $rc); see log.";; esac
     # The current persistent hostname belongs to the administrator. The saved
     # hostname is an observation only; setup and boot recovery must not undo a
     # later hostnamectl/safe-server-init change, even after an earlier failure.
+    setup_stage 'hostname and persistence'
     name=$(cat /etc/hostname)
     [[ ! -f "$state/hostname-pending" ]] || name=$(cat "$state/hostname-pending")
     case "${name,,}" in ''|localhost|localhost.localdomain) name=linux-$(cut -c1-8 /etc/machine-id);; esac
@@ -224,8 +228,10 @@ if [[ $mode == --resume ]]; then
             fi
         fi
         # DHCP can make package installation possible on an otherwise offline host.
+        setup_stage 'DHCP configuration'
         rc=0; bash "$here/manual-network.sh" --apply 7>&- || rc=$?
         case "$rc" in 0) ;; 3) pending=1;; *) die "Network setup failed (exit $rc).";; esac
+        setup_stage 'SSH and accounts'
         rc=0; bash "$here/manual-ssh.sh" --apply "$keep_passwords" || rc=$?
         if ((rc != 0)); then
             # Persist the requested update policy even if a missing SSH package
@@ -233,6 +239,7 @@ if [[ $mode == --resume ]]; then
             sh "$here/linux-update-policy.sh" --apply
             die "SSH setup/check failed (exit $rc); inspect the log. Kernel/update policy was applied."
         fi
+        setup_stage 'kernel lock and automatic-update policy'
         sh "$here/linux-update-policy.sh" --apply
         systemctl set-default multi-user.target
         install -m 0755 "$here/safe-server-init.sh" /usr/local/sbin/safe-server-init
@@ -240,10 +247,12 @@ if [[ $mode == --resume ]]; then
         touch "$state/configured"
     else
         # A newly available E610 interface after reboot needs DHCP once.
+        setup_stage 'DHCP configuration'
         rc=0; bash "$here/manual-network.sh" --apply 7>&- || rc=$?
         case "$rc" in 0) ;; 3) pending=1;; *) die "Network setup failed (exit $rc).";; esac
     fi
 fi
+setup_stage 'system verification'
 [[ -f "$state/configured" ]] || die 'Initial configuration has not completed.'
 [[ -s /etc/hostname && $(hostname) == "$(cat /etc/hostname)" ]] || die 'Hostname verification failed.'
 sh "$here/linux-update-policy.sh" --check
@@ -265,6 +274,7 @@ if [[ $mode == --resume && $offline == 0 && -f "$state/software-request" && $(ca
     # System checks above have completed. Distinguish a software failure so
     # the interactive launcher can still offer the independent password dialog
     # and refresh a changed hostname without reporting setup as successful.
+    setup_stage 'software download, installation and verification'
     software_rc=0
     (software_action --software) || software_rc=$?
     if ((software_rc)); then

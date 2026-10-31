@@ -171,6 +171,14 @@ func (s *Server) preparePXEFiles(root *os.Root, e PrivatePXEEntry, write bool) (
 	// This canonical ISO is shared with manual installation and is not owned
 	// by the menu. Preparing a menu must never create another ISO directory.
 	p := &Preparation{Root: s.config.IVentoyRoot, ISOPath: path.Join("iso", e.ISO), ScriptPath: path.Join(scriptDir, script), SourceSize: info.Size(), SourceModified: info.ModTime(), Files: map[string]string{}}
+	p.Release = Version
+	if s.config.LinuxSetupPreload {
+		b, er := s.manualSetupBundle()
+		if er != nil {
+			return nil, er
+		}
+		p.SetupSHA256 = fmt.Sprintf("%x", sha256.Sum256(manualSetupLauncher(b)))
+	}
 	for name, content := range files {
 		p.Files[name] = fmt.Sprintf("%x", sha256.Sum256([]byte(content)))
 	}

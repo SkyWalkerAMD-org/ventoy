@@ -186,6 +186,7 @@ sleep() { :; }
     # secondary NIC or driver is pending. Do not replace pending with success.
     source = (ROOT / 'internal/center/assets/manual/install.sh').read_text(encoding='utf-8')
     completion = source[source.index('[[ $(systemctl get-default) == multi-user.target ]]'):]
+    completion = next(line for line in source.splitlines() if line.startswith('setup_stage() {')) + '\n' + completion
     scenarios = [
         # pending, mode, offline, request, software_rc, expected_rc, calls, request_after
         (1, '--resume', 0, '1', 0, 3, 1, '0'),

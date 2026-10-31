@@ -1,5 +1,7 @@
 # 普通 ISO 手动安装后的完整配置
 
+当前操作见[日常装机与发布维护](../operations.md)。alpha.41 起采用发行版目录的共享 ISO 入口，手动/自动共用启动注入包；不要用旧的纯手动注入包覆盖当前绑定。alpha.49 起可用 `--version`、`--check-version` 查询版本，用 `--update-setup` 校验并替换自身，再由用户重新执行。
+
 alpha.31 将包含[安装后软件分发](node-software.md)的新 setup 统一预置到普通手动安装和 PXE 自动安装结果。无参数运行 `/root/ventoy-linux-setup.run` 即应用完整配置、安装匹配的软件组并自动检查；`--apply` 保留兼容，`--software` 仅安装或升级软件。后续中心替换 RPM / DEB 不需要更换 setup。
 
 中心配置启用 `"linux_setup_preload": true` 后，生成的 Linux 专属任务与 PXE 菜单注入包包含当前 setup，安装收尾必须完成复制和 SHA-256 校验。普通手动入口绑定 `/api/linux-manual-setup?format=injection` 生成的当前注入包。升级中心后应重新生成并发布既有入口的注入包；已有准备文件不会在活动安装期间自动改写。若已校验的 E610 完整离线包缺失，生成失败，不会悄悄省略 setup。

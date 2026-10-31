@@ -7,6 +7,7 @@ let selectedImage = '';
 let armId = '';
 let closeId = '';
 let refreshInFlight = null;
+let acceptanceData = {entries:[],records:[],release:''};
 const states = {draft:'草稿',ready:'等待网启',installing:'正在安装',enrolling:'配置接入中',enrolled:'接入已配置',installed:'系统已安装',failed:'失败',canceled:'已取消'};
 const osNames = {centos:'CentOS',rocky:'Rocky Linux',almalinux:'AlmaLinux',rhel:'Red Hat Enterprise Linux',ubuntu:'Ubuntu Server',debian:'Debian',windows:'Windows'};
 const profileFor = id => data.profiles.find(p => p.id === id);
@@ -23,7 +24,7 @@ function showLogin() { if (!$('#login-dialog').open) $('#login-dialog').showModa
 function closeDialog(event) { event.target.closest('dialog').close(); }
 $$('[data-close]').forEach(b => b.addEventListener('click', closeDialog));
 $('#login-dialog').addEventListener('cancel', event => event.preventDefault());
-function route() { const page = location.hash.slice(1) || 'overview'; const chosen = ['overview','machines','jobs','images','software','profiles','pxe','reports'].includes(page) ? page : 'overview'; $$('.page').forEach(p => {p.hidden = p.id !== chosen;}); $$('[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === chosen)); $('#breadcrumb').textContent = {overview:'部署总览',machines:'目标机器',jobs:'安装任务',images:'镜像管理',software:'软件分发',profiles:'系统版本',pxe:'PXE 自动安装',reports:'安装结果与诊断'}[chosen]; if(chosen==='software' && token) refreshSoftware(); if(chosen==='reports' && token) refreshReports(); }
+function route() { const page = location.hash.slice(1) || 'overview'; const chosen = ['overview','machines','jobs','images','software','profiles','pxe','reports','operations','acceptance'].includes(page) ? page : 'overview'; $$('.page').forEach(p => {p.hidden = p.id !== chosen;}); $$('[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === chosen)); $('#breadcrumb').textContent = {overview:'部署总览',machines:'目标机器',jobs:'安装任务',images:'镜像管理',software:'软件分发',profiles:'系统版本',pxe:'PXE 自动安装',reports:'安装结果与诊断',operations:'版本与维护',acceptance:'实机验收'}[chosen]; if(chosen==='software' && token) refreshSoftware(); if(chosen==='reports' && token) refreshReports(); if(chosen==='operations' && token) refreshOperations(); if(chosen==='acceptance' && token) refreshAcceptance(); }
 window.addEventListener('hashchange', route); route();
 function empty(target, title, description, action) { const box = el('div',null,'empty'); box.append(el('div','↗','empty-symbol'),el('h2',title),el('p',description)); if (action) {const b=el('button',action[0],'primary'); b.addEventListener('click',action[1]);box.append(b);} target.replaceChildren(box); }
 function table(target, headings, rows) { const t=el('table'); const head=el('thead'); const tr=el('tr'); headings.forEach(h=>tr.append(el('th',h))); head.append(tr); const body=el('tbody'); rows.forEach(row=>{const r=el('tr'); row.forEach(cell=>{const c=el('td'); if(cell instanceof Node)c.append(cell);else c.textContent=cell; r.append(c);});body.append(r);});t.append(head,body);target.replaceChildren(t); }
@@ -48,6 +49,8 @@ function renderAll() {
   renderMachines(); renderBoot(); renderImages(); renderProfiles(); renderPXE();
   if(location.hash==='#software')refreshSoftware();
   if(location.hash==='#reports')refreshReports();
+  if(location.hash==='#operations')refreshOperations();
+  if(location.hash==='#acceptance')refreshAcceptance();
   const link=$('#iventoy-link');link.hidden=!data.iventoy_url;if(data.iventoy_url)link.href=data.iventoy_url;
   $('#warnings').hidden=!data.warnings.length;$('#warnings').textContent=data.warnings.join('；');
 }
@@ -213,8 +216,70 @@ async function refreshReports() {
     const kinds={failure:'失败回报',observed:'疑似错误（待核对）',result:'硬盘启动报告'};
     table($('#installation-report-table'),['时间','来源','类型 / 归类','建议','报告'],reports.map(r=>[stamp(r.time),r.source,`${kinds[r.kind]||r.kind} / ${r.category}`,r.advice,button('查看 / 下载',async()=>{
       const report=await (await api(`/api/installation-reports/${r.id}`)).json();
-      const box=$('#job-detail');box.replaceChildren(el('h3',kinds[report.kind]||report.kind),el('p',report.advice),el('pre',report.text));
+      const box=$('#job-detail');box.replaceChildren(el('h3',kinds[report.kind]||report.kind),el('p','报告编号：'+report.id),el('p',report.advice));
+      for(const [key,value] of Object.entries(report.metadata||{}))box.append(el('p',`${key}: ${value}`,'hash-value'));
+      box.append(el('pre',report.text));
       box.append(button('下载 JSON',()=>{const u=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}));const a=el('a');a.href=u;a.download=`installation-${r.id}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);}));$('#detail-dialog').showModal();
     })]));
   } catch(error) { notify(error.message); }
 }
+
+
+function downloadJSON(name, value) {
+  const u=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}));
+  const a=el('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);
+}
+const gib=bytes=>(Number(bytes||0)/1073741824).toFixed(2)+' GiB';
+async function refreshOperations(){
+  try{
+    const [o,c]=await Promise.all([api('/api/operations').then(r=>r.json()),api('/api/installer-cache').then(r=>r.json())]);
+    const release=o.release||{};
+    $('#release-summary').replaceChildren(el('h2','当前管理端 '+o.version),el('p',release.published?`发布于 ${new Date(release.published).toLocaleString()} · 来源 ${release.source_commit||'未记录'}`:'尚未通过版本发布工具登记。'),el('p',`入口 ${o.entries.length} 个；版本一致 ${o.entries.filter(e=>e.current).length} 个；活动任务 ${o.active_tasks.length} 个。`),el('p',`setup SHA-256：${release.setup_sha256||'尚未登记'}`,'hash-value'),el('p',release.rollback_available?`保留回退版本：${release.previous_version}。实机结果见“实机验收”。`:'回退备份尚未登记。'));
+    table($('#release-entries'),['系统入口','预置版本','版本状态'],o.entries.map(e=>[e.iso,e.release||'未知',e.current?'一致，待文件校验':'需要更新']));
+    $('#cache-summary').replaceChildren(el('p',c.enabled?`缓存 ${gib(c.bytes)} / ${gib(c.max_bytes)}；正在下载 ${c.active_downloads} / ${c.concurrency} 个。`:'缓存未启用。'),el('p',`读取缓存 ${c.hits} 次，完成下载 ${c.downloads} 个，失败 ${c.failures} 次。`),el('p','同一文件合并下载；APT 保留原厂签名验证。预热结果只代表记录时间的依赖验证，未命中文件仍需上游可达。红帽系安装依赖优先使用 DVD。'));
+    const warm=c.warm_evidence||[];
+    if(warm.length)table($('#cache-warm'),['源 / 版本','预热时间','结果','下载包数'],warm.map(x=>[`${x.origin} / ${x.suite}`,new Date(x.time).toLocaleString(),x.status==='verified'?'签名与下载已验证':'未完成',x.downloaded_packages||0]));
+    else empty($('#cache-warm'),'尚无依赖预热记录','普通缓存请求仍按需下载。');
+  }catch(error){notify(error.message);}
+}
+$('#audit-release').addEventListener('click',async event=>{
+  const b=event.currentTarget;b.disabled=true;$('#release-audit').textContent='正在校验预置包和全部入口文件…';
+  try{const a=await(await post('/api/operations/audit')).json();const failed=a.entries.filter(e=>!e.passed);$('#release-audit').textContent=`文件校验：${a.entries.length-failed.length}/${a.entries.length} 个入口通过；tools 中的 setup ${a.tools_setup_matches?'一致':'不一致'}。`;
+    table($('#release-entries'),['系统入口','文件校验','详情'],a.entries.map(e=>[e.iso,e.passed?'通过':'未通过',e.problems.join('；')||'版本和校验值一致']));
+  }catch(error){$('#release-audit').textContent='校验未完成：'+error.message;}finally{b.disabled=false;}
+});
+$('#scan-storage').addEventListener('click',async event=>{
+  const b=event.currentTarget;b.disabled=true;
+  try{const s=await(await api('/api/operations/storage')).json();const snapshot=s.snapshot||{};const root=$('#storage-summary');root.replaceChildren(el('p',s.note));
+    root.append(el('p',snapshot.time?'磁盘余量快照：'+new Date(snapshot.time).toLocaleString():'尚未生成维护快照。'));
+    for(const v of snapshot.volumes||[])root.append(el('p',`${v.path}：已用 ${v.percent}%；可用 ${gib(v.free)} / ${gib(v.total)}`,v.level==='normal'?'':'warning'));
+    table($('#storage-directories'),['目录类别','逻辑大小','文件数','不可读'],s.directories.map(d=>[d.category,gib(d.bytes),d.files,d.unreadable]));
+    const reasons={'current or two newest releases':'当前或最近两个版本','younger than seven days':'尚未满七天','mounted tree':'存在挂载','symlink in release':'存在符号链接','last ISO link':'ISO 仅剩此副本'};
+    table($('#storage-releases'),['发布备份','版本','目录逻辑大小','保留状态'],(snapshot.releases||[]).map(r=>[r.name,r.version,gib(r.logical_bytes),r.eligible?'达到保留期限，可由维护工具清理':(reasons[r.reason]||r.reason)]));
+    if((snapshot.unknown||[]).length)root.append(el('p',`另有 ${snapshot.unknown.length} 个未识别项目，保留供人工核对。`));
+  }catch(error){notify(error.message);}finally{b.disabled=false;}
+});
+
+const acceptanceLabels={disk_boot:'首次从硬盘启动',second_boot:'再次正常重启',ssh:'SSH 实际登录',console:'带外控制台登录',dhcp:'DHCP 与现有网络',kernel_updates:'内核锁定与禁用自动更新',filesystem:'分区、文件系统与 RAID',setup:'独立执行 setup 并检查软件'};
+for(const [key,label] of Object.entries(acceptanceLabels)){const l=el('label',null,'check');const input=el('input');input.type='checkbox';input.name=key;l.append(input,document.createTextNode(label));$('#acceptance-checks').append(l);}
+async function refreshAcceptance(){
+  try{acceptanceData=await(await api('/api/acceptance')).json();
+    for(const select of [$('#acceptance-filter'),$('#acceptance-form').elements.entry_id]){const previous=select.value;setOptions(select,acceptanceData.entries,e=>e.label||e.iso,e=>e.id);select.options[0].textContent=select.id==='acceptance-filter'?'全部系统':'请选择系统';select.value=previous;}
+    const version=$('#acceptance-form').elements.release;if(!version.value)version.value=acceptanceData.release;
+    renderAcceptance();
+  }catch(error){notify(error.message);}
+}
+function renderAcceptance(){
+  const id=$('#acceptance-filter').value, mode=$('#acceptance-mode-filter').value, platform=$('#acceptance-platform-filter').value;
+  const records=acceptanceData.records.filter(r=>(!id||r.entry_id===id)&&(!mode||r.mode===mode)&&(!platform||r.platform===platform));
+  $('#acceptance-count').textContent=`当前筛选共 ${records.length} 条记录。当前发布版本 ${acceptanceData.release}；历史版本的通过结果单独标注，不计作新版验收。`;
+  const rows=records.map(r=>[r.iso,`${r.mode==='manual'?'手动':'自动'} / ${r.platform} / ${r.storage}`,r.node,r.release,r.result==='passed'?(r.release===acceptanceData.release?'已确认通过':'历史版本通过'):'未通过',button('详情',()=>{const box=$('#job-detail');box.replaceChildren(el('h3','人工登记的实机验收'),el('p',new Date(r.time).toLocaleString()),el('p',r.notes||'无附加说明'));for(const [key,label] of Object.entries(acceptanceLabels))box.append(el('p',`${r.checks[key]?'✓':'—'} ${label}`));box.append(el('p','关联报告：'+(r.reports||[]).join(', ')));$('#detail-dialog').showModal();})]);
+  for(const e of acceptanceData.entries.filter(e=>!id||e.id===id)){if(!records.some(r=>r.entry_id===e.id&&r.release===acceptanceData.release))rows.push([e.iso,`${mode==='manual'?'手动':mode==='automatic'?'自动':'当前筛选'} / ${platform||'全部平台'}`,'—',acceptanceData.release,'待实机验收','—']);}
+  table($('#acceptance-table'),['系统','范围','节点','版本','结果','详情'],rows);
+}
+for(const id of ['acceptance-filter','acceptance-mode-filter','acceptance-platform-filter'])$('#'+id).addEventListener('change',renderAcceptance);
+$('#export-acceptance').addEventListener('click',()=>downloadJSON('ventoy-acceptance.json',acceptanceData));
+$('#acceptance-form').addEventListener('submit',async event=>{
+  event.preventDefault();const f=event.target,b=$('button[type=submit]',f);b.disabled=true;
+  try{const body=Object.fromEntries(new FormData(f));body.checks={};for(const k of Object.keys(acceptanceLabels)){body.checks[k]=f.elements[k].checked;delete body[k];}body.reports=body.reports.split(',').map(x=>x.trim()).filter(Boolean);await post('/api/acceptance',body);notify('实机验收记录已保存');await refreshAcceptance();}catch(error){notify(error.message);}finally{b.disabled=false;}
+});

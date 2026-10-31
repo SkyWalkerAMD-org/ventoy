@@ -14,6 +14,8 @@
       <a href="#machines" data-nav="machines">▦ <span>目标机器</span></a>
       <a href="#jobs" data-nav="jobs">↗ <span>安装任务</span></a>
       <a href="#reports" data-nav="reports">☑ <span>安装结果与诊断</span></a>
+      <a href="#acceptance" data-nav="acceptance">✓ <span>实机验收</span></a>
+      <a href="#operations" data-nav="operations">⚙ <span>版本与维护</span></a>
       <a href="#pxe" data-nav="pxe">▤ <span>PXE 自动安装</span></a>
       <a href="#images" data-nav="images">▱ <span>镜像管理</span></a>
       <a href="#software" data-nav="software">▣ <span>软件分发</span></a>
@@ -62,6 +64,25 @@
         <div class="panel padded"><p>自动安装分别记录安装完成、从硬盘启动及首次检查结果。手动安装保留安装器里选择的账户和网络；预置 setup 代表文件已复制，完整配置仍需运行 <code>./ventoy-linux-setup.run</code>。Ubuntu / Debian 的更新保护在安装阶段应用。</p><p>报告会注明 setup 版本、校验值及执行状态。观察到疑似错误不会自动取消任务或清盘。网络不可用时，在安装器 <code>/tmp/ventoy-install-diagnostic.log</code> 查看本地日志。</p><p id="installer-cache-state">正在读取安装依赖缓存…</p></div>
         <div class="section-heading"><h2>最近报告</h2><span class="muted">保留最近 500 份 · 仅管理员可读取</span></div><div id="installation-report-table" class="panel"></div>
         <div class="panel padded"><h2>验收范围</h2><p>入口生成、脚本回归与依赖缓存检查属于软件验证；不代表每个系统都在所有 Intel / AMD / E610 设备上完成实装。每个待验收组合需记录手动或自动模式、旧分区重装、两次正常硬盘启动、SSH、DHCP、内核和更新策略，以及 setup 的独立执行结果。</p><p>可在系统中运行 <code>sudo /usr/local/lib/ventoy-install-support/acceptance.sh</code>（或 <code>sudo sh /usr/local/lib/ventoy-install-support/acceptance.sh</code>）导出只读检查结果。首次、再次启动的报告使用不同 boot ID，便于核验重启。</p></div>
+      </section>
+      <section id="operations" class="page" hidden>
+        <div class="page-heading"><div><div class="eyebrow">RELEASE & STORAGE</div><h1>版本与维护</h1><p>查看管理端、系统入口和预置 setup 是否一致。</p></div><button id="audit-release">校验全部入口文件</button></div>
+        <div id="release-summary" class="panel padded"></div><p id="release-audit" role="status"></p>
+        <div id="release-entries" class="panel"></div>
+        <div class="section-heading"><h2>安装依赖缓存</h2><span class="muted">计数从服务启动开始</span></div><div id="cache-summary" class="panel padded"></div><div id="cache-warm" class="panel"></div>
+        <div class="section-heading"><h2>磁盘与备份</h2><button id="scan-storage">核对目录占用</button></div><div id="storage-summary" class="panel padded"><p>点击核对，读取目录占用及最近一次维护快照。</p></div><div id="storage-directories" class="panel"></div><div id="storage-releases" class="panel"></div>
+        <div class="note"><span>↳</span><p>发布先生成和校验完整版本，等待安装任务及网络镜像连接退出后再切换；失败自动回退。原始 ISO 保留，旧备份至少保留七天和最近两个版本。清理和发布由中心服务器的维护工具执行。</p></div>
+      </section>
+      <section id="acceptance" class="page" hidden>
+        <div class="page-heading"><div><div class="eyebrow">HARDWARE ACCEPTANCE</div><h1>实机验收</h1><p>按系统、安装方式、平台和存储布局记录验收。软件校验不会自动填成实机通过。</p></div><button id="export-acceptance">导出记录</button></div>
+        <div class="panel padded"><div class="form-grid"><label>系统筛选<select id="acceptance-filter"></select></label><label>模式<select id="acceptance-mode-filter"><option value="">全部</option><option value="manual">手动</option><option value="automatic">自动</option></select></label><label>平台<select id="acceptance-platform-filter"><option value="">全部</option><option>Intel</option><option>AMD</option><option>VM</option></select></label></div><p id="acceptance-count"></p></div>
+        <div id="acceptance-table" class="panel"></div>
+        <form id="acceptance-form" class="panel padded"><h2>登记实机结果</h2><p>通过验收必须逐项确认。可在节点运行 <code>/usr/local/lib/ventoy-install-support/acceptance.sh</code> 收集只读证据，再结合两次启动和实际登录结果填写。</p><div class="form-grid">
+          <label>系统入口<select name="entry_id" required></select></label><label>节点 / 硬件型号<input name="node" maxlength="120" required placeholder="s4-2495x1 · Intel 2495X"></label>
+          <label>实际 setup 版本<input name="release" maxlength="64" required placeholder="通过 setup --version 查询"></label><label>安装方式<select name="mode"><option value="manual">手动安装</option><option value="automatic">自动安装</option></select></label>
+          <label>平台<select name="platform"><option>Intel</option><option>AMD</option><option>VM</option></select></label><label>存储布局<select name="storage"><option value="single">单盘</option><option value="hardware-raid">硬件 RAID 逻辑盘</option><option value="raid1-lvm">软件 RAID1 + LVM</option></select></label>
+          <label>结果<select name="result"><option value="failed">未通过（记录问题）</option><option value="passed">通过</option></select></label><label>关联报告编号（可选，逗号分隔）<input name="reports" placeholder="安装结果与诊断中的报告编号"></label>
+        </div><fieldset id="acceptance-checks"><legend>已完成的检查</legend></fieldset><label>说明 / 原始错误<textarea name="notes" maxlength="2000" rows="3"></textarea></label><p>该记录代表你的验收确认，不能替代其他版本或其他硬件的测试。</p><button type="submit" class="primary">保存验收记录</button></form>
       </section>
       <section id="profiles" class="page" hidden>
         <div class="page-heading"><div><div class="eyebrow">OPERATING SYSTEMS</div><h1>系统版本</h1><p>Linux 优先。当前阶段完成装机，压测与监控接入后续再做。</p></div></div>

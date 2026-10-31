@@ -14,32 +14,33 @@ import (
 	"strings"
 )
 
-const Version = "0.3.0-alpha.48"
+const Version = "0.3.0-alpha.49"
 
 type Config struct {
-	Listen                   string         `json:"listen"`
-	PublicURL                string         `json:"public_url"`
-	DataDir                  string         `json:"data_dir"`
-	ISODir                   string         `json:"iso_dir"`
-	PackageDir               string         `json:"package_dir"`
-	SoftwareDir              string         `json:"software_dir,omitempty"`
-	InstallerCacheDir        string         `json:"installer_cache_dir,omitempty"`
-	InstallerCacheListen     string         `json:"installer_cache_listen,omitempty"`
-	InstallerCacheURL        string         `json:"installer_cache_url,omitempty"`
-	InstallerCacheMaxBytes   int64          `json:"installer_cache_max_bytes,omitempty"`
-	SoftwareRPMMinEL         map[string]int `json:"software_rpm_min_el,omitempty"`
-	FYHOCUnlockPasswordFile  string         `json:"fyhoc_unlock_password_file,omitempty"`
-	NodeJoinConfigFile       string         `json:"node_join_config_file,omitempty"`
-	LinuxSetupPreload        bool           `json:"linux_setup_preload,omitempty"`
-	AdminTokenFile           string         `json:"admin_token_file"`
-	TLSCert                  string         `json:"tls_cert_file"`
-	TLSKey                   string         `json:"tls_key_file"`
-	BootstrapCA              string         `json:"bootstrap_ca_file"`
-	IVentoyURL               string         `json:"iventoy_url"`
-	IVentoyRoot              string         `json:"iventoy_root,omitempty"`
-	FYHOCSYSURL              string         `json:"fyhocsys_url"`
-	LinuxInitialPasswordHash string         `json:"linux_initial_password_hash,omitempty"`
-	LinuxAdminUsername       string         `json:"linux_admin_username,omitempty"`
+	Listen                    string         `json:"listen"`
+	PublicURL                 string         `json:"public_url"`
+	DataDir                   string         `json:"data_dir"`
+	ISODir                    string         `json:"iso_dir"`
+	PackageDir                string         `json:"package_dir"`
+	SoftwareDir               string         `json:"software_dir,omitempty"`
+	InstallerCacheDir         string         `json:"installer_cache_dir,omitempty"`
+	InstallerCacheListen      string         `json:"installer_cache_listen,omitempty"`
+	InstallerCacheURL         string         `json:"installer_cache_url,omitempty"`
+	InstallerCacheMaxBytes    int64          `json:"installer_cache_max_bytes,omitempty"`
+	InstallerCacheConcurrency int            `json:"installer_cache_concurrency,omitempty"`
+	SoftwareRPMMinEL          map[string]int `json:"software_rpm_min_el,omitempty"`
+	FYHOCUnlockPasswordFile   string         `json:"fyhoc_unlock_password_file,omitempty"`
+	NodeJoinConfigFile        string         `json:"node_join_config_file,omitempty"`
+	LinuxSetupPreload         bool           `json:"linux_setup_preload,omitempty"`
+	AdminTokenFile            string         `json:"admin_token_file"`
+	TLSCert                   string         `json:"tls_cert_file"`
+	TLSKey                    string         `json:"tls_key_file"`
+	BootstrapCA               string         `json:"bootstrap_ca_file"`
+	IVentoyURL                string         `json:"iventoy_url"`
+	IVentoyRoot               string         `json:"iventoy_root,omitempty"`
+	FYHOCSYSURL               string         `json:"fyhocsys_url"`
+	LinuxInitialPasswordHash  string         `json:"linux_initial_password_hash,omitempty"`
+	LinuxAdminUsername        string         `json:"linux_admin_username,omitempty"`
 }
 
 func randomID(n int) string {
@@ -115,6 +116,9 @@ func loadConfig(path string) (Config, error) {
 	base, _ := filepath.Abs(filepath.Dir(path))
 	if c.InstallerCacheMaxBytes < 0 {
 		return c, errors.New("installer_cache_max_bytes must not be negative")
+	}
+	if c.InstallerCacheConcurrency < 0 || c.InstallerCacheConcurrency > 16 {
+		return c, errors.New("installer_cache_concurrency must be 1–16, or 0 for default 4")
 	}
 	for _, p := range []*string{&c.DataDir, &c.ISODir, &c.PackageDir, &c.SoftwareDir, &c.InstallerCacheDir, &c.FYHOCUnlockPasswordFile, &c.NodeJoinConfigFile, &c.AdminTokenFile, &c.TLSCert, &c.TLSKey, &c.BootstrapCA, &c.IVentoyRoot} {
 		if *p != "" && !filepath.IsAbs(*p) {
