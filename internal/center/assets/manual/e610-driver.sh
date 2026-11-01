@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-2.0-only
-# Canonical source: SkyWalkerAMD-org/E610 manual/e610-driver.sh
+# Ventoy adapter for the unmodified SkyWalkerAMD/E610 r4 offline release.
 set -Eeuo pipefail
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C
 umask 077
 mode=${1:---check}; bundle=${2:?E610 bundle directory required}
-here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 kver=$(uname -r)
 die() { echo "E610: $*" >&2; exit 1; }
 [[ $mode == --apply || $mode == --check ]] || exit 2
@@ -39,115 +38,30 @@ verify() {
 }
 if [[ $mode == --check ]]; then verify; exit $?; fi
 if ! native_support; then
+    # The r4 dispatcher owns OS normalization, exact ABI selection and nested
+    # baseline/imported payloads. Do not flatten its manifest or bypass its
+    # checksum, Secure Boot, backup, and rollback checks.
+    [[ -f $bundle/install.sh && -f $bundle/SHA256SUMS ]] || die 'Offline driver bundle is incomplete.'
     (cd "$bundle" && sha256sum --status -c SHA256SUMS) || die 'Offline driver bundle checksum mismatch.'
-    python=
-    for candidate in python3 /usr/libexec/platform-python python2 python; do
-        if command -v "$candidate" >/dev/null 2>&1; then python=$candidate; break; fi
-    done
-    [[ -n $python ]] || die 'Python >=2.7 is required to unpack driver payloads.'
-    . /etc/os-release
-    version=$VERSION_ID; [[ $ID != rocky ]] || version=${VERSION_ID%%.*}
-    found=0; kind=; selected=
-    while IFS=$'\t' read -r os ver kernel action path; do
-        [[ $os == "$ID" && $ver == "$version" && $kernel == "$kver" ]] || continue
-        case "$action" in legacy|external)
-            ((found == 0)) || die 'Duplicate exact-kernel entry in driver manifest.'
-            found=1; kind=$action; selected=$path;;
-        esac
-    done < "$bundle/targets.tsv"
-    if ((found)); then
-        installer=$bundle/$selected/install.sh
-        if [[ $kind == legacy ]]; then
-            legacy_root=/var/lib/e610-ixgbe/manual-legacy-$ID-$kver
-            mkdir -p "$legacy_root"
-            unpack=$(mktemp -d "$legacy_root/payload.XXXXXXXX")
-            expanded=$("$python" "$here/e610-extract.py" "$bundle/$selected" "$unpack")
-            installer=$expanded/install.sh
-        fi
-        rc=0
-        bash "$installer" --kernel "$kver" --check || rc=$?
-        if ((rc == 3)) && [[ ! -t 0 ]]; then
-            echo 'E610_MOK_PENDING: rerun from a console to enroll the signing certificate.'; exit 3
-        fi
-        ((rc == 0 || rc == 3)) || die "Driver preflight failed ($rc)."
-        bash "$installer" --kernel "$kver"
-    else
-        # Exact-ABI fallback for other Linux versions. Never substitute a newer
-        # kernel or force-load a different distribution's prebuilt module.
-        root=/var/lib/e610-ixgbe/manual-$ID-$kver
-        mkdir -p "$root"
-        payload=$root/payload
-        if [[ ! -f $payload/SHA256SUMS ]]; then
-            [[ ${VC_MANUAL_OFFLINE:-0} == 0 || -f /lib/modules/$kver/build/Makefile ]] || die "Offline headers missing for $kver; supply matching headers/build tools."
-            if [[ ${VC_MANUAL_OFFLINE:-0} == 0 ]]; then
-                case "$ID" in
-                    ubuntu|debian)
-                        apt_timeout=20
-                        [[ ! -f /etc/apt/apt.conf.d/90ventoy-installer-cache ]] || apt_timeout=1200
-                        apt-get -o Acquire::Retries=1 -o "Acquire::http::Timeout=$apt_timeout" update
-                        DEBIAN_FRONTEND=noninteractive apt-get -y --no-upgrade --no-install-recommends install build-essential "linux-headers-$kver" libelf-dev openssl initramfs-tools kmod
-                        ;;
-                    *)
-                        manager=yum; command -v dnf >/dev/null && manager=dnf
-                        "$manager" -y install "kernel-devel-$kver" gcc make elfutils-libelf-devel openssl dracut kmod
-                        ;;
-                esac
-            fi
-            [[ -f /lib/modules/$kver/build/Makefile ]] || die "Exact headers for $kver unavailable; current kernel retained."
-            source=$bundle/source/ixgbe-6.4.5.tar.gz
-            echo "8d23f2c329e0b93055236e67ffbf1de99d8dce32ccc75beb759774c7c24d7ed4  $source" | sha256sum --status -c - || die 'Intel source checksum mismatch.'
-            work=$(mktemp -d "$root/build.XXXXXXXX")
-            "$python" "$here/e610-extract.py" "$source" "$work" >/dev/null
-            make -C "$work/ixgbe-6.4.5/src" -j2 BUILD_KERNEL="$kver" KSRC="/lib/modules/$kver/build" > "$root/build.log" 2>&1 || die "Build failed; inspect $root/build.log. No installed module changed."
-            module=$work/ixgbe-6.4.5/src/ixgbe.ko
-            [[ $(modinfo -F vermagic "$module" | awk '{print $1}') == "$kver" ]] || die 'Built module ABI mismatch.'
-            aliases=$(modinfo -F alias "$module")
-            for id in 57AE 57AF 57B0 57B1 57B2; do [[ $aliases == *v00008086d0000$id* ]] || die "Built module lacks E610 PCI ID $id."; done
-            stage=$(mktemp -d "$root/payload.XXXXXXXX")
-            cp "$module" "$stage/ixgbe.ko"
-            # Keys stay locally in the root-only state directory, never in the
-            # downloadable package. Signed modules also work with Secure Boot off.
-            if [[ ! -f $root/MOK.key ]]; then
-                cat > "$root/signing.cnf" <<'CERT'
-[req]
-distinguished_name=dn
-x509_extensions=ext
-prompt=no
-[dn]
-CN=Local E610 manual driver
-[ext]
-basicConstraints=critical,CA:FALSE
-keyUsage=critical,digitalSignature
-subjectKeyIdentifier=hash
-authorityKeyIdentifier=keyid
-extendedKeyUsage=codeSigning,1.3.6.1.4.1.2312.16.1.2
-CERT
-                openssl req -new -x509 -newkey rsa:3072 -sha256 -config "$root/signing.cnf" -keyout "$root/MOK.key" -outform DER -out "$root/MOK.der" -nodes -days 3650 >/dev/null 2>&1
-            fi
-            /lib/modules/"$kver"/build/scripts/sign-file sha256 "$root/MOK.key" "$root/MOK.der" "$stage/ixgbe.ko"
-            cp "$root/MOK.der" "$stage/E610-MOK.der"
-            cp "$here/e610-mok-status.sh" "$stage/mok-status.sh"
-            sed -e "s/@KERNEL@/$kver/g" -e "s/@OS@/$ID/g" -e "s/@VERSION@/$version/g" \
-                -e "s/@LABEL@/$ID $VERSION_ID/g" \
-                -e "s/@MODULE_SHA256@/$(sha256sum "$stage/ixgbe.ko" | awk '{print $1}')/g" \
-                -e "s/@CERT_SHA256@/$(sha256sum "$stage/E610-MOK.der" | awk '{print $1}')/g" \
-                "$here/e610-install-template.sh" > "$stage/install.sh"
-            case "$ID" in
-                ubuntu|debian)
-                    printf '#!/bin/sh\ncase "${1:-}" in prereqs) exit 0;; esac\n[ "$version" = "%s" ] || exit 0\n. /usr/share/initramfs-tools/hook-functions\nmanual_add_modules ixgbe\n' "$kver" > "$stage/initramfs-hook";;
-                *) printf 'add_drivers+=" ixgbe "\n' > "$stage/initramfs-hook";;
-            esac
-            (cd "$stage" && sha256sum ixgbe.ko E610-MOK.der mok-status.sh install.sh initramfs-hook > SHA256SUMS)
-            [[ ! -e $payload ]] || die 'Incomplete prior payload exists; review it before retrying.'
-            mv -T "$stage" "$payload"
-        fi
-        rc=0; bash "$payload/install.sh" --check || rc=$?
-        if ((rc == 3)) && [[ ! -t 0 ]]; then echo 'E610_MOK_PENDING: console certificate enrollment required.'; exit 3; fi
-        ((rc == 0 || rc == 3)) || die "Local driver preflight failed ($rc)."
-        bash "$payload/install.sh"
+    log=$(mktemp /var/log/ventoy-e610-offline.XXXXXXXX.log)
+    echo "E610_OFFLINE: checking exact OS/kernel support for $kver; details: $log"
+    echo "E610_ROLLBACK: bash $bundle/install.sh --kernel $kver --rollback"
+    rc=0
+    bash "$bundle/install.sh" --kernel "$kver" --check > "$log" 2>&1 || rc=$?
+    if ((rc == 3)); then
+        echo "E610_MOK_PENDING: signing certificate enrollment is required. At a console, run bash $bundle/install.sh --kernel $kver, enroll at reboot, then rerun setup. Details: $log"
+        exit 3
     fi
+    ((rc == 0)) || die "Offline driver preflight failed ($rc); inspect $log. The current kernel and driver were retained."
+    rc=0
+    bash "$bundle/install.sh" --kernel "$kver" >> "$log" 2>&1 || rc=$?
+    if ((rc == 3)); then
+        echo "E610_MOK_PENDING: driver installation needs console enrollment; inspect $log."
+        exit 3
+    fi
+    ((rc == 0)) || die "Offline driver installation failed ($rc); inspect $log and the recorded rollback state."
 fi
-if ! native_support; then echo 'E610_MOK_PENDING: certificate enrollment required; no effective driver installed yet.'; exit 3; fi
+if ! native_support; then echo 'E610_DRIVER_PENDING: the effective driver still lacks E610 support; inspect the offline installation log.'; exit 3; fi
 # Loading an absent driver is safe; never unload/rebind a driver carrying SSH.
 [[ -d /sys/module/ixgbe ]] || modprobe ixgbe
 udevadm settle --timeout=10

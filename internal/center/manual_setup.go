@@ -25,8 +25,10 @@ var manualAssets embed.FS
 //go:embed assets/manual-launcher.sh
 var manualLauncher string
 
-const e610ArchiveName = "E610-MultiOS-6.4.5-r2.tar.gz"
-const e610ArchiveSHA = "8a3b65589e4b55afef48f6fd797f8c8b08bdb2ec342c3954adfc45d44b686c94"
+const e610ArchiveRoot = "E610-MultiOS-6.4.5-r4"
+const e610ArchiveName = e610ArchiveRoot + ".tar.gz"
+const e610ArchiveSHA = "35cfb7ef582d95e8f005220b518aa2a7a1acc44aac95d65c94acfbd65055f1af"
+const e610ArchiveMaxSize = 64 << 20
 
 func manualSetupFiles(driverArchive []byte) (map[string][]byte, error) {
 	files := map[string][]byte{}
@@ -78,7 +80,7 @@ func addManualDrivers(files map[string][]byte, archive []byte, expected string) 
 			return err
 		}
 		name := strings.TrimSuffix(h.Name, "/")
-		if name != path.Clean(name) || strings.Contains(name, "\\") || (name != "E610-MultiOS-6.4.5-r2" && !strings.HasPrefix(name, "E610-MultiOS-6.4.5-r2/")) {
+		if name != path.Clean(name) || strings.Contains(name, "\\") || (name != e610ArchiveRoot && !strings.HasPrefix(name, e610ArchiveRoot+"/")) {
 			return fmt.Errorf("unexpected E610 archive member")
 		}
 		if h.Typeflag == tar.TypeDir {
@@ -88,7 +90,7 @@ func addManualDrivers(files map[string][]byte, archive []byte, expected string) 
 			return fmt.Errorf("invalid E610 archive member type or size")
 		}
 		total += h.Size
-		name = "e610/" + strings.TrimPrefix(name, "E610-MultiOS-6.4.5-r2/")
+		name = "e610/" + strings.TrimPrefix(name, e610ArchiveRoot+"/")
 		if _, exists := files[name]; exists {
 			return fmt.Errorf("duplicate E610 archive member")
 		}
@@ -166,9 +168,12 @@ func (s *Server) manualSetupBundle() ([]byte, error) {
 		return nil, err
 	}
 	defer file.Close()
-	archive, err := io.ReadAll(io.LimitReader(file, 40<<20))
+	archive, err := io.ReadAll(io.LimitReader(file, e610ArchiveMaxSize+1))
 	if err != nil {
 		return nil, err
+	}
+	if len(archive) > e610ArchiveMaxSize {
+		return nil, fmt.Errorf("E610 driver archive exceeds size limit")
 	}
 	files, err := manualSetupFiles(archive)
 	if err != nil {

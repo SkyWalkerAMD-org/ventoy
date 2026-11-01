@@ -86,9 +86,11 @@ is performed.
 
 - Check E610 PCI devices and the effective driver. Keep native support; otherwise
   install the exact OS/kernel offline module, update initramfs, and keep rollback
-  backups. If no offline module matches, build Intel 6.4.5 source with exact headers
-  for the installed kernel. Missing historical headers stop this step; a module
-  for another kernel is never substituted.
+  backups. The r4 release includes 93 exact OS/kernel targets and delegates to
+  its original nested installers. An unsupported kernel stops before changes;
+  a module for another kernel is never substituted. Vendor diagnostics are kept
+  in the private log printed by setup. Secure Boot enrollment remains pending
+  until completed at the console; setup never unloads an active network driver.
 - Enable root/user SSH password login, user sudo access, and the SSH service.
   Verify actual local password logins when the password is known. Allow the SSH
   port through an already active firewalld or UFW configuration.

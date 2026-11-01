@@ -6,7 +6,7 @@ alpha.31 将包含[安装后软件分发](node-software.md)的新 setup 统一�
 
 中心配置启用 `"linux_setup_preload": true` 后，生成的 Linux 专属任务与 PXE 菜单注入包包含当前 setup，安装收尾必须完成复制和 SHA-256 校验。普通手动入口绑定 `/api/linux-manual-setup?format=injection` 生成的当前注入包。升级中心后应重新生成并发布既有入口的注入包；已有准备文件不会在活动安装期间自动改写。若已校验的 E610 完整离线包缺失，生成失败，不会悄悄省略 setup。
 
-此更新通过 iVentoy 注入覆盖介质中的旧托管预置，不重建 ISO，也不改变内置 E610 驱动。脱离该 iVentoy 直接使用旧 ISO 时，仍是原来内置的版本。此前已安装的节点不自动替换文件，可使用管理端下载入口更新一次。
+此更新通过 iVentoy 注入覆盖介质中的旧托管预置，不重建 ISO，也不改变内置 E610 驱动。脱离该 iVentoy 直接使用旧 ISO 时，仍是原来内置的版本。此前已安装的节点可显式运行 `--upgrade` 获取新版；不识别该参数的旧包先使用独立升级桥接脚本。
 
 从 alpha.24 起，普通 Linux ISO 可以绑定 **手动安装配置包预置注入文件**。安装器保留交互步骤，在安装收尾时将完整配置包复制到新系统的 `/root/ventoy-linux-setup.run`。进入硬盘系统后，由用户手动执行：
 
@@ -42,13 +42,13 @@ alpha.27 保留 Ubuntu 已启用的 SSH socket 启动方式，避免首次执行
 | 内核锁定 | APT hold/pin 或 yum/dnf `kernel*` 排除 | 比对已安装内核清单、包管理器策略 |
 | 禁用自动更新 | APT 周期刷新和 unattended-upgrades；或 yum-cron/dnf 自动升级及缓存刷新 | 持久屏蔽和当前运行状态 |
 | CLI | 默认 `multi-user.target` | 读取默认启动目标 |
-| E610 | 原生支持则保留；否则精确匹配离线驱动，或用当前内核头文件编译 | 校验 ABI/设备 ID、启动镜像、实际加载模块与 E610 绑定状态 |
+| E610 | 原生支持则保留；否则通过 r4 原始分发器精确匹配系统及内核，未覆盖的内核停止并保留现状 | 校验 ABI/设备 ID、启动镜像、实际加载模块与 E610 绑定状态 |
 
 alpha.45 起：网卡链路建立较慢或稍后接网线时，先加载新增 DHCP 配置，使链路就绪后自动申请地址；之前版本可能只保存 YAML 而未加载。配置生成、发布或加载失败会报告 `DHCP_ACTIVATION_PENDING`，修复依赖/配置问题后可重新执行 setup。`DHCP_SAVED_NO_CARRIER` 表示当时没有链路，`DHCP_LEASE_PENDING` 表示有链路但尚未取得 IPv4，二者应结合实际网线、交换机和 DHCP 服务判断。
 
 已有 DHCP、静态网络、Bond/VLAN/Bridge、USB、Wi-Fi 和当前 SSH 出口保留。新增次要 DHCP 接口不接管默认路由和 DNS。支持 NetworkManager、Netplan、systemd-networkd、ifupdown 的 ISC dhclient / dhcpcd，以及符合检查的传统 ifcfg；复杂或无法确定的配置保留并报告待处理。
 
-安装包自解压，支持 Python 2.7 / Python 3 / EL8 platform-python，不要求最小化系统已有 tar。包内包含已校验的 E610 多系统 r2 离线模块与 Intel 6.4.5 源码；缺少 SSH、sudo 或精确内核构建依赖时可从系统软件源补齐，不做系统或内核升级。`--offline` 禁止下载。
+安装包自解压，支持 Python 2.7 / Python 3 / EL8 platform-python，不要求最小化系统已有 tar。包内包含已校验的 E610 多系统 r4 离线包（93 个精确系统／内核条目），保持原始嵌套安装器及回退文件；缺少 SSH 或 sudo 等依赖时可从系统软件源补齐，不做系统或内核升级。`--offline` 禁止下载。
 
 ## 检查结果和边界
 
@@ -68,7 +68,7 @@ Secure Boot 首次使用外部签名驱动可能需要控制台 MOK 注册；未
 
 日志：`/var/log/ventoy-manual-init.log`。账户及配置备份：`/var/lib/ventoy-center/manual-init/`；主机名备份：`/var/backups/safe-server-init/`。驱动按原包说明回退，动态构建路径为 `/var/lib/e610-ixgbe/manual-系统-内核/payload/install.sh --rollback`。
 
-管理端 API 为经过管理员认证的 `/api/linux-manual-setup?format=run`，不含控制器令牌。服务端需要在配置的 `PackageDir` 放置原始 `E610-MultiOS-6.4.5-r2.tar.gz`，固定 SHA-256 为 `8a3b65589e4b55afef48f6fd797f8c8b08bdb2ec342c3954adfc45d44b686c94`；缺失或校验错误时拒绝生成。`/api/linux-manual-setup` 保留 tar.gz 下载。
+管理端 API 为经过管理员认证的 `/api/linux-manual-setup?format=run`，不含控制器令牌。服务端需要在配置的 `PackageDir` 放置原始 `E610-MultiOS-6.4.5-r4.tar.gz`，固定 SHA-256 为 `35cfb7ef582d95e8f005220b518aa2a7a1acc44aac95d65c94acfbd65055f1af`；缺失或校验错误时拒绝生成。`/api/linux-manual-setup` 保留 tar.gz 下载。
 
 `/api/linux-manual-setup?format=injection` 生成 `ventoy-manual-preload.tar.gz`。将其绑定到普通 Linux ISO 的启动注入文件，不绑定自动安装答案。注入包包含经过校验的完整 `.run` 文件、Debian d-i 的 `finish-install.d`、Anaconda 的 `post-scripts` 和 Ubuntu 的安装收尾钩子。复制前后核验 SHA-256，不覆盖用户已有的内容不同的同名配置包；目标系统的 `/root/README-ventoy-setup.txt` 提供操作说明。启动配置只属于安装器环境，不会在已安装系统中启用自动执行 setup 的服务。
 
