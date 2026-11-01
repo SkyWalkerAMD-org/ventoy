@@ -1,5 +1,17 @@
 # 开发记录
 
+## 0.3.0-alpha.53 — 2026-11-01
+
+- Pin the official E610 MultiOS r4 archive and retain every vendor component,
+  including nested r3/r2 installers, exact ABI checks, and rollback state.
+- Support the 46 MB archive without truncation; bound downloads at 64 MiB.
+- Delegate E610 installation to the original r4 dispatcher with the installed
+  kernel. Preserve native support; unknown kernels stop before changes and
+  Secure Boot enrollment remains pending. Keep vendor details in a private log.
+- Update all 52 Linux manual/automatic preloads. Separately audit the effective
+  boot modules and persistence hooks of the 43 injected and 9 native ISO images.
+  No physical E610 traffic test is claimed for this release.
+
 ## 0.3.0-alpha.52 — 2026-11-01
 
 - Add a standalone, English `ventoy-setup-upgrade.sh` bridge for packages such

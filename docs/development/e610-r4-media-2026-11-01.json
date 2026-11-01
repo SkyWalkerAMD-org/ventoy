@@ -1,0 +1,1303 @@
+{
+  "images": [
+    {
+      "iso": "AlmaLinux/AlmaLinux-8.10-x86_64-dvd.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "f58fb65f5bd85aaf75995be3b2caadc929ad3ef746e4af8629afd82779740a80",
+          "initrd_sha256": "3e28bc18bd3c0f7d2306096755b6d761ac784da6bb2f64be42cb0ccc42e13f2a",
+          "selected": [
+            {
+              "kernel": "4.18.0-553.el8_10.x86_64",
+              "path": "lib/modules/4.18.0-553.el8_10.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "8907816cda6ef7757898b7378cb85d0d0092b051ea1f1c85db45df6e317e2d8f",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "AlmaLinux/AlmaLinux-9.5-x86_64-dvd.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "57692221121e07b7c46cf289e0d54ab923559661ba7cc5ad210497f2829f1eb8",
+          "initrd_sha256": "bd434724a6d166d90ca56395013092b50bd5e55a682596f7d19262a4aaa5bdc9",
+          "selected": [
+            {
+              "kernel": "5.14.0-503.11.1.el9_5.x86_64",
+              "path": "lib/modules/5.14.0-503.11.1.el9_5.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "f6700911aadaf1415f07acec2799c13494bb085650c2d4a998b90ff16cf9d070",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "CentOS/CentOS-7.6-x86_64-DVD-1810.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "225fd77bec0f02dd6abba7ad39332ffededb7778d8b01ba3bb921027b468eef8",
+          "initrd_sha256": "d030cdec634d487ffe75e808d162dd7896aa594edaee40cc53bd7d40d8106248",
+          "selected": [
+            {
+              "kernel": "3.10.0-957.el7.x86_64",
+              "path": "lib/modules/3.10.0-957.el7.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "8881368ab70f2425b641d4e35fc086aa944439e96a6f748aefb43a71e5f8e61a",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "CentOS/CentOS-7.9-x86_64-DVD-2009.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "ab8ea479170dc4b74d20074e399701ca87e3a8057224f5ab30794de23ee72e90",
+          "initrd_sha256": "24e235b2e0176453175f48a6d174e62d1d0296d22175157fd213160930ee17ba",
+          "selected": [
+            {
+              "kernel": "3.10.0-1160.el7.x86_64",
+              "path": "lib/modules/3.10.0-1160.el7.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "4139a6de9813f4b686e980165e4dfb108f36df015dbe855fbaa014a750aaa341",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "CentOS/CentOS-8-x86_64-1905-dvd1.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "44ac0373e729e06dd52be8ad925d2789f9a6e822aa9508b1694d58593f32d7a6",
+          "initrd_sha256": "9374071ae0fe56bafbd776279d4f0f92359368c6f7263e22d19dfa0de52cd206",
+          "selected": [
+            {
+              "kernel": "4.18.0-80.el8.x86_64",
+              "path": "lib/modules/4.18.0-80.el8.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "98b9d7352c4a12ee264145d62ef29738325837b9fa51205c7d56bac1a4f3b0bb",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "CentOS/CentOS-8.4.2105-x86_64-dvd1.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "6af38d5a53efe5867819b70adb6552c8a7200a6274666177c0ded6b64c1ea04f",
+          "initrd_sha256": "e2c824d5807741639aed7b6211970353d1f44099bf746e502b5a128af6f6403a",
+          "selected": [
+            {
+              "kernel": "4.18.0-305.3.1.el8.x86_64",
+              "path": "lib/modules/4.18.0-305.3.1.el8.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "c132a56577cb1733dfea37d2342da08e095d5724e2817abdbc8cf033d0564dce",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "CentOS/CentOS-8.5.2111-x86_64-dvd1.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "4a3fd527f304d772be6e0391e84cb1fde4bec712d94fbf5fe02f912a30be22cd",
+          "initrd_sha256": "810f100af945a2f9e3a88f4f5f1e55a183d71d57f7d38c8169fd6fcead285733",
+          "selected": [
+            {
+              "kernel": "4.18.0-348.el8.x86_64",
+              "path": "lib/modules/4.18.0-348.el8.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "bd07e2199689a23f9f53549348d1609257045affee32f9ae9eb17a4b7b27eafa",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "CentOS/CentOS-Stream-10-latest-x86_64-dvd1.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "14ab5b0dfbf7edb45b8db728e7f0846f0367e318557ae869cd6fab596f21b6eb",
+          "initrd_sha256": "ed9d85c9761c444c6bb7861b049065f01e5e639880d4b81ded386b3eee2e61da",
+          "selected": [
+            {
+              "kernel": "6.12.0-54.el10.x86_64",
+              "path": "lib/modules/6.12.0-54.el10.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "7cef70f5378f6634c44ef08b25d768f318d9094ee822314bb64111d39b155035",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "CentOS/CentOS-Stream-8-20240101.0-x86_64-dvd1.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "ec7f20a4ade6eab7753a34a5f2fb8c14b59833a1497b8f655dfc6f2ea8e19744",
+          "initrd_sha256": "9942db774889cfd9d4a583893252e95b65e992d3a4e2a9866820d747221db07c",
+          "selected": [
+            {
+              "kernel": "4.18.0-532.el8.x86_64",
+              "path": "lib/modules/4.18.0-532.el8.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "78764b7f3103d6421561d302d2195158e012482e67e50c908c87deb63ea4579d",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "CentOS/CentOS-Stream-9-latest-x86_64-dvd1.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "f2ed73a15691fae39a76f49f7c20ff2f5bce57dac3ec506509d211760000c1c7",
+          "initrd_sha256": "b7c893fb5bad028b8044af55cf533e826cff29a7eeb26f47ee560c4a41a0c868",
+          "selected": [
+            {
+              "kernel": "5.14.0-383.el9.x86_64",
+              "path": "lib/modules/5.14.0-383.el9.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "7bc7f44d38bacba32c03e74df3c8c1c611bea13c50c0200762048fb8a6d1b1ac",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Debian/debian-10.11.0-amd64-DVD-1.iso",
+      "boots": [
+        {
+          "initrd": "/install.amd/initrd.gz",
+          "kernel_sha256": "8c8a24cf5d65c33c2675d4226dea4f8412c9cfc2046f50ba440e037b47465147",
+          "initrd_sha256": "1932b42eb3eaecbf456694c8ed3104f9e8e9b44d663373beded256cb3ebce3bd",
+          "selected": [
+            {
+              "kernel": "4.19.0-18-amd64",
+              "path": "lib/modules/4.19.0-18-amd64/updates/e610/ixgbe.ko",
+              "sha256": "298a6db1771e13bb6b6986eadd8b4289050baf9a221f9eeac5d5989202ed62b1",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        },
+        {
+          "initrd": "/install.amd/gtk/initrd.gz",
+          "kernel_sha256": "8c8a24cf5d65c33c2675d4226dea4f8412c9cfc2046f50ba440e037b47465147",
+          "initrd_sha256": "7f791452e5bea318cb9d1cc5c0f989ae7a1c9d3612eab7395f532f678c93e3eb",
+          "selected": [
+            {
+              "kernel": "4.19.0-18-amd64",
+              "path": "lib/modules/4.19.0-18-amd64/updates/e610/ixgbe.ko",
+              "sha256": "298a6db1771e13bb6b6986eadd8b4289050baf9a221f9eeac5d5989202ed62b1",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Debian/debian-11.4.0-amd64-DVD-1.iso",
+      "boots": [
+        {
+          "initrd": "/install.amd/initrd.gz",
+          "kernel_sha256": "c5500987889bca74fc457541fec9b55b8b6092827032821d3e351e84dcb04ff2",
+          "initrd_sha256": "67e8c8b49de3c08fd1a27fffeacbf12f1ff105bb11563e607efea4b1998ee777",
+          "selected": [
+            {
+              "kernel": "5.10.0-16-amd64",
+              "path": "lib/modules/5.10.0-16-amd64/updates/e610/ixgbe.ko",
+              "sha256": "4f34cf5abce917ca87d296a873fc64b1ccbc8601efa38f813b2bbb2115f69243",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        },
+        {
+          "initrd": "/install.amd/gtk/initrd.gz",
+          "kernel_sha256": "c5500987889bca74fc457541fec9b55b8b6092827032821d3e351e84dcb04ff2",
+          "initrd_sha256": "c6a73baa94fda771c333fd84608c7a9ec62bd6626f0ee5f2a16242e035610fa4",
+          "selected": [
+            {
+              "kernel": "5.10.0-16-amd64",
+              "path": "lib/modules/5.10.0-16-amd64/updates/e610/ixgbe.ko",
+              "sha256": "4f34cf5abce917ca87d296a873fc64b1ccbc8601efa38f813b2bbb2115f69243",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Debian/debian-12.15.0-amd64-DVD-1.iso",
+      "boots": [
+        {
+          "initrd": "/install.amd/initrd.gz",
+          "kernel_sha256": "d8808aa4ca188560da1e6d749dcb930c87a5fd8b11ebff1f3fa6d728af35203d",
+          "initrd_sha256": "e787292fc79fb4c38095bc7de690b76e77f89c14ef7c3a31d07eff726da80c2d",
+          "selected": [
+            {
+              "kernel": "6.1.0-50-amd64",
+              "path": "lib/modules/6.1.0-50-amd64/updates/e610/ixgbe.ko",
+              "sha256": "df2df9aad84ff30d9e58093e52d06bbb7cb156cee16c16d97e2a7b785151c80f",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        },
+        {
+          "initrd": "/install.amd/gtk/initrd.gz",
+          "kernel_sha256": "d8808aa4ca188560da1e6d749dcb930c87a5fd8b11ebff1f3fa6d728af35203d",
+          "initrd_sha256": "d4e2f987de2f34bc07f45144616b152a7943cffec3ffc7a7bedeb39c08331cda",
+          "selected": [
+            {
+              "kernel": "6.1.0-50-amd64",
+              "path": "lib/modules/6.1.0-50-amd64/updates/e610/ixgbe.ko",
+              "sha256": "df2df9aad84ff30d9e58093e52d06bbb7cb156cee16c16d97e2a7b785151c80f",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Debian/debian-12.5.0-amd64-DVD-1.iso",
+      "boots": [
+        {
+          "initrd": "/install.amd/initrd.gz",
+          "kernel_sha256": "1f68dd588ec45f7d5915740921ec29ddfc3ce5da802059984ba47ec79a19c206",
+          "initrd_sha256": "f3c750af2ad78fc94f6b6a2752eeddb342b0ca5d1bf957672bfa1d861b39b55c",
+          "selected": [
+            {
+              "kernel": "6.1.0-18-amd64",
+              "path": "lib/modules/6.1.0-18-amd64/updates/e610/ixgbe.ko",
+              "sha256": "58f5b1190968a4c046b5b1a95f1d4aa6d4a53b50b60a64b9c5c745e69ca3971d",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        },
+        {
+          "initrd": "/install.amd/gtk/initrd.gz",
+          "kernel_sha256": "1f68dd588ec45f7d5915740921ec29ddfc3ce5da802059984ba47ec79a19c206",
+          "initrd_sha256": "873983864ed186fea19895bc6854f9246d14ce954f3897ff2cbc3838fad38080",
+          "selected": [
+            {
+              "kernel": "6.1.0-18-amd64",
+              "path": "lib/modules/6.1.0-18-amd64/updates/e610/ixgbe.ko",
+              "sha256": "58f5b1190968a4c046b5b1a95f1d4aa6d4a53b50b60a64b9c5c745e69ca3971d",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Debian/debian-12.8.0-amd64-DVD-1.iso",
+      "boots": [
+        {
+          "initrd": "/install.amd/initrd.gz",
+          "kernel_sha256": "0570e8f22b014cbce26a36af4f3dbf73301a8809801bb632b6de66c9afe044d8",
+          "initrd_sha256": "19b26f4078a06ccf023c353642509d61e5f64f92ca0b287b9335780a4628ca69",
+          "selected": [
+            {
+              "kernel": "6.1.0-27-amd64",
+              "path": "lib/modules/6.1.0-27-amd64/updates/e610/ixgbe.ko",
+              "sha256": "85672bc280089b95a75296d0f1ec596007d4b43dbaf9c1e8235889ba7896208b",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        },
+        {
+          "initrd": "/install.amd/gtk/initrd.gz",
+          "kernel_sha256": "0570e8f22b014cbce26a36af4f3dbf73301a8809801bb632b6de66c9afe044d8",
+          "initrd_sha256": "2406c9b681a13c497335ded7ecd5b1821574acd73f090080b8d7e638580aa16f",
+          "selected": [
+            {
+              "kernel": "6.1.0-27-amd64",
+              "path": "lib/modules/6.1.0-27-amd64/updates/e610/ixgbe.ko",
+              "sha256": "85672bc280089b95a75296d0f1ec596007d4b43dbaf9c1e8235889ba7896208b",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Debian/debian-13.0.0-amd64-DVD-1.iso",
+      "boots": [
+        {
+          "initrd": "/install.amd/initrd.gz",
+          "kernel_sha256": "123e30d376f800b70848505a1193d0fce03359052677ed4e068eb60231a4bb02",
+          "initrd_sha256": "5f58f8937c1fb0daf28f112650db72688eef4c1e010740970ec23f6e40622a8e",
+          "selected": [
+            {
+              "kernel": "6.12.38+deb13-amd64",
+              "path": "usr/lib/modules/6.12.38+deb13-amd64/updates/e610/ixgbe.ko",
+              "sha256": "d875f4304d69512be0ced798965c994e690f474431ac8f67e34259a0422fb9f9",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        },
+        {
+          "initrd": "/install.amd/gtk/initrd.gz",
+          "kernel_sha256": "123e30d376f800b70848505a1193d0fce03359052677ed4e068eb60231a4bb02",
+          "initrd_sha256": "97a0f2a2f50811f7c7d579d61a8f12194d84256ab7b72ea06006b16acfb103e5",
+          "selected": [
+            {
+              "kernel": "6.12.38+deb13-amd64",
+              "path": "usr/lib/modules/6.12.38+deb13-amd64/updates/e610/ixgbe.ko",
+              "sha256": "d875f4304d69512be0ced798965c994e690f474431ac8f67e34259a0422fb9f9",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Debian/debian-13.4.0-amd64-DVD-1.iso",
+      "boots": [
+        {
+          "initrd": "/install.amd/initrd.gz",
+          "kernel_sha256": "e3b18c3f1700aee0b59e82c82fafbc6f63a138dd319103821899a0dc37b4db9e",
+          "initrd_sha256": "bddc16195a7e292e722b59e48af6020545ba38070ac81bddaf8eea706883059c",
+          "selected": [
+            {
+              "kernel": "6.12.73+deb13-amd64",
+              "path": "usr/lib/modules/6.12.73+deb13-amd64/updates/e610/ixgbe.ko",
+              "sha256": "b26c4202336ae03fe3c25e9f448dd995926973739fb066edef3cb962cec169a3",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        },
+        {
+          "initrd": "/install.amd/gtk/initrd.gz",
+          "kernel_sha256": "e3b18c3f1700aee0b59e82c82fafbc6f63a138dd319103821899a0dc37b4db9e",
+          "initrd_sha256": "acaba6170d3e337ecabd4dde3ced3a28b61492efcc3df6ef663a1fb00e387226",
+          "selected": [
+            {
+              "kernel": "6.12.73+deb13-amd64",
+              "path": "usr/lib/modules/6.12.73+deb13-amd64/updates/e610/ixgbe.ko",
+              "sha256": "b26c4202336ae03fe3c25e9f448dd995926973739fb066edef3cb962cec169a3",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "RHEL/rhel-8.0-x86_64-dvd.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "370db9a3943d4f46dc079dbaeb7e0cc3910dca069f7eede66d3d7d0d5177f684",
+          "initrd_sha256": "f7705dbb89011b184a64ab2abe7a8ed9a6c9a9ce8b9822f382bd0a0caf5098a8",
+          "selected": [
+            {
+              "kernel": "4.18.0-80.el8.x86_64",
+              "path": "lib/modules/4.18.0-80.el8.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "98b9d7352c4a12ee264145d62ef29738325837b9fa51205c7d56bac1a4f3b0bb",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "RHEL/rhel-8.1-x86_64-dvd.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "789028335b64ddad343f61f2abfdc9819ed8e9dfad4df43a2694c0a0ba780d16",
+          "initrd_sha256": "34a53b170983f8da67c0a57b695509b99936afb064e5ee46ade48c3366a97887",
+          "selected": [
+            {
+              "kernel": "4.18.0-147.el8.x86_64",
+              "path": "lib/modules/4.18.0-147.el8.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "3fca25df75c14f0ea87b5931f5bad218647b7bc0af8db014352bfd7f23e4ae07",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "RHEL/rhel-8.10-x86_64-dvd.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "3cca8c74035337f44966f76c62f8bf8ccabaced517f44ac55ecdd71151f9367f",
+          "initrd_sha256": "b0f10ab2306af03466ffd40c35ddb930281b3fa95e400063005efd376159739e",
+          "selected": [
+            {
+              "kernel": "4.18.0-553.el8_10.x86_64",
+              "path": "lib/modules/4.18.0-553.el8_10.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "8907816cda6ef7757898b7378cb85d0d0092b051ea1f1c85db45df6e317e2d8f",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "RHEL/rhel-8.6-x86_64-dvd.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "aab313061ddbd514a18529cc3428718deafe1121791d1d9a8a745e71f64eac3c",
+          "initrd_sha256": "6e68a41269c87d61d199d8eeccc653149c0f3113a95d091e1313e2651805e36e",
+          "selected": [
+            {
+              "kernel": "4.18.0-372.9.1.el8.x86_64",
+              "path": "lib/modules/4.18.0-372.9.1.el8.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "26218cc80372bd831c8ee489fd682620943e3d8d9e11607ce5478fcfdb3a42cf",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "RHEL/rhel-9.2-x86_64-dvd.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "604de992bfeb9fc6491ee57f209fcecedaafe85e29b75c45b08da963c6599e5b",
+          "initrd_sha256": "522fa9d585d1e27ee55eda326867f168bf7cd38e53284c51f91de26a94a98903",
+          "selected": [
+            {
+              "kernel": "5.14.0-284.11.1.el9_2.x86_64",
+              "path": "lib/modules/5.14.0-284.11.1.el9_2.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "b3a17f5ed17c0cd9917fe2ab194e723e3d32e3d16951fd26d250464161bf7be6",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "RHEL/rhel-9.4-x86_64-dvd.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "b8044d54fda2c785d1bd2a6ad27f717cd7bad71deed0ae97a9e444ebc3ad44d2",
+          "initrd_sha256": "ab4ea3a7da6586b8fe7268caadeed356efe3aa9dc4e60a721fd7efaa98170068",
+          "selected": [
+            {
+              "kernel": "5.14.0-427.13.1.el9_4.x86_64",
+              "path": "lib/modules/5.14.0-427.13.1.el9_4.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "b541c58f6acfc2bbc83cdf052cc2dd07aeba4ad6e6c5c1b0e1b75e5bc93578a1",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "RHEL/rhel-server-7.6-x86_64-dvd.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "91052b444e73f3eebdb93d1fb1506597e96c92d8de9c1e3c3f36b07a57d0a18f",
+          "initrd_sha256": "c908c8bd595f086e37e6fd6453f491ebd6c5aa36e2f1ad13baed5479a141bd3a",
+          "selected": [
+            {
+              "kernel": "3.10.0-957.el7.x86_64",
+              "path": "lib/modules/3.10.0-957.el7.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "8881368ab70f2425b641d4e35fc086aa944439e96a6f748aefb43a71e5f8e61a",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "RHEL/rhel-server-7.9-x86_64-dvd.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "9f67343147f945a5e75f14e9012315d8300d78fb67b1a35db1e561b0b261c06c",
+          "initrd_sha256": "88abdb6bdbd8589db99043fb548041c81b466598fde77e9e3da15f71aee3fe21",
+          "selected": [
+            {
+              "kernel": "3.10.0-1160.el7.x86_64",
+              "path": "lib/modules/3.10.0-1160.el7.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "4139a6de9813f4b686e980165e4dfb108f36df015dbe855fbaa014a750aaa341",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Rocky/Rocky-10.0-x86_64-dvd1.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "a90c7468fbe183c738d543206a97f951a91949e99cf8eeeb308cf036239aef3b",
+          "initrd_sha256": "e31a79c6bcf87d8b1325cdc6b1ffe3b49f19cb86c68341f6efe834693e7ec260",
+          "selected": [
+            {
+              "kernel": "6.12.0-55.12.1.el10_0.x86_64",
+              "path": "lib/modules/6.12.0-55.12.1.el10_0.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "788a76e650985f44f63cdd1460b0cc82bd64d8e66c4557372a9373d00a088b01",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Rocky/Rocky-10.2-x86_64-dvd1.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "bdbe11aa10d1dce86d89e65e2f8476f78f47968b8045b20fa0f0aace82b77d77",
+          "initrd_sha256": "ba5d8f6e40467b0c25590b0abeca6008b36093b696d649bfa53c7e8edc3fc37d",
+          "selected": [
+            {
+              "kernel": "6.12.0-211.16.1.el10_2.0.1.x86_64",
+              "path": "lib/modules/6.12.0-211.16.1.el10_2.0.1.x86_64/kernel/drivers/net/ethernet/intel/ixgbe/ixgbe.ko.xz",
+              "sha256": "972ea0c1dfbf492cad0990278c2e318c6a105385fcd11f081dcd6c14c19173b8",
+              "action": "native"
+            }
+          ],
+          "persistence": false
+        }
+      ],
+      "needs_external": false
+    },
+    {
+      "iso": "Rocky/Rocky-8.10-x86_64-dvd.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "4df48703b86574bb20576b14f9c209e6149aabe6ad06ccb709131fee48b46fed",
+          "initrd_sha256": "d72ffe139cd4b880537b71181b1118f171af12e9034606f54746697f6a36abdd",
+          "selected": [
+            {
+              "kernel": "4.18.0-553.el8_10.x86_64",
+              "path": "lib/modules/4.18.0-553.el8_10.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "8907816cda6ef7757898b7378cb85d0d0092b051ea1f1c85db45df6e317e2d8f",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Rocky/Rocky-8.6-x86_64-dvd1.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "c52e5d5ca593edfa7466e62069afbdb4aa801d82eb5108a55ff567062c025e9d",
+          "initrd_sha256": "091de7e3760e244602340a050c2833038f2358533121e74e95163f46a449d616",
+          "selected": [
+            {
+              "kernel": "4.18.0-372.9.1.el8.x86_64",
+              "path": "lib/modules/4.18.0-372.9.1.el8.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "26218cc80372bd831c8ee489fd682620943e3d8d9e11607ce5478fcfdb3a42cf",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Rocky/Rocky-8.7-x86_64-dvd1.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "2bb7fffa71be0e42ba9ffecc1dfadbcd8e5c0befd34dcf8b425a7796da1d408f",
+          "initrd_sha256": "bd439f9930257877d35a72ef070172232b3dc70a37210c6b378afcf2e97fde3e",
+          "selected": [
+            {
+              "kernel": "4.18.0-425.3.1.el8.x86_64",
+              "path": "lib/modules/4.18.0-425.3.1.el8.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "e434fa0c5ea547fef3b1b41a947c5b8b0b81c09373a9535d6f2aac742ef429d8",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Rocky/Rocky-8.9-x86_64-dvd1.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "72181a94a5ed590b9923d39703e82b6f242aaf1b41a40f20a0819e87340163d4",
+          "initrd_sha256": "d0b3c62bb3c9e9190b631fce8f4df6c0dd13c180fe8dda55d1d9413439afded0",
+          "selected": [
+            {
+              "kernel": "4.18.0-513.5.1.el8_9.x86_64",
+              "path": "lib/modules/4.18.0-513.5.1.el8_9.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "2b1c89d9d7aff1bddf901bfa26d3edf49a0de737e2fac49b81f3f22f1ee42425",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Rocky/Rocky-9.1-x86_64-dvd.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "30f5c6b831c57b6940f165ae620e232d74549155507fbf134b77484c720acf9b",
+          "initrd_sha256": "eb781b251d6bcaf4e64bf4740cbd8c48b324ac0ee3d595d846bcfbd8c6104b8f",
+          "selected": [
+            {
+              "kernel": "5.14.0-162.6.1.el9_1.x86_64",
+              "path": "lib/modules/5.14.0-162.6.1.el9_1.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "c716b3da4237f9cf9556fc1201c25ccb57cffc32c91418e293b3a99809736211",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Rocky/Rocky-9.2-x86_64-dvd.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "56fd3e1dc67acd5304aec09f9b48cd66e46a0ca81fd20572b36781267863ef26",
+          "initrd_sha256": "e65b991991bb31cf31b7ec2734075e1405bd86e356729f2332e4226d7c1f19ad",
+          "selected": [
+            {
+              "kernel": "5.14.0-284.11.1.el9_2.x86_64",
+              "path": "lib/modules/5.14.0-284.11.1.el9_2.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "b3a17f5ed17c0cd9917fe2ab194e723e3d32e3d16951fd26d250464161bf7be6",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Rocky/Rocky-9.3-x86_64-dvd.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "7fe2da512ffa4feb54e6dbeb26c2e0c0035ef897b5d5bada627da0a67f97419f",
+          "initrd_sha256": "299c097229ce81053bf175806da9cb209be91e705bdf94f94407d2b4b47a6641",
+          "selected": [
+            {
+              "kernel": "5.14.0-362.8.1.el9_3.x86_64",
+              "path": "lib/modules/5.14.0-362.8.1.el9_3.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "576484de9e1cf5762ba8a520ae66ef47cfb26298fb8c8695525ed7367cb93701",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Rocky/Rocky-9.4-x86_64-dvd.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "d4c269047dfd6b463724dd39441d5f5c09d3da19e4de1b188e84ce65cc23bb5e",
+          "initrd_sha256": "66f766b7b59b8bcf442c4ce79d475de44e733fc4523db49320a14d2635097279",
+          "selected": [
+            {
+              "kernel": "5.14.0-427.13.1.el9_4.x86_64",
+              "path": "lib/modules/5.14.0-427.13.1.el9_4.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "b541c58f6acfc2bbc83cdf052cc2dd07aeba4ad6e6c5c1b0e1b75e5bc93578a1",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Rocky/Rocky-9.5-x86_64-dvd.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "ea9690b40324133d81a95772ba5d33d41dd089dbeaafe1175820b7f041ae64ef",
+          "initrd_sha256": "e5185570b963d456d49c1bfc4c5752316ab7f3569258888e1d01cf019e2afa9b",
+          "selected": [
+            {
+              "kernel": "5.14.0-503.14.1.el9_5.x86_64",
+              "path": "lib/modules/5.14.0-503.14.1.el9_5.x86_64/updates/e610/ixgbe.ko",
+              "sha256": "1c0776d503849855fc61de9b6871dffee7f32fc45ba642b65f61f7b547f74296",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Rocky/Rocky-9.6-x86_64-dvd.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "a150eae93dc3126bcaac43ccfdb7c4f2b8975b57b1bddf86a2809352bc9b5f58",
+          "initrd_sha256": "4a4ac0dd59b163d5a31f3b6ed33ca5260c7af06b2ed8663910dce5df55837f7e",
+          "selected": [
+            {
+              "kernel": "5.14.0-570.17.1.el9_6.x86_64",
+              "path": "lib/modules/5.14.0-570.17.1.el9_6.x86_64/kernel/drivers/net/ethernet/intel/ixgbe/ixgbe.ko.xz",
+              "sha256": "f235204efd8dc99877d345b041bccdd3309c6d49520da7027f03c103b6ed0619",
+              "action": "native"
+            }
+          ],
+          "persistence": false
+        }
+      ],
+      "needs_external": false
+    },
+    {
+      "iso": "Rocky/Rocky-9.7-x86_64-dvd.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "8871d5c780ea5e23934ca4d2aa2091527e25fdd5586efaa420a1c20c8450af9e",
+          "initrd_sha256": "4e38222e58b5769f143a3d02b115307af3fde7eba5f6010259dd2f7312a7790b",
+          "selected": [
+            {
+              "kernel": "5.14.0-611.5.1.el9_7.x86_64",
+              "path": "lib/modules/5.14.0-611.5.1.el9_7.x86_64/kernel/drivers/net/ethernet/intel/ixgbe/ixgbe.ko.xz",
+              "sha256": "835ea28d583b44392a83f7b998d0fb406f022e8389b013700fcb7266f2e1cf7a",
+              "action": "native"
+            }
+          ],
+          "persistence": false
+        }
+      ],
+      "needs_external": false
+    },
+    {
+      "iso": "Rocky/Rocky-9.8-x86_64-dvd.iso",
+      "boots": [
+        {
+          "initrd": "/images/pxeboot/initrd.img",
+          "kernel_sha256": "1fd4b7d7108ea15a14854b250837a682e3f20b8c513af2783c9e2ceb32286fc0",
+          "initrd_sha256": "46a205e60fae8e34f25914eb9332cbe59bb0e64f43f6ccb29371b18767253d81",
+          "selected": [
+            {
+              "kernel": "5.14.0-687.10.1.el9_8.0.1.x86_64",
+              "path": "lib/modules/5.14.0-687.10.1.el9_8.0.1.x86_64/kernel/drivers/net/ethernet/intel/ixgbe/ixgbe.ko.xz",
+              "sha256": "7863098c3a983ed8a500ad6532b987f90d74cb98b126e48967263d39e8dc29ed",
+              "action": "native"
+            }
+          ],
+          "persistence": false
+        }
+      ],
+      "needs_external": false
+    },
+    {
+      "iso": "Ubuntu/ubuntu-20.04.3-live-server-amd64.iso",
+      "boots": [
+        {
+          "initrd": "/casper/hwe-initrd",
+          "kernel_sha256": "540b337f8a338bf615a504a509de0f65bca83d73213e03de689b1aab2a526141",
+          "initrd_sha256": "09364b02a0d6661b64333a411a02ccd22a74c4c03ef01e10023107945da25fe0",
+          "selected": [
+            {
+              "kernel": "5.11.0-27-generic",
+              "path": "lib/modules/5.11.0-27-generic/updates/e610/ixgbe.ko",
+              "sha256": "331b8d1c9f25f093f89014d654f07842acf7968546466aa927f110da00f8d96f",
+              "action": "offline-driver"
+            },
+            {
+              "kernel": "5.4.0-81-generic",
+              "path": "lib/modules/5.4.0-81-generic/updates/e610/ixgbe.ko",
+              "sha256": "51a69cfd11013496bab0c36568af81d58e860cec1ab330bded3954248f90ac64",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        },
+        {
+          "initrd": "/casper/initrd",
+          "kernel_sha256": "811e03f12dd1da5dc4c318bfbe972078ef2f7b9b8d813fc4cc9658ab40b7f374",
+          "initrd_sha256": "7d79801ab053f277d056302d0d57c33c8d77398f4e355c00eb7e8498034b6f39",
+          "selected": [
+            {
+              "kernel": "5.11.0-27-generic",
+              "path": "lib/modules/5.11.0-27-generic/updates/e610/ixgbe.ko",
+              "sha256": "331b8d1c9f25f093f89014d654f07842acf7968546466aa927f110da00f8d96f",
+              "action": "offline-driver"
+            },
+            {
+              "kernel": "5.4.0-81-generic",
+              "path": "lib/modules/5.4.0-81-generic/updates/e610/ixgbe.ko",
+              "sha256": "51a69cfd11013496bab0c36568af81d58e860cec1ab330bded3954248f90ac64",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Ubuntu/ubuntu-22.04.3-live-server-amd64.iso",
+      "boots": [
+        {
+          "initrd": "/casper/hwe-initrd",
+          "kernel_sha256": "7902cb88b047f80ec32325e9061461b932a3bb9a124f680f52aee6c03f7cb9af",
+          "initrd_sha256": "87c7099c020d6b9f194532902eab1273698a6b835865d2b754ce3a74eb18dd60",
+          "selected": [
+            {
+              "kernel": "5.15.0-78-generic",
+              "path": "lib/modules/5.15.0-78-generic/updates/e610/ixgbe.ko",
+              "sha256": "43afae311f0a21975f327e809c6136deb56eda51d73ca972c0f4d88a292ab78f",
+              "action": "offline-driver"
+            },
+            {
+              "kernel": "6.2.0-26-generic",
+              "path": "lib/modules/6.2.0-26-generic/updates/e610/ixgbe.ko",
+              "sha256": "7daa9dbb73d77a03a5d128bebda13abd626da2ce4fa917e509a25442215defbb",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        },
+        {
+          "initrd": "/casper/initrd",
+          "kernel_sha256": "1ab0e1a2b587c08596f08dd978f570a28001f48cae94b7ef69536199bc583633",
+          "initrd_sha256": "197be5ebbdf1ce10df87fe74d79d570c2589e6131169b5ed909d3d79c9750bd2",
+          "selected": [
+            {
+              "kernel": "5.15.0-78-generic",
+              "path": "lib/modules/5.15.0-78-generic/updates/e610/ixgbe.ko",
+              "sha256": "43afae311f0a21975f327e809c6136deb56eda51d73ca972c0f4d88a292ab78f",
+              "action": "offline-driver"
+            },
+            {
+              "kernel": "6.2.0-26-generic",
+              "path": "lib/modules/6.2.0-26-generic/updates/e610/ixgbe.ko",
+              "sha256": "7daa9dbb73d77a03a5d128bebda13abd626da2ce4fa917e509a25442215defbb",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Ubuntu/ubuntu-22.04.4-desktop-amd64.iso",
+      "boots": [
+        {
+          "initrd": "/casper/initrd",
+          "kernel_sha256": "0ae70af4977ae2d063839e49ba940296d5706240fe9b520cc47497cd66e72981",
+          "initrd_sha256": "9a8cff938e08777bd8fe661017761d07c2eaf6292b5398a795b2a45265f808fd",
+          "selected": [
+            {
+              "kernel": "6.5.0-18-generic",
+              "path": "lib/modules/6.5.0-18-generic/updates/e610/ixgbe.ko",
+              "sha256": "7b6ef7a2d2120c25b034c689276ad1d09b5f02d681965bf6b4a5b5912b76ce7e",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Ubuntu/ubuntu-22.04.4-live-server-amd64.iso",
+      "boots": [
+        {
+          "initrd": "/casper/hwe-initrd",
+          "kernel_sha256": "0ae70af4977ae2d063839e49ba940296d5706240fe9b520cc47497cd66e72981",
+          "initrd_sha256": "ac8c8612a2fd5b33d1d87fd68e01c5946aa766cba56415cb7c33129c4987d98a",
+          "selected": [
+            {
+              "kernel": "5.15.0-94-generic",
+              "path": "lib/modules/5.15.0-94-generic/updates/e610/ixgbe.ko",
+              "sha256": "49cf79a488ae140d263d40dcf633c9fa451133c2ab4c26cf00daecb6abe8b57f",
+              "action": "offline-driver"
+            },
+            {
+              "kernel": "6.5.0-18-generic",
+              "path": "lib/modules/6.5.0-18-generic/updates/e610/ixgbe.ko",
+              "sha256": "7b6ef7a2d2120c25b034c689276ad1d09b5f02d681965bf6b4a5b5912b76ce7e",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        },
+        {
+          "initrd": "/casper/initrd",
+          "kernel_sha256": "419f4e83d3aa2a9c3ce0e7d65d147c0bf18c99a5ff840a4573494fc09babde01",
+          "initrd_sha256": "bcb19a3776300365c3f6bcbcfc34d0952c1288c5e33e51fa1a07bd97c43fad7b",
+          "selected": [
+            {
+              "kernel": "5.15.0-94-generic",
+              "path": "lib/modules/5.15.0-94-generic/updates/e610/ixgbe.ko",
+              "sha256": "49cf79a488ae140d263d40dcf633c9fa451133c2ab4c26cf00daecb6abe8b57f",
+              "action": "offline-driver"
+            },
+            {
+              "kernel": "6.5.0-18-generic",
+              "path": "lib/modules/6.5.0-18-generic/updates/e610/ixgbe.ko",
+              "sha256": "7b6ef7a2d2120c25b034c689276ad1d09b5f02d681965bf6b4a5b5912b76ce7e",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Ubuntu/ubuntu-22.04.5-live-server-amd64.iso",
+      "boots": [
+        {
+          "initrd": "/casper/hwe-initrd",
+          "kernel_sha256": "15909fb75cb650ff50ca1a5532e043a0a4add3e721f92592eaf9b1f764dd4bf7",
+          "initrd_sha256": "6c5e99dc320d5bfa4cd524d8d3c8a44eb6e959c371eec9f2833dab444d88f138",
+          "selected": [
+            {
+              "kernel": "5.15.0-119-generic",
+              "path": "lib/modules/5.15.0-119-generic/updates/e610/ixgbe.ko",
+              "sha256": "7d1aa04592df6b9adb7ca50538b917cebc31e6da28e3af76af80180fd6b8b8d4",
+              "action": "offline-driver"
+            },
+            {
+              "kernel": "6.8.0-40-generic",
+              "path": "lib/modules/6.8.0-40-generic/updates/e610/ixgbe.ko",
+              "sha256": "7cd58899aa000f1e7f711caf14ff0a331b074b4c3df909a3ef279f940607f27c",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        },
+        {
+          "initrd": "/casper/initrd",
+          "kernel_sha256": "6f8b2d5065ad56cb3c1652e88752817ccedf60ec9472be561972434b00ed27f5",
+          "initrd_sha256": "04f711735ddc8c549668de1e24481a0f6341a082d66067976dfa095074e9b549",
+          "selected": [
+            {
+              "kernel": "5.15.0-119-generic",
+              "path": "lib/modules/5.15.0-119-generic/updates/e610/ixgbe.ko",
+              "sha256": "7d1aa04592df6b9adb7ca50538b917cebc31e6da28e3af76af80180fd6b8b8d4",
+              "action": "offline-driver"
+            },
+            {
+              "kernel": "6.8.0-40-generic",
+              "path": "lib/modules/6.8.0-40-generic/updates/e610/ixgbe.ko",
+              "sha256": "7cd58899aa000f1e7f711caf14ff0a331b074b4c3df909a3ef279f940607f27c",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Ubuntu/ubuntu-24.04-live-server-amd64.iso",
+      "boots": [
+        {
+          "initrd": "/casper/initrd",
+          "kernel_sha256": "cee36e261749483e951c8229eb1aeeb768af6c28f493421a52b3916885ce913f",
+          "initrd_sha256": "c4e9937421822e1cba1f5fc500a64ef8c8777ab33840afbb1d7d94c435e61c8b",
+          "selected": [
+            {
+              "kernel": "6.8.0-31-generic",
+              "path": "lib/modules/6.8.0-31-generic/updates/e610/ixgbe.ko",
+              "sha256": "846e8c45328507d3474019611e5ce4f1c40a7f20875b2b05c4645a15358ca9e1",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Ubuntu/ubuntu-24.04.3-live-server-amd64.iso",
+      "boots": [
+        {
+          "initrd": "/casper/hwe-initrd",
+          "kernel_sha256": "794142e56d8a6a66a55246535a01d8960258e8417568f5a6ef00aa075f0f1a4f",
+          "initrd_sha256": "bbb838776c06675244d3c4a4a1e2e191c8bb0277f2d2cdba1e4972c836951810",
+          "selected": [
+            {
+              "kernel": "6.14.0-27-generic",
+              "path": "lib/modules/6.14.0-27-generic/kernel/drivers/net/ethernet/intel/ixgbe/ixgbe.ko.zst",
+              "sha256": "fc54e65c7d2ee076414c56568304712a5f6dcd3dc149289f153ab02eb638d5d1",
+              "action": "native"
+            },
+            {
+              "kernel": "6.8.0-71-generic",
+              "path": "lib/modules/6.8.0-71-generic/updates/e610/ixgbe.ko",
+              "sha256": "43b6a06c96c7f27ea7ab9792f34e3a3ba5955c77550be2157ae2375f6ea72260",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        },
+        {
+          "initrd": "/casper/initrd",
+          "kernel_sha256": "f82754bc29f710b2f0143fe0b19a2b2f40652c026cc6de44d75f3f991019c1ff",
+          "initrd_sha256": "58c334c22c348367d30fcd32e4f5c82051616073d623296e5cb357f28b5cd382",
+          "selected": [
+            {
+              "kernel": "6.8.0-71-generic",
+              "path": "lib/modules/6.8.0-71-generic/updates/e610/ixgbe.ko",
+              "sha256": "43b6a06c96c7f27ea7ab9792f34e3a3ba5955c77550be2157ae2375f6ea72260",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Ubuntu/ubuntu-24.04.4-live-server-amd64.iso",
+      "boots": [
+        {
+          "initrd": "/casper/hwe-initrd",
+          "kernel_sha256": "d3f1cc6693d93fcf6663cd1e04d31031f41e8abd0c14b0ca953ef524a62e4489",
+          "initrd_sha256": "82793369fda2356c7344bd37af2453ad56d797d49c01b9d7b3f2a85ce8178d86",
+          "selected": [
+            {
+              "kernel": "6.17.0-14-generic",
+              "path": "lib/modules/6.17.0-14-generic/kernel/drivers/net/ethernet/intel/ixgbe/ixgbe.ko.zst",
+              "sha256": "4b3c792def50753cd904b145b8495705251ea47cbda4db43dcd57ad4d1ef4df7",
+              "action": "native"
+            }
+          ],
+          "persistence": false
+        },
+        {
+          "initrd": "/casper/initrd",
+          "kernel_sha256": "528d909745819a1464848a2c4d91c609db4f54b33ccae7069aad4178fb34606f",
+          "initrd_sha256": "b91245030e13a1dc835205b77561323b26bea1cbbf4f5ed43aa0cfff08d4e353",
+          "selected": [
+            {
+              "kernel": "6.8.0-100-generic",
+              "path": "lib/modules/6.8.0-100-generic/kernel/drivers/net/ethernet/intel/ixgbe/ixgbe.ko.zst",
+              "sha256": "4c8c0352b54ae6f85b74c0a9f505a633a7aac089ac2cabd53a1794d6b5401eaf",
+              "action": "native"
+            }
+          ],
+          "persistence": false
+        }
+      ],
+      "needs_external": false
+    },
+    {
+      "iso": "Ubuntu/ubuntu-24.04.5-live-server-amd64.iso",
+      "boots": [
+        {
+          "initrd": "/casper/hwe-initrd",
+          "kernel_sha256": "d5d71ed32239eaa9bcb0528227a7adb62688250ce9f163b3e04e9675ddf86cff",
+          "initrd_sha256": "5fac8541a73b92cd2e9356420d7280e887d4dbd0948e5e511eec7d726e56892b",
+          "selected": [
+            {
+              "kernel": "7.0.0-31-generic",
+              "path": "lib/modules/7.0.0-31-generic/kernel/drivers/net/ethernet/intel/ixgbe/ixgbe.ko.zst",
+              "sha256": "ab6ff4258caa0ef45d24a9854cc26b2711b0f373dfe7299e74befaa3c52285d8",
+              "action": "native"
+            }
+          ],
+          "persistence": false
+        },
+        {
+          "initrd": "/casper/initrd",
+          "kernel_sha256": "0066409132868538bc0c9076f60131025775d5bbd8617df074d059f91b584918",
+          "initrd_sha256": "62b1e77d0ff5ddeb292a712119eda81981a11a75b657a84ee569be35a51865ac",
+          "selected": [
+            {
+              "kernel": "6.8.0-139-generic",
+              "path": "lib/modules/6.8.0-139-generic/kernel/drivers/net/ethernet/intel/ixgbe/ixgbe.ko.zst",
+              "sha256": "859947aee3a1e34d63d7952c840e08cfe2927c4dab42a6d495b2ad86c3837eda",
+              "action": "native"
+            }
+          ],
+          "persistence": false
+        }
+      ],
+      "needs_external": false
+    },
+    {
+      "iso": "Ubuntu/ubuntu-24.10-live-server-amd64.iso",
+      "boots": [
+        {
+          "initrd": "/casper/initrd",
+          "kernel_sha256": "c79e0423419cc8442bff82da74db008cd3ac7081ec2c2134333167ce4f389a0d",
+          "initrd_sha256": "73514b46e23ef7ef40881b8e8186e70cdee8279db26e4d3cb94ae4d149324373",
+          "selected": [
+            {
+              "kernel": "6.11.0-8-generic",
+              "path": "lib/modules/6.11.0-8-generic/updates/e610/ixgbe.ko",
+              "sha256": "7db47e86b70bb398ab18bfbc6be71829775a05b9c7a1a8dec71b67672a07fe60",
+              "action": "offline-driver"
+            }
+          ],
+          "persistence": true
+        }
+      ],
+      "needs_external": true
+    },
+    {
+      "iso": "Ubuntu/ubuntu-25.04-live-server-amd64.iso",
+      "boots": [
+        {
+          "initrd": "/casper/initrd",
+          "kernel_sha256": "2f6c0fdd2bd97dd45f17bb09ace76e73bb3fb5afcb85e028efb034d851c0cf9a",
+          "initrd_sha256": "1e24ebcb7a31136a51a3a9c0e7492fd80afc339f618ab2f7c78e512db7e6cbae",
+          "selected": [
+            {
+              "kernel": "6.14.0-15-generic",
+              "path": "lib/modules/6.14.0-15-generic/kernel/drivers/net/ethernet/intel/ixgbe/ixgbe.ko.zst",
+              "sha256": "a7b55468d050e0ccddac05dfa4b624d1ab9cf92a33360604046177bfc51ef121",
+              "action": "native"
+            }
+          ],
+          "persistence": false
+        }
+      ],
+      "needs_external": false
+    },
+    {
+      "iso": "Ubuntu/ubuntu-26.04-desktop-amd64.iso",
+      "boots": [
+        {
+          "initrd": "/casper/initrd",
+          "kernel_sha256": "6f11cd68fc0d181bb4f9a72e2d0ec6a1c2a69a59f7b9bd6bf9538630d1102456",
+          "initrd_sha256": "e6c026d26be7ba6864b1d1a4c491c625a077e5439b80d378f70261d441835133",
+          "selected": [
+            {
+              "kernel": "7.0.0-14-generic",
+              "path": "lib/modules/7.0.0-14-generic/kernel/drivers/net/ethernet/intel/ixgbe/ixgbe.ko.zst",
+              "sha256": "b1854b3a97a6b87b7fc75abe68256d548f1ab35b50e4cac51b1d0fa7b08bc2d7",
+              "action": "native"
+            }
+          ],
+          "persistence": false
+        }
+      ],
+      "needs_external": false
+    },
+    {
+      "iso": "Ubuntu/ubuntu-26.04-live-server-amd64.iso",
+      "boots": [
+        {
+          "initrd": "/casper/initrd",
+          "kernel_sha256": "6f11cd68fc0d181bb4f9a72e2d0ec6a1c2a69a59f7b9bd6bf9538630d1102456",
+          "initrd_sha256": "4f460425d2be252f95e35608128043ed2f2bcd5ce8c4d151d074a312a25f92c1",
+          "selected": [
+            {
+              "kernel": "7.0.0-14-generic",
+              "path": "lib/modules/7.0.0-14-generic/kernel/drivers/net/ethernet/intel/ixgbe/ixgbe.ko.zst",
+              "sha256": "b1854b3a97a6b87b7fc75abe68256d548f1ab35b50e4cac51b1d0fa7b08bc2d7",
+              "action": "native"
+            }
+          ],
+          "persistence": false
+        }
+      ],
+      "needs_external": false
+    }
+  ],
+  "count": 52,
+  "injected": 43,
+  "native": 9,
+  "source_release": "v6.4.5-multios-r4",
+  "physical_e610": "not tested",
+  "audited_at": "2026-11-01",
+  "e610_source_commit": "1677685f9f09e1e47f0441d3eddce8fcd6596f0a",
+  "offline_archive_sha256": "35cfb7ef582d95e8f005220b518aa2a7a1acc44aac95d65c94acfbd65055f1af",
+  "scope": "Static live-media inspection; not a new hardware or installation test"
+}

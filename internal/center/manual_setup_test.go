@@ -132,6 +132,44 @@ func TestManualSetupDownload(t *testing.T) {
 				t.Fatal("bad package member checksum", line)
 			}
 		}
+		// Preserve the complete r4 vendor tree, including the nested r3/r2
+		// dispatchers and their original checksums/rollback payloads.
+		vendorZip, err := gzip.NewReader(bytes.NewReader(b))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer vendorZip.Close()
+		vendor := tar.NewReader(vendorZip)
+		for {
+			h, err := vendor.Next()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if h.Typeflag == tar.TypeDir {
+				continue
+			}
+			want, err := io.ReadAll(vendor)
+			name := "e610/" + strings.TrimPrefix(h.Name, e610ArchiveRoot+"/")
+			if err != nil || !bytes.Equal(files[name], want) {
+				t.Fatal("vendor component changed or missing", h.Name, err)
+			}
+		}
+		rows := strings.Split(strings.TrimSpace(string(files["e610/targets.tsv"])), "\n")
+		if len(rows) != 93 {
+			t.Fatalf("r4 exact-kernel coverage: got %d, want 93", len(rows))
+		}
+		for _, row := range rows {
+			fields := strings.Split(row, "\t")
+			if len(fields) != 5 {
+				t.Fatal("invalid offline target", row)
+			}
+			if fields[3] != "native" && len(files["e610/"+fields[4]+"/install.sh"]) == 0 {
+				t.Fatal("missing nested target dispatcher", row)
+			}
+		}
 		if out := os.Getenv("VENTOY_MANUAL_OUTPUT"); out != "" {
 			if err := os.WriteFile(out, w.Body.Bytes(), 0600); err != nil {
 				t.Fatal(err)
@@ -161,8 +199,8 @@ func TestManualSetupDownload(t *testing.T) {
 
 func TestManualDriverArchiveBoundaries(t *testing.T) {
 	for _, header := range []*tar.Header{
-		{Name: "E610-MultiOS-6.4.5-r2/../../escape", Typeflag: tar.TypeReg},
-		{Name: "E610-MultiOS-6.4.5-r2/link", Typeflag: tar.TypeSymlink, Linkname: "/etc/shadow"},
+		{Name: e610ArchiveRoot + "/../../escape", Typeflag: tar.TypeReg},
+		{Name: e610ArchiveRoot + "/link", Typeflag: tar.TypeSymlink, Linkname: "/etc/shadow"},
 		{Name: "/etc/passwd", Typeflag: tar.TypeReg},
 	} {
 		var b bytes.Buffer
