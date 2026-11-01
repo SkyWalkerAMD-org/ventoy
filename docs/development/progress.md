@@ -1,8 +1,16 @@
 # Ventoy Center 当前进度
 
+## 仓库迁移到 SkyWalkerAMD（2026-11-01）
+
+仓库已转移至 [SkyWalkerAMD/ventoy](https://github.com/SkyWalkerAMD/ventoy)，仓库 ID `1416418315` 与迁移前一致，迁移时 main 为 `160ae20`。本地 origin、Go 模块及内部导入地址、此仓库的历史 PR/CI 链接同步到新地址。
+
+新模块地址下的 `go vet ./...`、`go test ./...` 及 Linux / Windows amd64 构建通过。
+
+本次为源码地址迁移，中心 `192.168.1.2` 保持 alpha.50 / iVentoy 1.0.49 Pro。节点 setup 的更新与软件下载继续使用中心 HTTPS 地址；已安装节点及 PXE 入口无需因仓库迁移重新配置。
+
 ## alpha.50 已安装节点的 setup 升级（2026-11-01）
 
-[PR #28](https://github.com/SkyWalkerAMD-org/ventoy/pull/28) 已合入 main（`3f283fd`），13 项 CI 通过。中心 `192.168.1.2` 已发布 **0.3.0-alpha.50**，iVentoy 保持 **1.0.49 Pro**。52 个 Linux 手动／自动共享入口及 tools 中的 setup 全量回读一致，SHA-256 为 `28253d1ee2fc7b14dbeaced8326dab4feb693fcfac5af99b28c2ffef08833e47`；59 个镜像绑定、ISO 元数据、其他 tools 文件、私有配置和任务历史核对保持。
+[PR #28](https://github.com/SkyWalkerAMD/ventoy/pull/28) 已合入 main（`3f283fd`），13 项 CI 通过。中心 `192.168.1.2` 已发布 **0.3.0-alpha.50**，iVentoy 保持 **1.0.49 Pro**。52 个 Linux 手动／自动共享入口及 tools 中的 setup 全量回读一致，SHA-256 为 `28253d1ee2fc7b14dbeaced8326dab4feb693fcfac5af99b28c2ffef08833e47`；59 个镜像绑定、ISO 元数据、其他 tools 文件、私有配置和任务历史核对保持。
 
 新版 `./ventoy-linux-setup.run --upgrade` 下载、校验、备份并替换当前文件，随后执行新版配置及软件检查。已经完成 setup 的节点按包内容迁移 SSH、内核／更新策略、离线配置包和服务，保留当前密码、主机名及既有网络；失败可重试，普通开机不重复迁移同一版本。`--update-setup` 继续只下载；alpha.49 旧文件第一次使用它，再直接运行新版。更早没有更新入口的文件须先从管理端获取新版一次。操作详见[维护指南](../operations.md)。
 
@@ -14,7 +22,7 @@
 
 ## alpha.47 独立 P95 分发与 CPU 分组修复（2026-10-30）
 
-[PR #21](https://github.com/SkyWalkerAMD-org/ventoy/pull/21) 已合入 main，13 项 CI 通过。中心已发布 `0.3.0-alpha.47`，iVentoy 为 `1.0.48` 专业版。全部 52 个 Linux 手动/自动共享入口与 tools 中的完整 setup 已逐一校验，共同 SHA-256 为 `a7e45907fde193645aa533222f18bae5ce4363f1d386f7b36dc04c7150490ed1`。
+[PR #21](https://github.com/SkyWalkerAMD/ventoy/pull/21) 已合入 main，13 项 CI 通过。中心已发布 `0.3.0-alpha.47`，iVentoy 为 `1.0.48` 专业版。全部 52 个 Linux 手动/自动共享入口与 tools 中的完整 setup 已逐一校验，共同 SHA-256 为 `a7e45907fde193645aa533222f18bae5ce4363f1d386f7b36dc04c7150490ed1`。
 
 **完整 setup 不再集成 P95 修复**，只将中心 tools 中的独立脚本同步到 `/root/ventoy-tools/p95-priority-setup.sh`，需要时由管理员手动执行；不会自动安装、升级、重启或检查已装的助手。
 
@@ -22,7 +30,7 @@
 
 ## alpha.46 P95 集成与 CentOS 7.9 适配（2026-10-30）
 
-[PR #20](https://github.com/SkyWalkerAMD-org/ventoy/pull/20) 已合入 main，13 项 CI 全部通过。中心 `192.168.1.2` 已发布 `0.3.0-alpha.46`，iVentoy 保持 `1.0.48` 专业版。tools 中的 `ventoy-linux-setup.run` 与全部 52 个 Linux 手动/自动共享入口均已更新；发布后逐项核对预置包，共同 SHA-256 为 `253d647f0fd1aee4b0365a466b4c73e00389f1f2a74453da1fcdf5205f6ac084`。59 个 ISO、菜单绑定、其他 tools 文件及私有接入配置核对保持。
+[PR #20](https://github.com/SkyWalkerAMD/ventoy/pull/20) 已合入 main，13 项 CI 全部通过。中心 `192.168.1.2` 已发布 `0.3.0-alpha.46`，iVentoy 保持 `1.0.48` 专业版。tools 中的 `ventoy-linux-setup.run` 与全部 52 个 Linux 手动/自动共享入口均已更新；发布后逐项核对预置包，共同 SHA-256 为 `253d647f0fd1aee4b0365a466b4c73e00389f1f2a74453da1fcdf5205f6ac084`。59 个 ISO、菜单绑定、其他 tools 文件及私有接入配置核对保持。
 
 完整 setup 在节点软件安装及已配置的接入完成后自动配置、检查 P95 助手；即使软件包版本没有变化，也会执行此步骤。P95 助手升级为 `1.0.2`，支持 CentOS 7.9 的 systemd 219、EL7 mprime 和额外 memtester 路径。旧 systemd 使用兼容的服务配置，助手自行保护 `/run` 下的恢复记录。只匹配节点服务 cgroup 内指定路径和参数的 mprime 线程，将 nice 19 调回 0；不启动压测，不改写节点软件包。
 
@@ -32,7 +40,7 @@
 
 ## alpha.45 现场发布与 setup 实机复测（2026-10-29）
 
-[PR #19](https://github.com/SkyWalkerAMD-org/ventoy/pull/19) 已合入 main，13 项 CI 全部通过。初次 CI 发现包副本测试复用已有内核策略时漏带真实检查脚本，已修复测试准备流程并完整重跑；没有跳过安装后的内核策略验证。中心 `192.168.1.2` 已更新至 `0.3.0-alpha.45`，iVentoy 保持 `1.0.48` 专业版，全部 52 个 Linux 手动/自动共享入口和 tools 中的 setup 已更新。59 个 ISO 的内容/元数据、菜单绑定、tools 中其他软件包及专业版许可保持。
+[PR #19](https://github.com/SkyWalkerAMD/ventoy/pull/19) 已合入 main，13 项 CI 全部通过。初次 CI 发现包副本测试复用已有内核策略时漏带真实检查脚本，已修复测试准备流程并完整重跑；没有跳过安装后的内核策略验证。中心 `192.168.1.2` 已更新至 `0.3.0-alpha.45`，iVentoy 保持 `1.0.48` 专业版，全部 52 个 Linux 手动/自动共享入口和 tools 中的 setup 已更新。59 个 ISO 的内容/元数据、菜单绑定、tools 中其他软件包及专业版许可保持。
 
 现场重新取得的 FYHOCSYS 接入参数已核对中心 TLS 指纹，保存至服务账户拥有的 `0600` 私有文件，生产独立鉴权接口验证通过；包内容检查确认接入密钥不在 setup 中。52 个入口内置 setup 的共同 SHA-256 为 `ed0b6543db2f7d9bf0d5f784355ad2409b1de6211133a5db19f9fda821a96eca`。
 
@@ -98,13 +106,13 @@ PXE 选盘新增旧存储重建。单块内置盘已有 LVM/软件 RAID 时显�
 
 新流程的隔离 CentOS 7.9 UEFI 完整安装已通过：带旧 LVM 启动后能进入文件系统/选盘页，确认目标盘后原生重分区、正常重启到硬盘系统，root/user SSH、分区、更新策略和 setup 检查通过，USB 模拟盘保持。旧流程在页面出现前就拒绝单盘 LVM 的问题已在客户端和管理端同时修正。
 
-13 项 CI 通过后，[PR #17](https://github.com/SkyWalkerAMD-org/ventoy/pull/17) 已合入 main，并于 2026-10-28 发布 alpha.43。发布前确认没有活动安装任务，`.249` 已从硬盘运行；备份后更新管理端、52 个 Linux 共享入口及 tools 中的 setup，刷新 iVentoy 并核对全部绑定。59 个 ISO 的内容和元数据、tools 的其他软件包、专业版许可及私有解锁凭据保留。发布后 `.249` SSH 再次登录通过。
+13 项 CI 通过后，[PR #17](https://github.com/SkyWalkerAMD/ventoy/pull/17) 已合入 main，并于 2026-10-28 发布 alpha.43。发布前确认没有活动安装任务，`.249` 已从硬盘运行；备份后更新管理端、52 个 Linux 共享入口及 tools 中的 setup，刷新 iVentoy 并核对全部绑定。59 个 ISO 的内容和元数据、tools 的其他软件包、专业版许可及私有解锁凭据保留。发布后 `.249` SSH 再次登录通过。
 
 发布记录在中心 `e610-pxe-media-20261023/storage43-20261028/deployment.json`，同目录保存全量入口核验、CI 和隔离安装结果及生产回退副本。全部 52 个入口预置 setup 的共同 SHA-256 为 `df51467abc6a250dbb2dd661b864115f082d91fc39d4da8eaaaa73c0dff038a9`。
 
 ## alpha.42 退出介质、软件解锁与终端刷新（2026-10-28）
 
-iVentoy 已升级为 1.0.48 专业版，许可、59 个 ISO 路径及原有绑定核对通过；升级与回退记录见[部署说明](../deployment/iventoy-upgrade.md)。管理端 alpha.42 已于 2026-10-28 发布：用户确认客户端退出安装器后，备份配置与预置文件，更新全部 52 个 Linux 手动/自动共享入口及 tools 中的 setup，刷新服务并核对绑定和摘要。ISO 内容及 tools 内其他软件包保持不变。源码经 13 项 CI 检查通过，已通过 [PR #16](https://github.com/SkyWalkerAMD-org/ventoy/pull/16) 合入 main。
+iVentoy 已升级为 1.0.48 专业版，许可、59 个 ISO 路径及原有绑定核对通过；升级与回退记录见[部署说明](../deployment/iventoy-upgrade.md)。管理端 alpha.42 已于 2026-10-28 发布：用户确认客户端退出安装器后，备份配置与预置文件，更新全部 52 个 Linux 手动/自动共享入口及 tools 中的 setup，刷新服务并核对绑定和摘要。ISO 内容及 tools 内其他软件包保持不变。源码经 13 项 CI 检查通过，已通过 [PR #16](https://github.com/SkyWalkerAMD/ventoy/pull/16) 合入 main。
 
 Ubuntu 26.04 在安装完成后，为 Casper 的 vendor-mask 创建仅本次 live 环境有效的 cdrom 挂载单元，实际启用 LazyUnmount；同时通过 finalrd 运行时钩子补入 systemd 动态加载的 libmount。Desktop 自动安装和 Server 逐页手动安装均完成并通过原生重启进入硬盘系统；未强制重启、提前弹出镜像或改写目标系统的关机逻辑。`/cdrom` 的单元卸载失败和 libmount 缺失问题已修复；最终退出仍可能记录 loop 设备忙的提示，不能称为关机日志完全无告警。
 
@@ -130,7 +138,7 @@ Desktop 26.04 的 live 环境没有 curl，发现/授权客户端改用 Python �
 
 隔离的原生 iVentoy UEFI 网启另验证 CentOS 7.9、Debian 12.8、Ubuntu Server 22.04.3 各自的手动分支和自动分支，以及 Rocky 10.2 自动分支，共 7 项。手动进入原生安装器，自动进入文件系统选择页；这些菜单测试停在写盘前，不等同于七次完整安装。52 份模板、28 份账户配置、54 份 RAID 配置、660 项容量和 220 项文件系统组合，以及 16 项 Kickstart 条件注入检查通过。没有操作 `.235` 或 `.39`，没有新增物理 E610 或 RAID 故障测试。
 
-已清理退役隔离磁盘、过期构建文件和挂载，释放约 170.2 GiB。历史 PXE-Auto 文件原本是硬链接，移除别名主要整理菜单，不会再释放 50 份 ISO 数据空间。当前 ISO、tools 软件、恢复副本、授权和任务历史保留。安装、菜单截图、测试、发布与回退证据保存在中心 `e610-pxe-media-20261023/release41-20261027/`；清理记录为同级 `disk-cleanup-20261027/result.json`。源码见 [PR #15](https://github.com/SkyWalkerAMD-org/ventoy/pull/15)。
+已清理退役隔离磁盘、过期构建文件和挂载，释放约 170.2 GiB。历史 PXE-Auto 文件原本是硬链接，移除别名主要整理菜单，不会再释放 50 份 ISO 数据空间。当前 ISO、tools 软件、恢复副本、授权和任务历史保留。安装、菜单截图、测试、发布与回退证据保存在中心 `e610-pxe-media-20261023/release41-20261027/`；清理记录为同级 `disk-cleanup-20261027/result.json`。源码见 [PR #15](https://github.com/SkyWalkerAMD/ventoy/pull/15)。
 
 ## alpha.40 发行版默认格式与 setup 检查（2026-10-27）
 
@@ -183,7 +191,7 @@ Linux 自动安装改用[统一容量档位](../deployment/pxe-menu.md#默认分
 
 证据保存在服务器 `e610-pxe-media-20261023/storage33-20261025/`：`final-tests.log`、`qa/*/acceptance.json`、`qa/*/console-login.txt`、`node-final-acceptance.json`。BMC 网页凭据与系统 root 账户独立；普通手动安装先使用安装器设定的账户，进入系统后执行预置 setup 才应用统一账户策略。
 
-现场已发布 alpha.33，iVentoy 保持 1.0.47 Pro。发布前确认没有活动任务或网络镜像连接，备份后更新全部 52 个 PXE 自动入口和 54 个普通 Linux 入口；各入口预置包与当前下载一致。统一 setup SHA-256 为 `895ca3556ca1e3497d66e21774b32455e97b576591de15c6cd9c10b5fe5bbc09`。ISO 内容、路径、其他绑定及 tools 软件包保持一致，发布核验为 `deployment.json`，回退备份为 `production-backup-20261025-211637/`。源码与验证见 [PR #7](https://github.com/SkyWalkerAMD-org/ventoy/pull/7)。
+现场已发布 alpha.33，iVentoy 保持 1.0.47 Pro。发布前确认没有活动任务或网络镜像连接，备份后更新全部 52 个 PXE 自动入口和 54 个普通 Linux 入口；各入口预置包与当前下载一致。统一 setup SHA-256 为 `895ca3556ca1e3497d66e21774b32455e97b576591de15c6cd9c10b5fe5bbc09`。ISO 内容、路径、其他绑定及 tools 软件包保持一致，发布核验为 `deployment.json`，回退备份为 `production-backup-20261025-211637/`。源码与验证见 [PR #7](https://github.com/SkyWalkerAMD/ventoy/pull/7)。
 
 ## alpha.28 CentOS 7.9 物理 PXE 网络修复（2026-10-25）
 
@@ -226,7 +234,7 @@ CentOS 7.6、7.9 和 RHEL 7 模板改用 `--no-activate --onboot=yes`：保留 l
 
 ## 源码与 E610 Release（2026-10-24）
 
-Ventoy 的 [PR #2](https://github.com/SkyWalkerAMD-org/ventoy/pull/2) 已合入 main，包含原 PR #1 的工作，13 项 CI 全部通过。E610 的 [PR #6](https://github.com/SkyWalkerAMD-org/E610/pull/6) 也已合入 main。[E610 ISO Kit 6.4.5 r1](https://github.com/SkyWalkerAMD-org/E610/releases/tag/v6.4.5-iso-kit-r1) 已正式发布，7 个附件的 GitHub SHA-256 与本地逐项一致。该包包含驱动、制作工具及验证记录，需要自行提供原版 ISO，不包含完整操作系统镜像。
+Ventoy 的 [PR #2](https://github.com/SkyWalkerAMD/ventoy/pull/2) 已合入 main，包含原 PR #1 的工作，13 项 CI 全部通过。E610 的 [PR #6](https://github.com/SkyWalkerAMD-org/E610/pull/6) 也已合入 main。[E610 ISO Kit 6.4.5 r1](https://github.com/SkyWalkerAMD-org/E610/releases/tag/v6.4.5-iso-kit-r1) 已正式发布，7 个附件的 GitHub SHA-256 与本地逐项一致。该包包含驱动、制作工具及验证记录，需要自行提供原版 ISO，不包含完整操作系统镜像。
 
 ## alpha.25 E610 原生 ISO 注入（2026-10-24 已发布）
 
@@ -516,10 +524,10 @@ alpha.12 新增 Ubuntu 22.04.3 通用 PXE 自动安装入口后，当前共 **62
 
 alpha.10 的本地 Go 测试、vet、服务器 Linux 测试及 28 组 Linux 安装模板解析通过，另执行 Rocky 9 网络 keyfile 的隔离回归。CentOS Linux / Stream 身份、错误小版本和其他发行版的拒绝行为已有 Linux 执行检查。Rocky 9.2 首次任务 `163cc707353d9f9fb2423f63` 因原生 hook 未加载 Kickstart 而停止；重试任务 `e9885756e98fe74fe3d32f38` 同时绑定 Kickstart 和 dracut 兼容包，完成实装后定位了网络等待问题。alpha.10 新任务 `bba89ab191b5bc79c03e62ef` 已通过网络修复的完整新装、首次启动与第二次正常重启，用户空间启动分别为 12.804 秒和 8.470 秒，无失败服务。
 
-Rocky 9.2 本轮验收代码为 `15f8c66`，CI [38841473820](https://github.com/SkyWalkerAMD-org/ventoy/actions/runs/38841473820) 的 10 项任务全部通过。当时准备的 Rocky 9.6 任务未启动安装，后来为通用 PXE 测试撤销了授权，版本实装仍待验证。
+Rocky 9.2 本轮验收代码为 `15f8c66`，CI [38841473820](https://github.com/SkyWalkerAMD/ventoy/actions/runs/38841473820) 的 10 项任务全部通过。当时准备的 Rocky 9.6 任务未启动安装，后来为通用 PXE 测试撤销了授权，版本实装仍待验证。
 
-此前 Ubuntu 22.04.3 的验收代码为 `1bbaa20`，CI [38709558965](https://github.com/SkyWalkerAMD-org/ventoy/actions/runs/38709558965) 的 10 个任务全部通过：Linux / Windows 测试、Linux race、安装模板解析、二进制构建和七种 Linux 用户空间启动检查。Ubuntu 还使用原始 Subiquity 5004 与真实 udev 数据验证了磁盘匹配。
+此前 Ubuntu 22.04.3 的验收代码为 `1bbaa20`，CI [38709558965](https://github.com/SkyWalkerAMD/ventoy/actions/runs/38709558965) 的 10 个任务全部通过：Linux / Windows 测试、Linux race、安装模板解析、二进制构建和七种 Linux 用户空间启动检查。Ubuntu 还使用原始 Subiquity 5004 与真实 udev 数据验证了磁盘匹配。
 
 alpha.8 的 Go 测试、Go vet、22 组 Linux 安装模板解析和 JavaScript 语法检查已通过。Ubuntu 注入脚本在 Linux 临时目录中执行验证：缺失或不匹配的 user-data、异常 init 标记、错误系统版本或 MAC 均不会启用无人值守入口；匹配输入会生成预期的 live systemd 配置。实机排查还修复了早期 `/dev/null` 不存在导致的注入失败，加入对应回归，并用实际 iVentoy BusyBox 与原始 initramfs 在隔离目录执行验证。原始 Subiquity 23.08.1 的 UEFI / BIOS 存储模型检查通过，UEFI 完整无人值守实装也已通过；BIOS 模型检查不等于 BIOS 实机验收。
 
-早期代码曾在 `codex/linux-install-verification` 分支以草稿 PR 维护。2026-10-24，[PR #2](https://github.com/SkyWalkerAMD-org/ventoy/pull/2) 连同 CentOS 工作 [PR #1](https://github.com/SkyWalkerAMD-org/ventoy/pull/1) 已合入 main；后续验收状态以上方最新记录为准。
+早期代码曾在 `codex/linux-install-verification` 分支以草稿 PR 维护。2026-10-24，[PR #2](https://github.com/SkyWalkerAMD/ventoy/pull/2) 连同 CentOS 工作 [PR #1](https://github.com/SkyWalkerAMD/ventoy/pull/1) 已合入 main；后续验收状态以上方最新记录为准。

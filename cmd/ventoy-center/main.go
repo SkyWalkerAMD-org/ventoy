@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/SkyWalkerAMD-org/ventoy/internal/center"
+	"github.com/SkyWalkerAMD/ventoy/internal/center"
 )
 
 func main() {
