@@ -11,8 +11,8 @@
 # Exit: 0 success/no change, 1 failure, 2 argument error, 3 incomplete/safety skip.
 
 _si_log()  { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
-_si_warn() { printf '[警告] %s\n' "$*" >&2; }
-_si_err()  { printf '[错误] %s\n' "$*" >&2; }
+_si_warn() { printf '[WARNING] %s\n' "$*" >&2; }
+_si_err()  { printf '[ERROR] %s\n' "$*" >&2; }
 _si_has()  { command -v "$1" >/dev/null 2>&1; }
 _si_path() { printf '%s\n' "$1"; } # Internal indirection for isolated tests, not a CLI option.
 _si_active() { systemctl is-active --quiet "$1" 2>/dev/null; }
@@ -23,29 +23,29 @@ _si_init() {
     export LC_ALL=C SYSTEMD_COLORS=0 SYSTEMD_PAGER=cat
     umask 077
     ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 2))) || {
-        _si_err '需要 Bash >= 4.2。'; return 1;
+        _si_err 'Bash >= 4.2 is required.'; return 1;
     }
-    ((EUID == 0)) || { _si_err '请以 root 或 sudo bash 运行。'; return 1; }
+    ((EUID == 0)) || { _si_err 'Run as root or with sudo bash.'; return 1; }
     local ID='' VERSION_ID='' PRETTY_NAME='' major osfile
     osfile="$(_si_path /etc/os-release)"
-    [[ -r "$osfile" ]] || { _si_err '缺少可读的 /etc/os-release。'; return 1; }
+    [[ -r "$osfile" ]] || { _si_err 'A readable /etc/os-release is required.'; return 1; }
     # /etc/os-release is a root-managed OS file, not a user configuration.
     # shellcheck disable=SC1090
     . "$osfile"
     major="${VERSION_ID%%.*}"
-    [[ "$major" =~ ^[0-9]+$ ]] || { _si_err '不能确定发行版版本。'; return 1; }
+    [[ "$major" =~ ^[0-9]+$ ]] || { _si_err 'Cannot determine the distribution version.'; return 1; }
     case "$ID" in
         ubuntu) ((major >= 20 && major <= 26)) || return 1; SI_FAMILY=ubuntu ;;
         debian) ((major >= 10 && major <= 13)) || return 1; SI_FAMILY=debian ;;
         rhel|centos|rocky|almalinux|ol|scientific|anolis)
             ((major >= 7 && major <= 10)) || return 1; SI_FAMILY=el ;;
-        *) _si_err "未适配的发行版：$ID $VERSION_ID。"; return 1 ;;
+        *) _si_err "Unsupported distribution: $ID $VERSION_ID."; return 1 ;;
     esac
     SI_VERSION="$VERSION_ID"
     SI_OS="${PRETTY_NAME:-$ID $VERSION_ID}"
     local cmd
     for cmd in systemctl flock awk sed grep mktemp readlink stat cp chmod chown mv ln cat date tail head; do
-        _si_has "$cmd" || { _si_err "缺少命令：$cmd；未安装或切换任何软件。"; return 1; }
+        _si_has "$cmd" || { _si_err "Missing command: $cmd; no software was installed or changed."; return 1; }
     done
 }
 
@@ -54,11 +54,11 @@ _si_lock() {
     file="$(_si_path /run/lock/safe-server-init.lock)"; dir="${file%/*}"
     mkdir -p -- "$dir" || return 1
     if [[ -L "$file" ]] || { [[ -e "$file" ]] && [[ ! -f "$file" ]]; }; then
-        _si_err "不安全的锁文件：$file"; return 1
+        _si_err "Unsafe lock file: $file"; return 1
     fi
     # Each public function runs in a subshell; descriptor 9 closes on return.
     exec 9>>"$file" || return 1
-    flock -n 9 || { _si_err '另一个初始化进程正在运行。'; return 1; }
+    flock -n 9 || { _si_err 'Another initialization process is running.'; return 1; }
 }
 
 _si_backup() {
@@ -72,7 +72,7 @@ _si_backup() {
             cp -pL -- "$file" "$SI_BACKUP/${file##*/}" || return 1
         fi
     done
-    _si_log "变更前备份：$SI_BACKUP"
+    _si_log "Backup before changes: $SI_BACKUP"
 }
 
 _si_hostname_valid() {
@@ -118,61 +118,61 @@ _si_hostname() {
         case "$arg" in
             --dry-run) dry=1 ;;
             --update-hosts) hosts=1 ;;
-            -*) _si_err "未知 hostname 参数：$arg"; return 2 ;;
-            *) [[ -z "$new" ]] || { _si_err '只能指定一个主机名。'; return 2; }; new="$arg" ;;
+            -*) _si_err "Unknown hostname argument: $arg"; return 2 ;;
+            *) [[ -z "$new" ]] || { _si_err 'Specify only one hostname.'; return 2; }; new="$arg" ;;
         esac
     done
     _si_init || return 1
-    _si_has hostnamectl || { _si_err '缺少 hostnamectl。'; return 1; }
+    _si_has hostnamectl || { _si_err 'hostnamectl is required.'; return 1; }
     if [[ -z "$new" ]]; then
-        [[ -t 0 ]] || { _si_err '非交互运行必须指定主机名。'; return 2; }
-        read -r -p '请输入主机名: ' new || return 1
+        [[ -t 0 ]] || { _si_err 'Non-interactive runs require an explicit hostname.'; return 2; }
+        read -r -p 'Enter hostname: ' new || return 1
     fi
     new="${new,,}"
-    _si_hostname_valid "$new" || { _si_err '主机名必须为合法 ASCII DNS 名称，总长 <=64、每段 <=63；不接受 IP 地址或 localhost。'; return 2; }
+    _si_hostname_valid "$new" || { _si_err 'Use a valid ASCII DNS hostname: <=64 characters total, <=63 per label; IP addresses and localhost are not accepted.'; return 2; }
     ((dry)) || _si_lock || return 1
-    old="$(hostnamectl --static 2>/dev/null)" || { _si_err '无法读取静态主机名；请在已启动的 systemd 系统执行。'; return 1; }
+    old="$(hostnamectl --static 2>/dev/null)" || { _si_err 'Cannot read the static hostname; run in a booted systemd system.'; return 1; }
     runtime="$(cat "$(_si_path /proc/sys/kernel/hostname)")" || return 1
     hfile="$(_si_path /etc/hostname)"; hostsfile="$(_si_path /etc/hosts)"
     if ((hosts)); then
         [[ -f "$hostsfile" && -r "$hostsfile" && ! -L "$hostsfile" ]] || {
-            _si_err '/etc/hosts 缺失、不可读或是符号链接；拒绝自动编辑。'; return 1;
+            _si_err '/etc/hosts is missing, unreadable, or a symlink; automatic editing refused.'; return 1;
         }
         data="$(_si_hosts_data "$hostsfile" "$old" "$new")" || return 1
     fi
     if ((dry)); then
-        _si_log "[预览] hostnamectl set-hostname $new；当前静态=$old，运行中=$runtime"
-        if ((hosts)); then printf '[预览] /etc/hosts 内容（仅在 --update-hosts 下修改）：\n%s\n' "$data"; fi
+        _si_log "[DRY RUN] hostnamectl set-hostname $new; current static=$old, runtime=$runtime"
+        if ((hosts)); then printf '[DRY RUN] /etc/hosts content (changed only with --update-hosts):\n%s\n' "$data"; fi
         return 0
     fi
     if [[ "$old" != "$new" || "$runtime" != "$new" ]] || ((hosts)); then
-        _si_backup "$hfile" "$hostsfile" || { _si_err '备份失败，未修改主机名。'; return 1; }
+        _si_backup "$hfile" "$hostsfile" || { _si_err 'Backup failed; hostname unchanged.'; return 1; }
     fi
     if [[ "$old" != "$new" || "$runtime" != "$new" ]]; then
-        hostnamectl set-hostname "$new" || { _si_err 'hostnamectl 失败；请检查当前主机名及备份，未改写 hosts。'; return 1; }
+        hostnamectl set-hostname "$new" || { _si_err 'hostnamectl failed; inspect the current hostname and backup. hosts was not changed.'; return 1; }
     fi
     if [[ "$(hostnamectl --static 2>/dev/null)" != "$new" || "$(cat "$(_si_path /proc/sys/kernel/hostname)")" != "$new" ]]; then
-        _si_err '主机名回读验证失败；可能部分生效，请检查 hostnamectl 与备份。'; return 1
+        _si_err 'Hostname readback failed; changes may be partial. Inspect hostnamectl and the backup.'; return 1
     fi
     if ((hosts)); then
         tmp="$(mktemp "${hostsfile%/*}/.safe-hosts.XXXXXX")" || return 1
         if ! printf '%s\n' "$data" > "$tmp" || ! chmod --reference="$hostsfile" "$tmp" || ! chown --reference="$hostsfile" "$tmp"; then
-            rm -f -- "$tmp"; _si_err 'hosts 临时文件准备失败；主机名已修改，hosts 未修改。'; return 1
+            rm -f -- "$tmp"; _si_err 'Could not prepare the temporary hosts file; hostname changed, hosts unchanged.'; return 1
         fi
         # Preserve an SELinux context where present. Failure is not hidden.
         if [[ -e "$(_si_path /sys/fs/selinux/enforce)" ]] || { _si_has selinuxenabled && selinuxenabled; }; then
             if ! chcon --reference="$hostsfile" "$tmp"; then rm -f -- "$tmp"; return 1; fi
         fi
         if ! mv -f -- "$tmp" "$hostsfile"; then
-            rm -f -- "$tmp"; _si_err '替换 hosts 失败（可能是 bind mount）；主机名已改，原 hosts 未改。'; return 1
+            rm -f -- "$tmp"; _si_err 'Could not replace hosts (possibly a bind mount); hostname changed, original hosts unchanged.'; return 1
         fi
     else
-        _si_warn '未编辑 /etc/hosts；需要同步本机名称解析时，加 --update-hosts。'
+        _si_warn '/etc/hosts was not edited; add --update-hosts to update local name resolution.'
     fi
     if [[ -d "$(_si_path /etc/cloud)" ]]; then
-        _si_warn '检测到 cloud-init 配置目录；其主机名/hosts 管理可能在以后启动时覆盖设置，本脚本不改 cloud-init。'
+        _si_warn 'cloud-init configuration exists and may override hostname/hosts on later boots; this helper does not change cloud-init.'
     fi
-    _si_log "主机名已验证：$new（当前及持久化）；已打开终端的提示符可能仍显示旧名称。"
+    _si_log "Hostname verified: $new (runtime and persistent); existing terminal prompts may still show the old name."
 }
 
 # Interpreter is only used for static configuration parsing, not for shell exec.
@@ -185,7 +185,7 @@ _si_python_select() {
             SI_PYTHON="$exe"; return 0
         fi
     done
-    _si_err '需要 Python >=2.7 的标准库进行离线配置检查（优先 Python 3）；Netplan 还需要 PyYAML。'
+    _si_err 'Offline configuration checks require Python >=2.7 (Python 3 preferred); Netplan also requires PyYAML.'
     return 1
 }
 
@@ -482,14 +482,14 @@ _si_backend() {
     _si_active network && legacy=1
     _si_active networking && ifup=1
     if _si_netplan_present; then
-        _si_has netplan || { _si_err '有 Netplan YAML 但缺少 netplan，拒绝绕过配置源。'; return 1; }
+        _si_has netplan || { _si_err 'Netplan YAML exists but netplan is missing; refusing to bypass the configuration source.'; return 1; }
         ((legacy==0 && ifup==0 && nm+nd==1)) || {
-            _si_err 'Netplan 的活跃管理后端不唯一，或与 legacy/ifupdown 混用；拒绝猜测。'; return 1;
+            _si_err 'Netplan has multiple active backends or is mixed with legacy/ifupdown; refusing to guess.'; return 1;
         }
-        configured="$(_si_probe renderer)" || { _si_err '无法解析 Netplan renderer（需要 PyYAML）。'; return 1; }
+        configured="$(_si_probe renderer)" || { _si_err 'Cannot parse the Netplan renderer (PyYAML required).'; return 1; }
         if ((nm)); then SI_RENDERER=NetworkManager; else SI_RENDERER=networkd; fi
         [[ -z "$configured" || "$configured" == "$SI_RENDERER" ]] || {
-            _si_err 'Netplan 全局 renderer 与当前活跃后端不同，拒绝写入。'; return 1;
+            _si_err 'The global Netplan renderer differs from the active backend; no configuration written.'; return 1;
         }
         SI_BACKEND=netplan
     else
@@ -497,11 +497,11 @@ _si_backend() {
         # networking.service for loopback while NM manages other interfaces.
         # Per-device NM state and all disk checks are still mandatory below.
         if ((nm && !nd && (legacy || ifup))); then
-            _si_warn 'NM 与传统服务并存：仅处理 NM 已识别且未配置的设备；保留其他接口。'
+            _si_warn 'NM and legacy services coexist: only unconfigured devices recognized by NM are eligible; other interfaces are preserved.'
             legacy=0; ifup=0
         fi
         count=$((nm+nd+legacy+ifup))
-        ((count==1)) || { _si_err '网络管理服务未运行或同时有多个后端；不会启动、切换或重启服务。'; return 1; }
+        ((count==1)) || { _si_err 'No network manager is active, or multiple backends are active; services will not be started, switched, or restarted.'; return 1; }
         if ((nm)); then
             _si_has nmcli || return 1; SI_BACKEND=nm
         elif ((nd)); then
@@ -509,7 +509,7 @@ _si_backend() {
             local version
             version="$(systemctl --version | awk 'NR==1 {print $2}')"
             [[ "$version" =~ ^[0-9]+$ ]] && ((version>=245)) || {
-                _si_err '直接 networkd 模式需要 systemd >=245；EL7/8 请使用现有 NM 或 legacy 后端。'; return 1;
+                _si_err 'Direct networkd mode requires systemd >=245; use the existing NM or legacy backend on EL7/8.'; return 1;
             }
             SI_BACKEND=networkd
         elif ((ifup)); then
@@ -518,10 +518,10 @@ _si_backend() {
         elif ((legacy)) && [[ "$SI_FAMILY" == el ]] && (( ${SI_VERSION%%.*} <= 8 )); then
             _si_has ifup || return 1; SI_BACKEND=el-ifcfg
         else
-            _si_err '当前网络管理后端不在支持范围。'; return 1
+            _si_err 'The current network backend is not supported.'; return 1
         fi
     fi
-    _si_log "系统：$SI_OS；网络后端：$SI_BACKEND ${SI_RENDERER:+($SI_RENDERER)}"
+    _si_log "System: $SI_OS; network backend: $SI_BACKEND ${SI_RENDERER:+($SI_RENDERER)}"
 }
 
 _si_nm_value() {
@@ -576,8 +576,8 @@ _si_claimed() {
             networkd) _si_probe networkd "$nic" "$mac" "$driver" || rc=$? ;;
             ifupdown) _si_probe ifupdown "$nic" || rc=$? ;;
         esac
-        if ((rc==0)); then SI_REASON="已有配置：$check（含未激活配置）"; return 0; fi
-        if ((rc!=1)); then SI_REASON="不能安全解析/确定配置：$check"; return 2; fi
+        if ((rc==0)); then SI_REASON="Existing configuration: $check (including inactive configuration)"; return 0; fi
+        if ((rc!=1)); then SI_REASON="Cannot safely parse/determine configuration: $check"; return 2; fi
     done
     return 1
 }
@@ -587,48 +587,48 @@ _si_ssh_devices() {
     [[ -n "${SSH_CONNECTION:-}" ]] || return 0
     local client server client_port server_port route family
     read -r client client_port server server_port <<< "$SSH_CONNECTION"
-    [[ -n "$client" && -n "$server" ]] || { _si_err 'SSH_CONNECTION 格式不完整。'; return 1; }
+    [[ -n "$client" && -n "$server" ]] || { _si_err 'SSH_CONNECTION is incomplete.'; return 1; }
     if [[ "$client" == *:* ]]; then family=-6; else family=-4; fi
     # Use the session source address to respect source-based policy routing.
     route="$(ip "$family" route get "$client" from "$server" 2>/dev/null)" || {
-        _si_err '无法确定 SSH 回程路由；为避免误改，停止网络初始化。'; return 1;
+        _si_err 'Cannot determine the SSH return route; network initialization stopped to avoid disrupting the session.'; return 1;
     }
     SI_SSH_DEVICES="$(printf '%s\n' "$route" | awk '{for(i=1;i<NF;i++) if($i=="dev") print $(i+1)}')"
-    [[ -n "$SI_SSH_DEVICES" ]] || { _si_err '无法确定 SSH 出口网卡。'; return 1; }
+    [[ -n "$SI_SSH_DEVICES" ]] || { _si_err 'Cannot determine the SSH egress interface.'; return 1; }
 }
 
 _si_eligible() {
     local nic="$1" item devpath addr state dtype claimed=0
     SI_REASON=''; SI_MAC=''; SI_DRIVER=''
     item="$(_si_path /sys/class/net)/$nic"
-    _si_nic_valid "$nic" || { SI_REASON='特殊/非法接口名'; return 1; }
-    [[ -e "$item" ]] || { SI_REASON='网卡不存在'; return 2; }
-    [[ -r "$item/type" && "$(cat "$item/type")" == 1 && -e "$item/device" ]] || { SI_REASON='非硬件以太网接口'; return 1; }
-    [[ ! -e "$item/master" && ! -e "$item/wireless" && ! -e "$item/phy80211" ]] || { SI_REASON='无线网卡或 bond/bridge/VRF 从接口'; return 1; }
-    case "$nic" in lo|wl*|ww*|usb*|enp0s20f0u6u3c2) SI_REASON='保留/USB/无线接口'; return 1 ;; esac
-    devpath="$(readlink -f "$item/device")" || { SI_REASON='设备路径不可读'; return 2; }
-    [[ "$devpath" != *'/usb'* ]] || { SI_REASON='USB 网卡'; return 1; }
+    _si_nic_valid "$nic" || { SI_REASON='Special/invalid interface name'; return 1; }
+    [[ -e "$item" ]] || { SI_REASON='Interface does not exist'; return 2; }
+    [[ -r "$item/type" && "$(cat "$item/type")" == 1 && -e "$item/device" ]] || { SI_REASON='Not a hardware Ethernet interface'; return 1; }
+    [[ ! -e "$item/master" && ! -e "$item/wireless" && ! -e "$item/phy80211" ]] || { SI_REASON='Wireless interface or bond/bridge/VRF member'; return 1; }
+    case "$nic" in lo|wl*|ww*|usb*|enp0s20f0u6u3c2) SI_REASON='Reserved/USB/wireless interface'; return 1 ;; esac
+    devpath="$(readlink -f "$item/device")" || { SI_REASON='Device path is unreadable'; return 2; }
+    [[ "$devpath" != *'/usb'* ]] || { SI_REASON='USB interface'; return 1; }
     # Skip interfaces already referenced by upper devices (including VLANs).
     local upper
     for upper in "$item"/upper_*; do
-        if _si_file "$upper"; then SI_REASON='已被上层虚拟接口引用'; return 1; fi
+        if _si_file "$upper"; then SI_REASON='Referenced by an upper virtual interface'; return 1; fi
     done
-    if printf '%s\n' "$SI_SSH_DEVICES" | grep -Fxq -- "$nic"; then SI_REASON='承载当前 SSH 会话'; return 1; fi
+    if printf '%s\n' "$SI_SSH_DEVICES" | grep -Fxq -- "$nic"; then SI_REASON='Carries the current SSH session'; return 1; fi
     if [[ -r "$item/addr_assign_type" ]] && [[ "$(cat "$item/addr_assign_type")" != 0 ]]; then
-        SI_REASON='当前 MAC 并非永久硬件地址（可能被改写）；不能安全绑定'; return 1
+        SI_REASON='Current MAC is not the permanent hardware address (possibly overridden); cannot bind safely'; return 1
     fi
-    SI_MAC="$(cat "$item/address")" || { SI_REASON='MAC 不可读'; return 2; }
-    [[ "$SI_MAC" =~ ^([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}$ ]] || { SI_REASON='MAC 不合法'; return 2; }
-    [[ "$SI_MAC" != '00:00:00:00:00:00' ]] || { SI_REASON='MAC 全零'; return 2; }
+    SI_MAC="$(cat "$item/address")" || { SI_REASON='MAC address is unreadable'; return 2; }
+    [[ "$SI_MAC" =~ ^([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}$ ]] || { SI_REASON='Invalid MAC address'; return 2; }
+    [[ "$SI_MAC" != '00:00:00:00:00:00' ]] || { SI_REASON='All-zero MAC address'; return 2; }
     if [[ -L "$item/device/driver" ]]; then SI_DRIVER="$(basename "$(readlink -f "$item/device/driver")")"; fi
-    ip link show dev "$nic" >/dev/null 2>&1 || { SI_REASON='读取接口失败'; return 2; }
-    addr="$(ip -o addr show dev "$nic" scope global 2>/dev/null)" || { SI_REASON='读取 IP 失败'; return 2; }
-    [[ -z "$addr" ]] || { SI_REASON='已有 IPv4/IPv6 地址'; return 1; }
+    ip link show dev "$nic" >/dev/null 2>&1 || { SI_REASON='Could not read interface state'; return 2; }
+    addr="$(ip -o addr show dev "$nic" scope global 2>/dev/null)" || { SI_REASON='Could not read IP addresses'; return 2; }
+    [[ -z "$addr" ]] || { SI_REASON='Already has an IPv4/IPv6 address'; return 1; }
     if [[ "$SI_BACKEND" == nm || ( "$SI_BACKEND" == netplan && "$SI_RENDERER" == NetworkManager ) ]]; then
-        dtype="$(_si_nm_value GENERAL.TYPE device show "$nic")" || { SI_REASON='NM 类型读取失败'; return 2; }
-        [[ "$dtype" == ethernet || "$dtype" == 802-3-ethernet ]] || { SI_REASON='非 NM 以太网设备'; return 1; }
-        state="$(_si_nm_value GENERAL.STATE device show "$nic")" || { SI_REASON='NM 状态读取失败'; return 2; }
-        case "${state%% *}" in 20|30) ;; *) SI_REASON="保留 NM 现有状态：$state"; return 1 ;; esac
+        dtype="$(_si_nm_value GENERAL.TYPE device show "$nic")" || { SI_REASON='Could not read NM device type'; return 2; }
+        [[ "$dtype" == ethernet || "$dtype" == 802-3-ethernet ]] || { SI_REASON='Not an NM Ethernet device'; return 1; }
+        state="$(_si_nm_value GENERAL.STATE device show "$nic")" || { SI_REASON='Could not read NM state'; return 2; }
+        case "${state%% *}" in 20|30) ;; *) SI_REASON="Preserving existing NM state: $state"; return 1 ;; esac
     fi
     _si_claimed "$nic" "$SI_MAC" "$SI_DRIVER" || claimed=$?
     case "$claimed" in 0) return 1 ;; 1) return 0 ;; *) return 2 ;; esac
@@ -700,7 +700,7 @@ _si_target_conflict() {
     for dir in "${dirs[@]}"; do
         file="$(_si_path "$dir")/$base"
         if _si_file "$file"; then
-            _si_err "同名文件已存在于后端搜索目录：$file"
+            _si_err "A file with the same name exists in a backend search directory: $file"
             return 0
         fi
     done
@@ -709,7 +709,7 @@ _si_target_conflict() {
 
 _si_write_new() {
     local target="$1" data="$2" perms="${3:-600}" dir tmp
-    if _si_file "$target"; then _si_err "不覆盖已有文件：$target"; return 1; fi
+    if _si_file "$target"; then _si_err "Refusing to overwrite an existing file: $target"; return 1; fi
     dir="${target%/*}"
     # networkd runs unprivileged: newly created configuration directories must
     # be traversable. Existing directory permissions are never widened.
@@ -720,9 +720,9 @@ _si_write_new() {
     if ! ln -- "$tmp" "$target"; then rm -f -- "$tmp"; return 1; fi
     rm -f -- "$tmp"
     if _si_has restorecon; then
-        restorecon "$target" >/dev/null 2>&1 || { _si_err "已写入但 SELinux 标签恢复失败：$target"; return 1; }
+        restorecon "$target" >/dev/null 2>&1 || { _si_err "File written, but SELinux label restoration failed: $target"; return 1; }
     fi
-    _si_log "已创建：$target"
+    _si_log "Created: $target"
 }
 
 _si_netplan_validate() {
@@ -744,12 +744,12 @@ _si_netplan_validate() {
     done
     # Native version validation: unsupported keys fail before any real writes.
     if ! netplan generate --root-dir "$tmp" > "$tmp/check.log" 2>&1; then
-        _si_err 'Netplan 隔离生成验证失败；真实配置未修改：'
+        _si_err 'Netplan validation in an isolated directory failed; live configuration unchanged:'
         tail -n 30 "$tmp/check.log" >&2
         rm -rf -- "$tmp"; return 1
     fi
     rm -rf -- "$tmp"
-    _si_log 'Netplan 已通过本机版本的隔离生成验证（未执行 apply）。'
+    _si_log 'Netplan passed isolated validation with the installed version (apply was not run).'
 }
 
 _si_nm_args() {
@@ -772,22 +772,22 @@ _si_network() {
             --dry-run) dry=1 ;;
             --allow-legacy-secondary) legacy_secondary=1 ;;
             --iface|--primary)
-                (($#)) && _si_nic_valid "$1" || { _si_err "$arg 需要合法网卡名。"; return 2; }
+                (($#)) && _si_nic_valid "$1" || { _si_err "$arg requires a valid interface name."; return 2; }
                 if [[ "$arg" == --iface ]]; then iface="$1"; else primary_req="$1"; fi
                 shift ;;
-            *) _si_err "未知 network 参数：$arg"; return 2 ;;
+            *) _si_err "Unknown network argument: $arg"; return 2 ;;
         esac
     done
     [[ -z "$iface" || -z "$primary_req" || "$iface" == "$primary_req" ]] || {
-        _si_err '--iface 与 --primary 同时指定时必须是同一网卡。'; return 2;
+        _si_err '--iface and --primary must name the same interface when used together.'; return 2;
     }
     _si_init || return 1
-    _si_has ip || { _si_err '缺少 ip 命令。'; return 1; }
+    _si_has ip || { _si_err 'The ip command is required.'; return 1; }
     _si_python_select || return 1
     ((dry)) || _si_lock || return 1
     _si_backend || return 1
     _si_ssh_devices || return 1
-    if [[ -n "$iface" && ! -e "$(_si_path /sys/class/net)/$iface" ]]; then _si_err "网卡不存在：$iface"; return 2; fi
+    if [[ -n "$iface" && ! -e "$(_si_path /sys/class/net)/$iface" ]]; then _si_err "Interface does not exist: $iface"; return 2; fi
     for item in "$(_si_path /sys/class/net)"/*; do
         [[ -e "$item" ]] || continue
         nic="${item##*/}"; [[ "$nic" != lo ]] || continue
@@ -796,22 +796,22 @@ _si_network() {
         if ((rc==0)); then
             SI_CANDIDATES+=("$nic"); SI_MACS+=("$SI_MAC")
         else
-            _si_log "跳过 $nic：$SI_REASON"
+            _si_log "Skipping $nic: $SI_REASON"
             if ((rc==2)); then issues=$((issues+1)); fi
-            if [[ -n "$iface" ]]; then _si_warn '指定接口未修改。'; return 3; fi
+            if [[ -n "$iface" ]]; then _si_warn 'The specified interface was not changed.'; return 3; fi
         fi
     done
     if [[ -n "$primary_req" ]]; then
         for nic in "${SI_CANDIDATES[@]}"; do [[ "$nic" != "$primary_req" ]] || primary="$nic"; done
-        [[ -n "$primary" ]] || { _si_err "--primary $primary_req 不是未配置候选网卡；未写入。"; return 2; }
+        [[ -n "$primary" ]] || { _si_err "--primary $primary_req is not an unconfigured candidate; nothing written."; return 2; }
     fi
     if ((${#SI_CANDIDATES[@]}==0)); then
-        _si_log '没有符合条件的未配置硬件网卡；没有更改网络。'
+        _si_log 'No eligible unconfigured hardware interfaces; network unchanged.'
         ((issues==0)) && return 0
         return 3
     fi
     rc=0; _si_has_existing_network || rc=$?
-    case "$rc" in 0) existing=1 ;; 1) existing=0 ;; *) _si_err '路由或地址读取失败；拒绝猜测。'; return 1 ;; esac
+    case "$rc" in 0) existing=1 ;; 1) existing=0 ;; *) _si_err 'Could not read routes or addresses; refusing to guess.'; return 1 ;; esac
     if [[ -z "$primary" ]]; then
         for nic in "${SI_CANDIDATES[@]}"; do
             if [[ "$(cat "$(_si_path /sys/class/net)/$nic/carrier" 2>/dev/null)" == 1 ]]; then primary="$nic"; break; fi
@@ -819,10 +819,10 @@ _si_network() {
         [[ -n "$primary" ]] || primary="${SI_CANDIDATES[0]}"
     fi
     if ((existing)); then
-        _si_log '已有 IP/默认路由：所有新增接口均按次要接口处理，不主动接管默认路由/DNS。'
-        [[ -z "$primary_req" ]] || _si_warn '--primary 不覆盖已有网络；本次仍按次要接口处理。'
+        _si_log 'An IP/default route already exists: all new interfaces are secondary and will not take over the default route/DNS.'
+        [[ -z "$primary_req" ]] || _si_warn '--primary does not override an existing network; new interfaces remain secondary.'
     else
-        _si_log "尚无已配置 IP/默认路由：主 DHCP 网卡为 $primary。"
+        _si_log "No configured IP/default route: primary DHCP interface is $primary."
     fi
     # Complete all preflight checks BEFORE writing any backend configuration.
     for ((i=0;i<${#SI_CANDIDATES[@]};i++)); do
@@ -830,15 +830,15 @@ _si_network() {
         if ((!existing)) && [[ "$nic" == "$primary" ]]; then secondary=0; fi
         SI_SECONDARY+=("$secondary")
         if [[ "$SI_BACKEND" == ifupdown || "$SI_BACKEND" == el-ifcfg ]] && ((secondary && !legacy_secondary)); then
-            _si_err "$SI_BACKEND 无法跨 DHCP 客户端保证次要网卡的路由/DNS 隔离；本次未写入任何配置。"
-            _si_warn '可用 --iface 仅选无现有网络时的主网卡；仅在接受上述风险时添加 --allow-legacy-secondary。'
+            _si_err "$SI_BACKEND cannot guarantee secondary route/DNS isolation across DHCP clients; nothing written."
+            _si_warn 'Use --iface to select only a primary interface when no network exists; use --allow-legacy-secondary only if you accept the route/DNS risk.'
             return 3
         fi
         if [[ "$SI_BACKEND" != nm ]]; then
             target="$(_si_target "$nic")"
-            if _si_target_conflict "$target"; then _si_err "目标文件名冲突：$target"; return 1; fi
+            if _si_target_conflict "$target"; then _si_err "Target filename conflict: $target"; return 1; fi
             if [[ "$SI_BACKEND" == ifupdown ]]; then
-                _si_probe ifup-included "$nic" "$target" || { _si_err 'interfaces 没有明确包含目标文件，或有复杂映射；未写入。'; return 1; }
+                _si_probe ifup-included "$nic" "$target" || { _si_err 'interfaces does not explicitly include the target file, or has complex mappings; nothing written.'; return 1; }
             fi
         fi
     done
@@ -846,11 +846,11 @@ _si_network() {
     if [[ "$SI_BACKEND" == nm ]]; then
         names="$(nmcli -t -e no -f NAME connection show)" || return 1
         for nic in "${SI_CANDIDATES[@]}"; do
-            if printf '%s\n' "$names" | grep -Fxq -- "safe-dhcp-$nic"; then _si_err "连接名称已存在：safe-dhcp-$nic"; return 1; fi
+            if printf '%s\n' "$names" | grep -Fxq -- "safe-dhcp-$nic"; then _si_err "Connection name already exists: safe-dhcp-$nic"; return 1; fi
         done
     fi
     if ((legacy_secondary)) && [[ "$SI_BACKEND" == ifupdown || "$SI_BACKEND" == el-ifcfg ]]; then
-        _si_warn '已显式允许传统后端的次要 DHCP：高 metric/DEFROUTE 不等于完整路由及 DNS 隔离。'
+        _si_warn 'Legacy secondary DHCP explicitly allowed: a high metric/DEFROUTE does not provide full route/DNS isolation.'
     fi
     for ((i=0;i<${#SI_CANDIDATES[@]};i++)); do
         nic="${SI_CANDIDATES[$i]}"; secondary="${SI_SECONDARY[$i]}"
@@ -858,14 +858,14 @@ _si_network() {
         if ((!dry)); then
             rc=0; _si_eligible "$nic" || rc=$?
             if ((rc!=0)) || [[ "$SI_MAC" != "${SI_MACS[$i]}" ]]; then
-                _si_err "$nic 状态/配置在检查后发生变化，停止后续写入：$SI_REASON"
+                _si_err "$nic state/configuration changed after checking; further writes stopped: $SI_REASON"
                 failures=$((failures+1)); break
             fi
         fi
         if ((!dry && !secondary)); then
             rc=0; _si_has_existing_network || rc=$?
             if ((rc!=1)); then
-                _si_err '主网卡写入前检测到已有网络或读取异常；停止，避免抢占新出现的路由。'
+                _si_err 'An existing network or read error was detected before writing the primary interface; stopped to preserve newly appearing routes.'
                 failures=$((failures+1)); break
             fi
         fi
@@ -874,41 +874,41 @@ _si_network() {
             [[ "$uuid" =~ ^[0-9a-fA-F-]{36}$ ]] || return 1
             _si_nm_args "$nic" "$secondary" "${SI_MACS[$i]}" "$uuid"
             if ((dry)); then
-                printf '[预览] nmcli '; printf '%q ' "${SI_NM_ARGS[@]}"; printf '\n'
+                printf '[DRY RUN] nmcli '; printf '%q ' "${SI_NM_ARGS[@]}"; printf '\n'
             else
                 if ! nmcli --wait 30 "${SI_NM_ARGS[@]}"; then
-                    _si_err "创建失败：$nic；请检查 UUID=$uuid 是否留下部分配置。"
+                    _si_err "Creation failed: $nic; check UUID=$uuid for partial configuration."
                     failures=$((failures+1)); break
                 fi
-                _si_log "已创建 DHCPv4 profile：safe-dhcp-$nic；UUID=$uuid（可能自动连接）"
+                _si_log "Created DHCPv4 profile: safe-dhcp-$nic; UUID=$uuid (may autoconnect)"
             fi
         else
             target="$(_si_path "$(_si_target "$nic")")"
             data="$(_si_data "$nic" "$secondary" "${SI_MACS[$i]}")" || return 1
             perms=600
             [[ "$SI_BACKEND" != networkd ]] || perms=644
-            if ((dry)); then printf '\n[预览] %s (0%s)：\n%s\n' "$target" "$perms" "$data"
+            if ((dry)); then printf '\n[DRY RUN] %s (0%s):\n%s\n' "$target" "$perms" "$data"
             elif ! _si_write_new "$target" "$data" "$perms"; then failures=$((failures+1)); break
             fi
         fi
         count=$((count+1))
     done
     if ((dry)); then
-        _si_log "预览结束：计划 $count 项；系统配置未改写。"
+        _si_log "Dry run complete: $count changes planned; system configuration unchanged."
     else
-        _si_log "已创建 $count 项；失败 $failures 项；检查不确定 $issues 项。未删除原配置、未全局应用或重启网络。"
+        _si_log "Created $count; failed $failures; uncertain checks $issues. Existing configuration was preserved; no global apply or network restart."
         case "$SI_BACKEND" in
             nm)
                 for nic in "${SI_CANDIDATES[@]}"; do
                     addr="$(ip -4 -o addr show dev "$nic" scope global 2>/dev/null)" || addr=''
-                    if [[ -n "$addr" ]]; then _si_log "$nic 当前 IPv4：$addr"
-                    else _si_warn "$nic 当前尚无 IPv4：配置保存不代表已获得 DHCP 租约。"; fi
+                    if [[ -n "$addr" ]]; then _si_log "$nic current IPv4: $addr"
+                    else _si_warn "$nic has no IPv4 yet: saved configuration does not imply a DHCP lease."; fi
                 done ;;
-            netplan) _si_warn '尚未应用。通过控制台/IPMI 或可靠回滚环境审查后执行 netplan try --timeout 120；它会应用整套 Netplan 配置。' ;;
-            networkd) _si_warn '尚未重载。控制台审查后 networkctl reload，再对新增网卡 networkctl reconfigure 网卡名。reload 也可能应用其他待处理配置。' ;;
-            ifupdown|el-ifcfg) _si_warn '尚未激活。控制台审查后对新增网卡执行 ifup 网卡名。allow-hotplug 不保证插网线时重新发起 DHCP。' ;;
+            netplan) _si_warn 'Not applied yet. Review from a console/IPMI or with reliable rollback, then run netplan try --timeout 120; this applies all Netplan configuration.' ;;
+            networkd) _si_warn 'Not reloaded yet. Review at the console, run networkctl reload, then networkctl reconfigure INTERFACE for each new interface. Reload may also apply other pending configuration.' ;;
+            ifupdown|el-ifcfg) _si_warn 'Not activated yet. Review at the console, then run ifup INTERFACE for each new interface. allow-hotplug does not guarantee a new DHCP request when a cable is connected.' ;;
         esac
-        _si_warn '多网卡同网段的直连路由、ARP、系统自定义 hook/dispatcher 仍可能影响联网；本脚本不能保证绝对不断网。'
+        _si_warn 'Same-subnet routes, ARP, and custom hooks/dispatchers can still affect connectivity; uninterrupted networking cannot be guaranteed.'
     fi
     ((failures==0)) || return 1
     ((issues==0)) || return 3
@@ -922,23 +922,23 @@ set-network()  ( set +e; set +u; set +o pipefail; _si_network "$@"; )
 _si_usage() {
     cat <<'HELP'
 safe-server-init.sh v3.0.0
-目标：EL7-EL10 / Ubuntu20-26 / Debian10-13，现有网络管理器，不切换服务。
-用法：
+Targets: EL7-EL10 / Ubuntu20-26 / Debian10-13; uses the existing network manager without switching services.
+Usage:
   bash safe-server-init.sh hostname NAME [--update-hosts] [--dry-run]
   bash safe-server-init.sh network [--dry-run] [--iface NIC] [--primary NIC]
                                   [--allow-legacy-secondary]
   bash safe-server-init.sh status
   bash safe-server-init.sh --version
 
-hostname：校验、备份、hostnamectl 设置并回读验证。--update-hosts 才同步 hosts。
-network：只给无配置/无 IP 的硬件以太网卡新增 DHCPv4；不是静态 IP 转 DHCP 工具。
-不改已有 DHCP/静态地址、VLAN/Bond/Bridge，不处理 USB/Wi-Fi/SSH 出口。
---primary：仅在没有已配置 IP 或默认路由时，选一个允许接受 DHCP 网关/DNS的接口。
---allow-legacy-secondary：允许 ifupdown/传统 ifcfg 配置次要 DHCP，不能保证路由/DNS隔离。
-NM 新 profile 可能自动激活；Netplan/networkd/ifupdown/ifcfg 仅保存配置。
-未知/复杂/混用配置拒绝猜测；dry-run 会创建并删除验证临时文件，不改系统配置。
-Python >=2.7 标准库用于静态检查（优先 Python3）；Netplan 另需现有 PyYAML。
-退出码：0 成功/无变更，1 运行错误，2 参数错误，3 安全跳过/未完整完成。
+hostname: validate, back up, set with hostnamectl, and verify. Only --update-hosts changes hosts.
+network: add DHCPv4 only to unconfigured hardware Ethernet interfaces without IP addresses; does not convert static IPs.
+Preserves existing DHCP/static addresses, VLAN/Bond/Bridge, USB/Wi-Fi, and SSH egress interfaces.
+--primary: select an interface allowed to accept a DHCP gateway/DNS only when no configured IP/default route exists.
+--allow-legacy-secondary: allow secondary DHCP with ifupdown/legacy ifcfg; route/DNS isolation is not guaranteed.
+New NM profiles may autoconnect; Netplan/networkd/ifupdown/ifcfg only save configuration.
+Unknown/complex/mixed configurations are not guessed; dry-run creates/removes validation files without changing system configuration.
+Static checks require Python >=2.7 (Python3 preferred); Netplan also requires installed PyYAML.
+Exit codes: 0 success/no change, 1 runtime error, 2 invalid arguments, 3 safety skip/incomplete.
 HELP
 }
 
@@ -956,7 +956,7 @@ _si_main() {
             ip -6 route show table all ;;
         -h|--help|help) _si_usage ;;
         --version) printf 'safe-server-init.sh 3.0.0\n' ;;
-        *) _si_err "未知命令：$action"; _si_usage; return 2 ;;
+        *) _si_err "Unknown command: $action"; _si_usage; return 2 ;;
     esac
 }
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then _si_main "$@"; fi

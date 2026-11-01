@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 # Ventoy Center complete manual-install configuration package.
 set -Eeuo pipefail
+# Keep setup and child-tool diagnostics in English without changing the system
+# locale or the locale of the refreshed interactive shell.
+setup_locale_set=${LC_ALL+x}
+setup_user_locale=${LC_ALL-}
+export LC_ALL=C
+restore_user_locale() {
+    if [[ $setup_locale_set == x ]]; then export LC_ALL="$setup_user_locale"; else unset LC_ALL; fi
+}
 umask 077
 if [[ ${1:-} == --version ]]; then echo 'Ventoy setup @SETUP_VERSION@'; exit 0; fi
 if (($# == 0)); then set -- --apply; fi
@@ -89,6 +97,7 @@ case "${1:-}" in
         rm -rf -- "$stage"
         trap - EXIT
         echo 'SETUP_UPGRADE: applying the verified center runner; existing configured account passwords are retained.'
+        restore_user_locale
         exec /bin/bash "$runner" --apply "${upgrade_args[@]}";;
 esac
 bash "$stage/ventoy-manual-setup/install.sh" "$@" || setup_rc=$?
@@ -123,6 +132,7 @@ if (((setup_rc == 0 || setup_rc == 3 || setup_rc == 4) && refresh_prompt)) && [[
         fi
         parent_command=$(ps -o comm= -p "$PPID" | tr -d ' ')
         parent_uid=$(ps -o ruid= -p "$PPID" | tr -d ' ')
+        restore_user_locale
         if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != root &&
                 ( "$parent_command" == sudo || "$parent_uid" == "${SUDO_UID:-}" ) ]]; then
             # A sudo invocation must return to the invoking account, not leave
