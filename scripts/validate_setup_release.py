@@ -49,6 +49,13 @@ class SetupRelease(unittest.TestCase):
                 values=list(st);values[4]=0;return os.stat_result(values)
             return st
         patch=mock.patch.object(self.mod.os,'stat',side_effect=owned);patch.start();self.addCleanup(patch.stop)
+        original_lstat=os.lstat
+        def lowned(path,*args,**kwargs):
+            st=original_lstat(path,*args,**kwargs)
+            if str(path).startswith(str(self.root)):
+                values=list(st);values[4]=0;return os.stat_result(values)
+            return st
+        patch=mock.patch.object(self.mod.os,'lstat',side_effect=lowned);patch.start();self.addCleanup(patch.stop)
 
     def test_check_does_not_download_or_change_file(self):
         self.mod.execute('--check-version',str(self.target))
@@ -61,6 +68,21 @@ class SetupRelease(unittest.TestCase):
         self.assertEqual(backups[0].read_bytes(),b'old runner')
         self.assertEqual(self.target.stat().st_mode&0o777,0o700)
         self.mod.execute('--update-setup',str(self.target));self.assertEqual(len(list(self.root.glob('setup.run.previous-*'))),1)
+
+    def test_current_transferred_runner_repairs_mode_and_stale_checksum(self):
+        self.target.write_bytes(self.data);self.target.chmod(0o600)
+        sidecar=Path(str(self.target)+'.sha256');sidecar.write_text('stale\n');sidecar.chmod(0o600)
+        self.mod.execute('--update-setup',str(self.target))
+        self.assertEqual(self.calls,['setup-release'])
+        self.assertEqual(self.target.stat().st_mode&0o777,0o700)
+        self.assertEqual(sidecar.read_text(),self.manifest['sha256']+'  setup.run\n')
+
+    def test_sidecar_symlink_does_not_overwrite_other_files(self):
+        other=self.root/'unrelated';other.write_bytes(b'preserve')
+        Path(str(self.target)+'.sha256').symlink_to(other)
+        with self.assertRaisesRegex(RuntimeError,'sidecar'):self.mod.execute('--update-setup',str(self.target))
+        self.assertEqual(other.read_bytes(),b'preserve')
+        self.assertEqual(self.target.read_bytes(),b'old runner')
 
     def test_bad_checksum_preserves_original(self):
         self.manifest['sha256']='a'*64
