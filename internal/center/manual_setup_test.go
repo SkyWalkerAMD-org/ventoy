@@ -147,7 +147,7 @@ func TestManualSetupDownload(t *testing.T) {
 		}
 		injection := request(s, "GET", "/api/linux-manual-setup?format=injection", s.admin, nil)
 		mustCode(t, injection, http.StatusOK)
-		want, err := manualPreloadInjection(run.Body.Bytes())
+		want, err := manualPreloadInjection(run.Body.Bytes(), s.supportSettings())
 		if err != nil || !bytes.Equal(want, injection.Body.Bytes()) {
 			t.Fatal("preload download differs from verified package", err)
 		}

@@ -1,5 +1,15 @@
 # 开发记录
 
+## 0.3.0-alpha.51 — 2026-11-01
+
+- Make setup's network/hostname helper and bundled guide
+  English throughout. Run launcher diagnostics in the C locale while retaining
+  the caller's locale for the refreshed interactive shell.
+- Keep the E610 offline package and driver installers unchanged; their update
+  is deferred until the new E610 release is available.
+- Publish the same runner for center downloads/tools and all Linux manual/PXE
+  preloads. Installed nodes can use `--upgrade` to adopt it without reinstalling.
+
 ## 0.3.0-alpha.50 — 2026-11-01
 
 - setup 新增 `--upgrade`：从已信任的中心校验下载、备份并原子替换，然后执行新版完整配置。保留 `--update-setup` 只下载行为，下载失败不执行旧包。

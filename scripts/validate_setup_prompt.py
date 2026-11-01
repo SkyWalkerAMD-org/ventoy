@@ -37,9 +37,10 @@ with tempfile.TemporaryDirectory(prefix='vc-prompt-') as folder:
         p.chmod(0o755)
     # A real interactive Bash reads this file. Its marker proves the launcher
     # actually entered a fresh shell; exiting prevents a CI prompt from hanging.
-    (root / 'home/.bashrc').write_text('printf "FRESH_BASH cwd=%s\\n" "$PWD"\nexit 0\n')
+    (root / 'home/.bashrc').write_text('printf "FRESH_BASH cwd=%s\\n" "$PWD"\nprintf "USER_LOCALE=%s\\n" "$LC_ALL"\nexit 0\n')
     payload = b'''#!/bin/bash
 set -eu
+[ "$LC_ALL" = C ] || { echo SETUP_LOCALE_NOT_ENGLISH; exit 1; }
 if [ "${FIXTURE_RENAME:-1}" = 1 ]; then printf 'new-host\n' > "$FIXTURE_HOSTNAME"; fi
 echo SETUP_PAYLOAD_DONE
 exit "${FIXTURE_RC:-0}"
@@ -59,6 +60,7 @@ exit "${FIXTURE_RC:-0}"
     def run(args=(), rename=True, rc=0, terminal=True, sudo=False, stale_sudo=False, password_rc=0):
         (root / 'hostname').write_text('old-host\n')
         env = dict(os.environ, HOME=str(root / 'home'), PATH=str(root / 'bin') + ':' + os.environ['PATH'],
+                   LC_ALL='POSIX', LANGUAGE='zh_CN',
                    FIXTURE_HOSTNAME=str(root / 'hostname'), FIXTURE_RENAME=str(int(rename)), FIXTURE_RC=str(rc), FIXTURE_SUDO=str(int(sudo)),
                    FIXTURE_PASSWORD_RC=str(password_rc))
         for key in ('SUDO_USER', 'SUDO_UID', 'BASH_ENV', 'ENV'):
@@ -98,6 +100,7 @@ exit "${FIXTURE_RC:-0}"
         return os.waitstatus_to_exitcode(status), output.decode(errors='replace')
 
     code, out = run()
+    assert 'USER_LOCALE=POSIX' in out and 'SETUP_LOCALE_NOT_ENGLISH' not in out, out
     assert code == 0 and 'PASSWORD_DIALOG' in out and 'HOSTNAME_VERIFIED: new-host' in out and 'FRESH_BASH cwd=' + str(root) in out, out
     for options in ({'rename': False}, {'terminal': False}, {'args': ['--check']},
                     {'args': ['--resume']}, {'args': ['--software']}, {'rc': 17},
