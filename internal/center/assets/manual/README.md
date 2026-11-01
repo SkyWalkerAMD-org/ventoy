@@ -6,6 +6,16 @@ Setup configures the existing system; it does not repartition disks or reinstall
 Setup prompts, diagnostics, help, and the network/hostname helper use English.
 The E610 offline bundle and its vendor installer messages are retained unchanged.
 
+Packages older than alpha.49 do not recognize upgrade options. Obtain
+`ventoy-setup-upgrade.sh` from the center tools directory, place it beside the
+old runner, and run `bash ventoy-setup-upgrade.sh` once as root. It verifies the
+center with the old package's HTTPS trust, backs up and replaces the runner,
+repairs executable permission and its checksum file, then applies current setup
+while retaining existing passwords. Use `--update-setup` for download only.
+After this one-time migration, use `./ventoy-linux-setup.run --upgrade` normally.
+If a file transfer removed executable permission, invoke the updater with
+`bash ventoy-linux-setup.run --upgrade`; current setup repairs the permission.
+
 ## Run setup
 
 Both manual and PXE automatic installations preload `/root/ventoy-linux-setup.run`.

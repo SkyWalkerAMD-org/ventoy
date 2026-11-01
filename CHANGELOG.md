@@ -1,5 +1,18 @@
 # 开发记录
 
+## 0.3.0-alpha.52 — 2026-11-01
+
+- Add a standalone, English `ventoy-setup-upgrade.sh` bridge for packages such
+  as alpha.47 that cannot parse upgrade options. Reuse the old package's HTTPS
+  trust without executing its installer, verify and back up the runner, then
+  apply the new setup while retaining existing passwords.
+- Repair executable permission even for an already-current runner saved as
+  0600 by file transfer. Refresh its SHA-256 sidecar; reject unsafe sidecars.
+- Document the one-time legacy migration separately from normal `--upgrade`.
+  The helper is distributed through tools; E610 offline content stays unchanged.
+- Validate a real alpha.47 to alpha.51 migration on the Ubuntu 24.04.3 node,
+  including full setup, retained hostname/passwords/kernel, and no reboot.
+
 ## 0.3.0-alpha.51 — 2026-11-01
 
 - Make setup's network/hostname helper and bundled guide

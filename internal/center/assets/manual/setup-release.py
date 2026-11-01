@@ -10,6 +10,29 @@ import tempfile
 from software import Client, HERE
 
 
+def checksum_target(destination):
+    path = destination + '.sha256'
+    if os.path.lexists(path):
+        info = os.lstat(path)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+            raise RuntimeError('Unsafe setup checksum sidecar')
+    return path
+
+
+def save_checksum(destination, digest):
+    path = checksum_target(destination)
+    fd, temporary = tempfile.mkstemp(prefix='.ventoy-checksum-', dir=os.path.dirname(destination))
+    try:
+        with os.fdopen(fd, 'wb') as f:
+            f.write(('%s  %s\n' % (digest, os.path.basename(destination))).encode('utf-8'))
+            f.flush()
+            os.fsync(f.fileno())
+        os.rename(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
 def execute(action, destination):
     if action not in ('--check-version', '--update-setup'):
         raise ValueError('Unknown setup release action')
@@ -46,12 +69,17 @@ def execute(action, destination):
     before = os.stat(destination)
     if not stat.S_ISREG(before.st_mode) or before.st_uid != 0 or before.st_mode & 0o022:
         raise RuntimeError('Setup file must be root-owned and not writable by other users')
+    checksum_target(destination)
     with open(destination, 'rb') as f:
         original = f.read(64*1024*1024+1)
     if len(original) > 64*1024*1024:
         raise RuntimeError('Original runner exceeds size limit')
     if hashlib.sha256(original).hexdigest() == release['sha256']:
-        print('SETUP_CURRENT: this file already matches the center')
+        # File-transfer clients commonly save a runner as 0600. Invoking it
+        # through bash must repair direct ./ execution even without a download.
+        os.chmod(destination, 0o700)
+        save_checksum(destination, release['sha256'])
+        print('SETUP_CURRENT: this file already matches the center; executable permission and checksum verified')
         return
     fd, temporary = tempfile.mkstemp(prefix='.ventoy-setup-', dir=os.path.dirname(destination))
     try:
@@ -96,6 +124,7 @@ def execute(action, destination):
                     raise RuntimeError('Previous-runner backup differs from original')
         os.chmod(temporary, 0o700)
         os.rename(temporary, destination)
+        save_checksum(destination, release['sha256'])
         print('SETUP_UPDATED: %s; previous copy %s; run setup again when ready.' % (release['version'], backup))
     finally:
         if os.path.exists(temporary):

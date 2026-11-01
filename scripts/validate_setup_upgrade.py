@@ -28,13 +28,15 @@ def bundle(version):
     # Only the root ownership check is modeled for unprivileged CI fixtures.
     updater = (ASSETS / 'manual/setup-release.py').read_text().replace(
         'from software import Client, HERE', '''from software import Client, HERE
-_real_stat = os.stat
-def _fixture_stat(path, *args, **kwargs):
-    st = _real_stat(path, *args, **kwargs)
-    if str(path).startswith(os.environ['UPGRADE_FIXTURE'] + '/'):
-        values = list(st); values[4] = 0; return os.stat_result(values)
-    return st
-os.stat = _fixture_stat''')
+def _fixture_owned(original):
+    def owned(path, *args, **kwargs):
+        st = original(path, *args, **kwargs)
+        if str(path).startswith(os.environ['UPGRADE_FIXTURE'] + '/'):
+            values = list(st); values[4] = 0; return os.stat_result(values)
+        return st
+    return owned
+os.stat = _fixture_owned(os.stat)
+os.lstat = _fixture_owned(os.lstat)''')
     files = {
         'VERSION': version + '\n',
         'software-client.json': '{"enabled":true}',
