@@ -12,10 +12,28 @@ if [[ ${1:---help} == --help || ${1:-} == -h ]]; then
     echo '--apply remains a compatible alias; --offline skips software downloads.'
     echo 'Software only: sudo ./ventoy-linux-setup.run --software'
     echo 'Inspect/verify: --check / --list-software / --check-software'
-    echo 'Runner version: --version / --check-version. Verified replacement only: --update-setup (rerun afterward).'
+    echo 'Upgrade and apply current center setup: --upgrade [--hostname NAME] [--keep-passwords]'
+    echo 'Runner version: --version / --check-version. Download only: --update-setup (rerun afterward).'
     exit 0
 fi
 [[ $EUID == 0 ]] || { echo 'Run with root or sudo.' >&2; exit 1; }
+# Validate upgrade options before contacting the center. Offline/check modes
+# must never silently turn into an online full setup.
+upgrade_args=()
+if [[ ${1:-} == --upgrade ]]; then
+    shift
+    while (($#)); do
+        case "$1" in
+            --hostname)
+                (($# >= 2)) && [[ -n $2 && $2 != -* ]] || { echo '--hostname requires a name.' >&2; exit 2; }
+                upgrade_args+=(--hostname "$2"); shift;;
+            --keep-passwords) upgrade_args+=(--keep-passwords);;
+            *) echo "Unsupported upgrade option: $1 (use --update-setup for download only)." >&2; exit 2;;
+        esac
+        shift
+    done
+    set -- --upgrade
+fi
 hostname_before=$(hostname)
 refresh_prompt=1
 case "${1:-}" in --check|--resume|--software|--list-software|--check-software) refresh_prompt=0;; esac
@@ -58,8 +76,20 @@ setup_rc=0
 echo 'Ventoy setup @SETUP_VERSION@'
 case "${1:-}" in
     --check-version|--update-setup)
+        (($# == 1)) || { echo 'This action takes no additional arguments.' >&2; exit 2; }
         "$python" "$stage/ventoy-manual-setup/setup-release.py" "$1" "$0"
         exit $?;;
+    --upgrade)
+        # The updater validates HTTPS trust, length, checksum and destination,
+        # retaining the previous runner. A failed download must never apply the
+        # old payload. Exec the new file even if it was already downloaded: its
+        # configuration/services may not yet have been applied on this node.
+        "$python" "$stage/ventoy-manual-setup/setup-release.py" --update-setup "$0"
+        runner=$(readlink -f -- "$0")
+        rm -rf -- "$stage"
+        trap - EXIT
+        echo 'SETUP_UPGRADE: applying the verified center runner; existing configured account passwords are retained.'
+        exec /bin/bash "$runner" --apply "${upgrade_args[@]}";;
 esac
 bash "$stage/ventoy-manual-setup/install.sh" "$@" || setup_rc=$?
 if (( (setup_rc == 0 || setup_rc == 3 || setup_rc == 4) && refresh_prompt)) && [[ -t 0 && -t 1 && -t 2 ]]; then

@@ -1,6 +1,6 @@
 # 普通 ISO 手动安装后的完整配置
 
-当前操作见[日常装机与发布维护](../operations.md)。alpha.41 起采用发行版目录的共享 ISO 入口，手动/自动共用启动注入包；不要用旧的纯手动注入包覆盖当前绑定。alpha.49 起可用 `--version`、`--check-version` 查询版本，用 `--update-setup` 校验并替换自身，再由用户重新执行。
+当前操作见[日常装机与发布维护](../operations.md)。alpha.41 起采用发行版目录的共享 ISO 入口，手动/自动共用启动注入包；不要用旧的纯手动注入包覆盖当前绑定。alpha.50 起 `--upgrade` 校验、备份并替换自身，随后应用新版配置和软件；已配置节点保留密码、主机名和既有网络。alpha.49 旧文件先运行 `--update-setup`，再直接运行新版即可；`--version`、`--check-version` 可查询版本。
 
 alpha.31 将包含[安装后软件分发](node-software.md)的新 setup 统一预置到普通手动安装和 PXE 自动安装结果。无参数运行 `/root/ventoy-linux-setup.run` 即应用完整配置、安装匹配的软件组并自动检查；`--apply` 保留兼容，`--software` 仅安装或升级软件。后续中心替换 RPM / DEB 不需要更换 setup。
 

@@ -1,4 +1,4 @@
-# 日常装机与发布维护（alpha.49）
+# 日常装机与发布维护（alpha.50）
 
 本文说明当前操作。旧测试记录中的 `ventoy-center/PXE-Auto` 是历史入口；现在从发行版目录选择同一个 ISO，再选择手动或自动安装脚本。
 
@@ -12,16 +12,24 @@
 
 setup 的各阶段有 `SETUP_STAGE` 标记。退出 0 表示本次请求完成；3 表示 DHCP/驱动/固件仍待处理；4 表示软件步骤失败，不能因为 RPM 数据库里有包记录就视为成功。详细日志在 `/var/log/ventoy-manual-init.log`，软件结果在 `/var/lib/ventoy-center/software/last-result.json`。`--check` 不重新安装，`--software` 单独重试软件。
 
-已有系统无需重装即可检查、替换 setup（alpha.49 起提供）：
+已有系统无需重装即可升级 setup 并应用新增功能。alpha.50 起执行：
 
 ```bash
 ./ventoy-linux-setup.run --version
 ./ventoy-linux-setup.run --check-version
+./ventoy-linux-setup.run --upgrade
+```
+
+`--upgrade` 使用原包中的中心 HTTPS 信任和软件读取凭据，验证长度及 SHA-256，保留 `.previous-摘要` 旧文件后原子替换，然后运行新版完整配置和检查。即使文件已是最新版，也会应用尚未执行的新配置、同步 tools、安装或升级匹配软件。下载失败停止，不用旧包继续冒充升级成功。已完成过 setup 的账户密码、现有主机名和已配置网络会保留；仍可在提示中主动改主机名或 root 密码。内核保持锁定，P95 仍是独立脚本，不自动执行。
+
+alpha.49 的旧文件第一次升级使用下面两步；更早且没有更新入口的版本需先从管理端下载新版一次：
+
+```bash
 ./ventoy-linux-setup.run --update-setup
 ./ventoy-linux-setup.run
 ```
 
-替换使用原包中的中心 HTTPS 信任和软件读取凭据，验证长度及 SHA-256，备份旧文件后原子替换。下载后不会自动执行。更早版本需先从管理端下载新版一次。此更新不创建后台自动升级任务，也不自动更新 Linux 内核。
+`--update-setup` 保持“只下载替换、不执行”；`--check-version` 分别显示当前文件、中心版本及上次通过系统配置检查的版本。新版按内容摘要迁移旧配置和服务，修复旧 `configured` 标记跳过新策略的问题；失败保留重试条件，正常重启不反复迁移同一版本。不创建后台自动升级任务，不要求重装或自动重启。退出 3/4 的待办或失败须继续处理，下载完成不等于所有功能验收通过。
 
 ## 版本发布与回退
 

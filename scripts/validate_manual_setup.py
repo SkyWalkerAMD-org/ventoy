@@ -204,6 +204,8 @@ sleep() { :; }
     for pending, mode, offline, request, software_rc, expected_rc, calls, request_after in scenarios:
         with tempfile.TemporaryDirectory(prefix='manual-software-regression-') as temp:
             state = Path(temp)
+            (state / 'VERSION').write_text('fixture\n')
+            (state / 'configuration-release').write_text('fixture\n')
             request_file = state / 'software-request'
             if request is not None:
                 request_file.write_text(request + '\n')
@@ -219,6 +221,7 @@ software_action() {
 }
 '''
             code = mocks + '\nstate=' + shlex.quote(temp)
+            code += '\nhere="$state"\nconfiguration_release=fixture\n'
             code += '\npending=%d\nmode=%s\noffline=%d\nfixture_software_rc=%d\n' % (pending, mode, offline, software_rc)
             code += completion
             result = subprocess.run(['bash', '-c', code], capture_output=True, text=True)

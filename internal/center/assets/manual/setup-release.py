@@ -31,8 +31,14 @@ def execute(action, destination):
     with open(os.path.join(HERE, 'VERSION')) as f:
         current = f.read().strip()
     print('SETUP_VERSION: local=%s center=%s' % (current, release['version']))
+    applied = '/var/lib/ventoy-center/manual-init/applied-version'
+    if os.path.isfile(applied):
+        with open(applied) as f:
+            print('SETUP_APPLIED_VERSION: %s (last checked system configuration)' % f.read(128).strip())
+    else:
+        print('SETUP_APPLIED_VERSION: not recorded; downloading alone does not apply configuration')
     if action == '--check-version':
-        print('Use --update-setup to download, verify and replace this runner. No automatic execution.')
+        print('Use --upgrade to update and apply; --update-setup downloads only, without execution.')
         return
     destination = os.path.abspath(destination)
     if os.path.realpath(destination) != destination:

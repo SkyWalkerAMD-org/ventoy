@@ -120,6 +120,11 @@ choose_hostname() {
 }
 if [[ $mode == --apply ]]; then
     (cd "$here" && sha256sum --status -c SHA256SUMS) || die 'Package integrity check failed.'
+    # An existing setup owns account policy, not the administrator's current
+    # passwords. Upgrades/retries must not reset them or try stale defaults.
+    if [[ -f "$state/accounts-set" && $(cat "$state/accounts-set") == user ]]; then
+        keep_passwords=1
+    fi
     # Load only helper functions; hostname validation does not change the host.
     source "$here/safe-server-init.sh"
     choose_hostname
@@ -164,6 +169,11 @@ if [[ $mode == --apply ]]; then
 fi
 [[ -f "$state/offline" && -f "$state/keep-passwords" ]] || die 'Run setup without arguments (or with --apply) first.'
 offline=$(cat "$state/offline"); keep_passwords=$(cat "$state/keep-passwords")
+# Old runners can have a configured marker but no versioned migration state.
+# The content digest also handles rebuilds with changed embedded policy/config.
+(cd "$here" && sha256sum --status -c SHA256SUMS) || die 'Stored package integrity check failed.'
+configuration_release=$(sha256sum "$here/SHA256SUMS" | cut -d' ' -f1)
+if [[ -f "$state/accounts-set" && $(cat "$state/accounts-set") == user ]]; then keep_passwords=1; fi
 export VC_MANUAL_OFFLINE=$offline
 exec > >(tee -a /var/log/ventoy-manual-init.log) 2>&1
 printf '\n[%s] mode=%s os=%s/%s kernel=%s\n' "$(date -Is)" "$mode" "$ID" "$VERSION_ID" "$(uname -r)"
@@ -214,7 +224,10 @@ if [[ $mode == --resume ]]; then
     if [[ -d /etc/cloud/cloud.cfg.d ]]; then
         printf 'preserve_hostname: true\n' > /etc/cloud/cloud.cfg.d/99-ventoy-manual-hostname.cfg
     fi
-    if [[ ! -e "$state/configured" || ! -f "$state/accounts-set" || $(cat "$state/accounts-set") != user ]]; then
+    if [[ ! -e "$state/configured" || ! -f "$state/accounts-set" || $(cat "$state/accounts-set") != user ||
+          ! -f "$state/configuration-release" || $(cat "$state/configuration-release") != "$configuration_release" ]]; then
+        setup_stage 'new setup configuration migration'
+        printf 'SETUP_MIGRATION: applying configuration from %s\n' "$(cat "$here/VERSION")"
         if ! command -v python3 >/dev/null && ! command -v python >/dev/null && [[ ! -x /usr/libexec/platform-python ]]; then
             [[ $offline == 0 ]] || die 'Python is required for safe network parsing; install it from the OS media.'
             if [[ $family == apt ]]; then
@@ -262,6 +275,16 @@ case "$rc" in 0) ;; 3) pending=1;; *) die "Network verification failed (exit $rc
 rc=0; bash "$here/e610-driver.sh" --check "$here/e610" || rc=$?
 case "$rc" in 0) ;; 3) pending=1;; *) die "E610 verification failed (exit $rc).";; esac
 [[ $(systemctl get-default) == multi-user.target ]] || die 'CLI boot target verification failed.'
+if [[ $mode == --resume ]]; then
+    # Record only after the new policy passed its checks. A failed migration
+    # must retry even though an older release left the configured flag behind.
+    printf '%s\n' "$configuration_release" > "$state/configuration-release.new"
+    mv -f "$state/configuration-release.new" "$state/configuration-release"
+    install -m 0600 "$here/VERSION" "$state/applied-version"
+    printf 'SETUP_APPLIED_VERSION: %s (system configuration checked; software/pending status follows)\n' "$(cat "$here/VERSION")"
+elif [[ ! -f "$state/configuration-release" || $(cat "$state/configuration-release") != "$configuration_release" ]]; then
+    die 'This setup version has not been applied. Run full setup or --upgrade first.'
+fi
 if [[ $mode == --resume && $offline == 0 && -f "$state/software-request" && $(cat "$state/software-request") == 1 ]]; then
     # Only a user invocation of full setup creates this request. Normal subsequent
     # boots never fetch newly published software or upgrade existing packages.
