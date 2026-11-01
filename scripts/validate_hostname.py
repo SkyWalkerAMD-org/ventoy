@@ -32,6 +32,7 @@ with tempfile.TemporaryDirectory(prefix='ventoy-hostname-') as temp:
     for path in (state, here, etc / 'cloud/cloud.cfg.d'):
         path.mkdir(parents=True, exist_ok=True)
     (etc / 'machine-id').write_text('abcdef0123456789abcdef0123456789\n')
+    (here / 'VERSION').write_text('fixture\n')
     # Only hostnamectl's side effect is simulated. The production transaction,
     # request creation and check run unchanged, including their error handling.
     (here / 'safe-server-init.sh').write_text('''#!/bin/bash
@@ -141,6 +142,7 @@ hostname() { cat "$scratch/runtime"; }
     assert source.index('    # The current persistent hostname') < source.index(check) < source.index(completion)
     enrollment = '''
 pending=0; mode=--resume; offline=0
+configuration_release=fixture
 systemctl() { echo multi-user.target; }
 software_action() {
     [[ $(hostname) == "$fixture_expected" && $(cat /etc/hostname) == "$fixture_expected" ]]
