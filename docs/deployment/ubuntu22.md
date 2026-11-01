@@ -57,7 +57,7 @@
 
 安装配置还设置 Curtin `grub.reorder_uefi: false`，避免把当前 PXE 入口重新移到首位；`remove_duplicate_entries: false` 保留现有 EFI 入口，参见 [Curtin GRUB 配置](https://curtin.readthedocs.io/en/latest/topics/config.html#grub)。原始 Subiquity 23.08.1 在 guided layout 分支会忽略 `storage.grub`，因此 22.04 模板在身份和存储检查通过后，将占位布局改为仅包含已核实磁盘的显式 GPT 分区配置：UEFI 使用 1 GiB EFI 分区和 ext4 根分区，BIOS 使用 1 MiB BIOS 引导分区和 ext4 根分区。配置改写不写磁盘，安装仍需随后成功领取单次授权。旧任务的安装包不会自动改写；应创建新任务进行回归。
 
-已通过模板解析、Linux 下的脚本正反向检查，以及原始 Subiquity 23.08.1 文件系统模型的 UEFI / BIOS 配置检查：目标盘、分区大小、启动配置及传给 Curtin 的 GRUB 选项符合预期，保留盘不在写入配置中。随后 UEFI 实机验证了无需安装确认、装完自动硬盘启动和第二次正常重启。验收代码的 [CI 38709558965](https://github.com/SkyWalkerAMD-org/ventoy/actions/runs/38709558965) 全部 10 项通过。
+已通过模板解析、Linux 下的脚本正反向检查，以及原始 Subiquity 23.08.1 文件系统模型的 UEFI / BIOS 配置检查：目标盘、分区大小、启动配置及传给 Curtin 的 GRUB 选项符合预期，保留盘不在写入配置中。随后 UEFI 实机验证了无需安装确认、装完自动硬盘启动和第二次正常重启。验收代码的 [CI 38709558965](https://github.com/SkyWalkerAMD/ventoy/actions/runs/38709558965) 全部 10 项通过。
 
 ## 验收边界
 

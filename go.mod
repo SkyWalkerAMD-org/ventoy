@@ -1,3 +1,3 @@
-module github.com/SkyWalkerAMD-org/ventoy
+module github.com/SkyWalkerAMD/ventoy
 
 go 1.25.0
