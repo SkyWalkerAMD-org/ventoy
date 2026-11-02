@@ -3,6 +3,7 @@ import argparse
 import importlib.util
 import json
 import os
+import shlex
 from pathlib import Path
 import subprocess
 import sys
@@ -155,6 +156,52 @@ def transactions():
                     assert all(p.read_bytes() == old for p, old in before.items()), scenario
                     assert not mod.HELPER.exists(), scenario
     print('PASS: optional user login, preflight denial, unchanged passwords, repeated restore, rollback and persisted policy')
+
+    # Exercise the real dispatch used by migrations, --check and boot --resume.
+    # Stop at the old root-enabled branch so a failed guard cannot touch the host.
+    ssh_source = (ROOT / 'internal/center/assets/manual/manual-ssh.sh').read_text()
+    dispatch = ssh_source.split('if [[ $mode == --apply ]]; then', 1)[0]
+    with tempfile.TemporaryDirectory(prefix='vc-login-dispatch-') as temp:
+        folder = Path(temp)
+        (folder / 'bin').mkdir()
+        helper = folder / 'bin/python3'
+        helper.write_text('#!/bin/sh\n[ "$*" = "$FIXTURE/login-mode.py --check" ] || exit 99\necho SAVED_USER_POLICY_CHECKED\n')
+        helper.chmod(0o755)
+        source = dispatch.replace('export PATH=/usr/sbin:/usr/bin:/sbin:/bin', 'export PATH=' + shlex.quote(str(folder / 'bin')) + ':/usr/sbin:/usr/bin:/sbin:/bin')
+        source = source.replace('state=/var/lib/ventoy-center/manual-init', 'state=' + shlex.quote(temp))
+        source = source.replace('. /etc/os-release', '. ' + shlex.quote(str(folder / 'os-release')))
+        script = folder / 'manual-ssh.sh'
+        script.write_text(source + '\necho DEFAULT_ROOT_POLICY\n')
+        for os_id, marker, action in [('ubuntu', True, '--apply'), ('debian', True, '--check'),
+                                      ('ubuntu', True, '--check'), ('debian', True, '--apply'),
+                                      ('debian', False, '--apply'), ('rocky', True, '--apply')]:
+            (folder / 'os-release').write_text('ID=' + os_id + '\n')
+            policy = folder / 'login-policy.json'
+            if marker:
+                policy.write_text('{"schema":1,"mode":"user-sudo","user":"user"}')
+            elif policy.exists():
+                policy.unlink()
+            result = subprocess.run(['bash', str(script), action, '0'], capture_output=True, text=True,
+                                    env=dict(os.environ, FIXTURE=temp), timeout=10)
+            expected = 'SAVED_USER_POLICY_CHECKED' if marker and os_id in ('ubuntu', 'debian') else 'DEFAULT_ROOT_POLICY'
+            assert result.returncode == 0 and result.stdout.strip() == expected, result
+        # A root permission for only a remote address must not evade localhost
+        # checks; follow Includes and reject it before changing any login state.
+        mod = load()
+        included = folder / 'remote.conf'
+        config = folder / 'sshd_config'
+        config.write_text('PermitRootLogin no\nInclude ' + str(included) + '\n')
+        for text, allowed in [('PermitRootLogin yes\n', True),
+                              ('Match Address 192.0.2.0/24\n PermitRootLogin yes\n', False),
+                              ('Match User root\n PermitRootLogin no\n', True)]:
+            included.write_text(text)
+            try:
+                mod.check_match_overrides(config)
+            except mod.PolicyError:
+                assert not allowed
+            else:
+                assert allowed
+    print('PASS: setup/migration/check dispatch preserves user-only choice; new installs and RPM defaults unchanged; remote Match overrides rejected')
 
 
 def native():
