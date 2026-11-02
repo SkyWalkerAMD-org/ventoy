@@ -19,6 +19,30 @@ If a file transfer removed executable permission, invoke the updater with
 ## Run setup
 
 Both manual and PXE automatic installations preload `/root/ventoy-linux-setup.run`.
+
+Optional Ubuntu/Debian ordinary-user login:
+
+```sh
+sudo /root/ventoy-linux-setup.run --restore-user-login
+# For a different existing administrator account:
+sudo /root/ventoy-linux-setup.run --restore-user-login --login-user alice
+sudo /root/ventoy-linux-setup.run --check-login
+```
+
+This action asks for the selected user's current password (hidden), verifies an
+actual local SSH login and sudo access, then disables root SSH and locks root's
+console password. The default selected account is `user`. It does not reset any
+password, create an account, install software or terminate current sessions.
+The ordinary user must already exist with working SSH and sudo; failed checks
+leave the login policy unchanged, and failures during the change roll it back.
+Open a new ordinary-user session before closing your current session. Use
+`sudo -i` after login for root access; BMC web credentials are independent.
+
+This is opt-in. New installations still enable direct root login as before.
+The saved user/sudo choice survives setup, `--upgrade` and boot recovery; in this
+mode the root-password dialog is skipped so it cannot unlock root accidentally.
+`--check-login` checks configuration and account state, without prompting or
+claiming a fresh password-login test. Full setup still applies all other policies.
 Run as root, or with sudo:
 
 ```bash

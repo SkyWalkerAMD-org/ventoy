@@ -1,5 +1,18 @@
 # 普通 ISO 手动安装后的完整配置
 
+alpha.56 新增 Ubuntu/Debian 可选的普通用户登录恢复功能：
+
+```bash
+sudo /root/ventoy-linux-setup.run --restore-user-login
+# 手动安装使用其他管理员名称时，指定已存在的账户：
+sudo /root/ventoy-linux-setup.run --restore-user-login --login-user alice
+sudo /root/ventoy-linux-setup.run --check-login
+```
+
+默认选择 `user`，提示隐藏输入该用户的当前密码，实际验证 SSH 登录及 sudo 后，才关闭 root SSH 直登并锁定 root 控制台密码登录。普通用户密码不变，登录后使用 `sudo -i` 提权；原有会话保留。缺少可用普通账户或验证不通过时停止；切换过程中失败会回退并报告结果。备份位于 `/var/lib/ventoy-center/manual-init/login-backup.*`，不保存明文密码。
+
+这是手动选择的恢复功能，**新装系统默认允许 root 直登的行为不变**。恢复后，完整 setup、升级和开机恢复均保留普通用户模式，不再弹出 root 改密提示。`--check-login` 只检查当前配置及账户状态，不宣称重新验证了密码登录。此选项不改变软件、网络、内核锁定、自动更新策略或带外网页账户。
+
 当前操作见[日常装机与发布维护](../operations.md)。alpha.41 起采用发行版目录的共享 ISO 入口，手动/自动共用启动注入包；不要用旧的纯手动注入包覆盖当前绑定。alpha.50 起 `--upgrade` 校验、备份并替换自身，随后应用新版配置和软件；已配置节点保留密码、主机名和既有网络。alpha.49 旧文件先运行 `--update-setup`，再直接运行新版即可；`--version`、`--check-version` 可查询版本。
 
 alpha.31 将包含[安装后软件分发](node-software.md)的新 setup 统一预置到普通手动安装和 PXE 自动安装结果。无参数运行 `/root/ventoy-linux-setup.run` 即应用完整配置、安装匹配的软件组并自动检查；`--apply` 保留兼容，`--software` 仅安装或升级软件。后续中心替换 RPM / DEB 不需要更换 setup。

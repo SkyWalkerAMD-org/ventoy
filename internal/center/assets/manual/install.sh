@@ -7,22 +7,23 @@ here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 state=/var/lib/ventoy-center/manual-init
 mode=--apply
 case "${1:-}" in
-    --apply|--resume|--check|--software|--list-software|--check-software|--help|-h)
+    --apply|--resume|--check|--software|--list-software|--check-software|--restore-user-login|--check-login|--help|-h)
         mode=$1; shift;;
 esac
-name=; offline=0; keep_passwords=0
+name=; offline=0; keep_passwords=0; login_user=
 die() { echo "Manual setup: $*" >&2; exit 1; }
 while (($#)); do
     case "$1" in
         --hostname) (($# >= 2)) || exit 2; name=$2; shift;;
         --offline) offline=1;;
         --keep-passwords) keep_passwords=1;;
+        --login-user) (($# >= 2)) && [[ -n $2 && $2 != -* ]] || exit 2; login_user=$2; shift;;
         *) die "Unknown argument: $1";;
     esac
     shift
 done
 case "$mode" in
-    --apply|--resume|--check|--software|--list-software|--check-software) ;;
+    --apply|--resume|--check|--software|--list-software|--check-software|--restore-user-login|--check-login) ;;
     --help|-h)
         cat <<'HELP'
 sudo ./ventoy-linux-setup.run [--hostname NAME] [--offline] [--keep-passwords]
@@ -31,6 +32,8 @@ sudo bash /opt/ventoy-manual/current/install.sh --check
 sudo bash ventoy-linux-setup.run --software
 sudo bash ventoy-linux-setup.run --list-software
 sudo bash ventoy-linux-setup.run --check-software
+sudo bash ventoy-linux-setup.run --restore-user-login [--login-user user]
+sudo bash ventoy-linux-setup.run --check-login
 
 Installs E610 support when required; enables root/user SSH password login;
 configures unconfigured wired NICs for DHCP and activates new profiles;
@@ -56,10 +59,20 @@ Missing packages may be installed, but no system/kernel upgrade is performed.
 the installed service resumes setup and verifies it on subsequent boots.
 Exit 0 = verified, 1 = failed, 2 = invalid arguments, 3 = pending/reboot required.
 Exit 4 = system checks completed, but software installation/verification failed.
+Optional Ubuntu/Debian action --restore-user-login verifies an existing user's
+password SSH login and sudo, then disables root SSH and console password login.
+It changes no passwords or software. Future setup/upgrade runs retain this choice.
+New installations still allow direct root login by default. --check-login is read-only.
 HELP
         exit 0;;
     *) exit 2;;
 esac
+if [[ -n $login_user && $mode != --restore-user-login ]]; then
+    die '--login-user requires --restore-user-login.'
+fi
+if [[ $mode == --restore-user-login || $mode == --check-login ]]; then
+    [[ -z $name && $offline == 0 && $keep_passwords == 0 ]] || die 'Login actions cannot be combined with full-setup options.'
+fi
 if [[ -n "$name" && $mode != --apply ]]; then
     echo '--hostname requires full setup; run setup --hostname NAME before software-only enrollment.' >&2
     exit 2
@@ -77,6 +90,19 @@ esac
 mkdir -p "$state"
 exec 7>"$state/lock"
 flock -n 7 || die 'Another setup/check is running.'
+case "$mode" in
+    --restore-user-login|--check-login)
+        [[ $family == apt ]] || die 'This optional login mode is only for Ubuntu and Debian.'
+        (cd "$here" && sha256sum --status -c SHA256SUMS) || die 'Package integrity check failed.'
+        command -v python3 >/dev/null || die 'Python 3 is required for this login action.'
+        login_args=(--check)
+        if [[ $mode == --restore-user-login ]]; then
+            login_args=(--restore-user-login)
+            [[ -z $login_user ]] || login_args+=(--login-user "$login_user")
+        fi
+        flock -u 7
+        exec python3 "$here/login-mode.py" "${login_args[@]}";;
+esac
 software_action() {
     local python= candidate
     for candidate in python3 /usr/libexec/platform-python python2 python; do

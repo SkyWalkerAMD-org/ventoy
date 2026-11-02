@@ -7,6 +7,12 @@ state=/var/lib/ventoy-center/manual-init
 die() { echo "SSH: $*" >&2; exit 1; }
 . /etc/os-release
 case "$ID" in ubuntu|debian) family=apt; service=ssh;; *) family=rpm; service=sshd;; esac
+# An explicit user-only choice survives full setup, migration, --check and boot
+# recovery. Never recreate passwords or prepend root=yes in this mode.
+if [[ $family == apt && ( -e "$state/login-policy.json" || -L "$state/login-policy.json" ) ]]; then
+    here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+    exec python3 "$here/login-mode.py" --check
+fi
 if [[ $mode == --apply ]]; then
     if ! command -v sshd >/dev/null || ! command -v ssh >/dev/null || ! command -v sudo >/dev/null; then
         [[ ${VC_MANUAL_OFFLINE:-0} == 0 ]] || die 'SSH/sudo packages missing in offline mode. Install from your OS media and rerun.'

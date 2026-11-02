@@ -10,6 +10,10 @@ here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 state=/var/lib/ventoy-center/manual-init
 [[ -d $state && ! -L $state && $(stat -c %u "$state") == 0 ]] || exit 1
 [[ ! -L "$state/root-password-custom" ]] || exit 1
+if [[ -e "$state/login-policy.json" || -L "$state/login-policy.json" ]]; then
+    echo 'Root direct login remains disabled by the selected user/sudo policy; no root password change is offered.'
+    exit 0
+fi
 exec 7>"$state/lock"
 flock -n 7 || { echo 'Another setup/check is running; root password unchanged.' >&2; exit 1; }
 password=; confirmation=; matched=0

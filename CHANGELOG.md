@@ -1,5 +1,15 @@
 # 开发记录
 
+## 0.3.0-alpha.56 — 2026-11-02
+
+- Add an explicit Ubuntu/Debian `--restore-user-login` action: verify an existing
+  ordinary user's real SSH password login and sudo before disabling root SSH and
+  locking root's console password. Failed changes restore previous login settings.
+- Preserve the selected user/sudo policy across setup, upgrades and boot recovery;
+  skip the root-password dialog in this mode. New installations still enable root
+  login by default. `--check-login` checks the saved policy without changing it.
+- Include the optional action in the shared manual and automatic Linux preloads.
+
 ## 0.3.0-alpha.55 — 2026-11-02
 
 - Deliver matching sckoct-pub / sckoct-pub-suite / sckoct-fyh RPM and DEB files
