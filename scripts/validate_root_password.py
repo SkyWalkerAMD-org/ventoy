@@ -20,11 +20,13 @@ SOURCE = (ROOT / 'internal/center/assets/manual/root-password.sh').read_text()
 SECRET = '  fixture:Pa$$`word\"!  '
 
 
-def run(entries, expected, password_rc=0, ssh_rc=0, terminal=True):
+def run(entries, expected, password_rc=0, ssh_rc=0, terminal=True, user_login=False):
     with tempfile.TemporaryDirectory(prefix='vc-root-password-') as folder:
         root = Path(folder)
         state = root / 'state'
         state.mkdir(mode=0o700)
+        if user_login:
+            (state / 'login-policy.json').write_text('{"schema":1,"mode":"user-sudo","user":"user"}\n')
         binpath = root / 'bin'
         binpath.mkdir()
         source = SOURCE.replace('[[ $EUID == 0 && ', '[[ ')
@@ -111,4 +113,5 @@ run([SECRET, None], 0)
 run([SECRET, SECRET], 1, password_rc=17)
 run([SECRET, SECRET], 1, ssh_rc=19)
 run([], 0, terminal=False)
+run([], 0, user_login=True)
 print('PASS: hidden password confirmation, exact whitespace, blank/cancel/retry, failures, SSH verification and secret cleanup')

@@ -20,6 +20,9 @@ if [[ ${1:---help} == --help || ${1:-} == -h ]]; then
     echo '--apply remains a compatible alias; --offline skips software downloads.'
     echo 'Software only: sudo ./ventoy-linux-setup.run --software'
     echo 'Inspect/verify: --check / --list-software / --check-software'
+    echo 'Optional Ubuntu/Debian user + sudo login: --restore-user-login [--login-user user]'
+    echo 'This verifies the ordinary user password, then disables root SSH and console password login; --check-login checks the saved policy.'
+    echo 'Installation defaults stay root-enabled. A restored user-only choice persists across setup and upgrades.'
     echo 'Upgrade and apply current center setup: --upgrade [--hostname NAME] [--keep-passwords]'
     echo 'Runner version: --version / --check-version. Download only: --update-setup (rerun afterward).'
     exit 0
@@ -44,7 +47,7 @@ if [[ ${1:-} == --upgrade ]]; then
 fi
 hostname_before=$(hostname)
 refresh_prompt=1
-case "${1:-}" in --check|--resume|--software|--list-software|--check-software) refresh_prompt=0;; esac
+case "${1:-}" in --check|--resume|--software|--list-software|--check-software|--restore-user-login|--check-login) refresh_prompt=0;; esac
 python=
 for candidate in python3 /usr/libexec/platform-python python2 python; do
     if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c 'import sys; sys.exit(0 if sys.version_info >= (2,7) else 1)' 2>/dev/null; then
@@ -101,6 +104,7 @@ case "${1:-}" in
         exec /bin/bash "$runner" --apply "${upgrade_args[@]}";;
 esac
 bash "$stage/ventoy-manual-setup/install.sh" "$@" || setup_rc=$?
+case "${1:-}" in --restore-user-login|--check-login) exit "$setup_rc";; esac
 if (( (setup_rc == 0 || setup_rc == 3 || setup_rc == 4) && refresh_prompt)) && [[ -t 0 && -t 1 && -t 2 ]]; then
     # Status 4 means system checks reached the software step, which failed.
     # That independent failure must not hide the optional password dialog.

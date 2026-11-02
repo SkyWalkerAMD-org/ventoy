@@ -2,6 +2,13 @@
 # Run inside the newly installed target; never in the live installer's SSH server.
 set -eu
 umask 077
+# Explicit post-install user/sudo mode takes precedence over installer defaults.
+# New installs have no marker and retain the original root-enabled behavior.
+# BEGIN VENTOY LOGIN MODE GUARD
+if [ -e /var/lib/ventoy-center/manual-init/login-policy.json ] || [ -L /var/lib/ventoy-center/manual-init/login-policy.json ]; then
+    exec /usr/bin/python3 /usr/local/lib/ventoy-center/login-mode.py --check
+fi
+# END VENTOY LOGIN MODE GUARD
 check() {
     # Socket-activated sshd may not have started yet on Ubuntu 24.04+.
     mkdir -p /run/sshd

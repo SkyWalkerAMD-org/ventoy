@@ -47,6 +47,7 @@ jobs:
           sudo "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_node_join.py
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_setup_prompt.py
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_root_password.py
+          "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_login_mode.py
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_ubiquity_resolver.py
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_manual_preload.py
           "$RUNNER_TEMP/template-validator/bin/python" scripts/validate_manual_update.py
@@ -111,11 +112,12 @@ jobs:
         run: |
           docker run --rm -v "$PWD/scripts:/tests:ro" \
             -v "$PWD/internal/center/assets/manual/software.py:/software.py:ro" \
+            -v "$PWD/internal/center/assets/manual/login-mode.py:/login-mode.py:ro" \
             -v "$RUNNER_TEMP/policy-fixtures/ubuntu-22.04/uefi/linux-update-policy.sh:/policy.sh:ro" \
             "$TARGET_IMAGE" sh -ec '
               if command -v apt-get >/dev/null; then
                 apt-get update -qq
-                DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 systemd
+                DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 systemd openssh-server openssh-client sudo
               else
                 dnf -y install python3 rpm-build createrepo_c
               fi
@@ -125,6 +127,7 @@ jobs:
               python3 /tests/validate_update_policy.py /policy.sh
               python3 /tests/validate_software.py --native /software.py
               python3 /tests/validate_package_retention.py /software.py --policy /policy.sh
+              if command -v apt-get >/dev/null; then python3 /tests/validate_login_mode.py --native; fi
             '
   linux-startup:
     needs: test

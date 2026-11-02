@@ -104,6 +104,7 @@ exit "${FIXTURE_RC:-0}"
     assert code == 0 and 'PASSWORD_DIALOG' in out and 'HOSTNAME_VERIFIED: new-host' in out and 'FRESH_BASH cwd=' + str(root) in out, out
     for options in ({'rename': False}, {'terminal': False}, {'args': ['--check']},
                     {'args': ['--resume']}, {'args': ['--software']}, {'rc': 17},
+                    {'args': ['--restore-user-login']}, {'args': ['--check-login']},
                     {'rc': 4, 'terminal': False}, {'rc': 4, 'args': ['--software']}):
         code, out = run(**options)
         assert code == options.get('rc', 0) and 'FRESH_BASH' not in out and 'HOSTNAME_VERIFIED:' not in out, (options, code, out)
