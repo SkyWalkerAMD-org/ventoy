@@ -1,5 +1,19 @@
 # 开发记录
 
+## 0.3.0-alpha.54 — 2026-11-02
+
+- Verify node credentials with a certificate-pinned center heartbeat instead of
+  treating a local connection file and running service as proof of enrollment.
+- Recover rejected credentials using the official sckocstp/fyhocsys join command,
+  retaining a private backup and atomically installing the new connection.
+  Healthy bindings are reused without restarting their service.
+- Retry the upstream five-minute same-hardware reinstall window for up to 330
+  seconds. Hardware conflicts, unknown identities, invalid keys and network
+  failures remain explicit errors; none can silently replace a live binding.
+- Apply the shared behavior to manual setup and all Linux installation preloads.
+- Attempt enrollment of an installed node even when a different package fails;
+  preserve the package error and failed overall result alongside the verified binding.
+
 ## 0.3.0-alpha.53 — 2026-11-01
 
 - Pin the official E610 MultiOS r4 archive and retain every vendor component,

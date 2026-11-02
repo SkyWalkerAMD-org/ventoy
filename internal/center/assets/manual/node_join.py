@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """Enroll installed 0.8.6+ nodes using the projects' official join commands.
 
 Python 2.7 / 3.x. Keys exist only in a private temporary file during enrollment;
@@ -16,22 +17,58 @@ import socket
 import ssl
 import stat
 import subprocess
+import sys
 import tempfile
 import time
 try:
     from urllib.parse import urlsplit
+    import http.client as httplib
 except ImportError:
     from urlparse import urlsplit
+    import httplib
 
 PROGRAMS = ('sckocstp', 'fyhocsys')
 STRING = (str, type(u''))
 TIMEOUT = 150
+REJOIN_WAIT = 330
+RETRY_INTERVAL = 15
 CONFIG_ROOT = '/etc'
 KEY_ROOT = '/run'
 MANUAL_STATE = '/var/lib/ventoy-center/manual-init'
 DEFAULT_HOSTNAMES = ('localhost', 'localhost.localdomain', 'ubuntu', 'ubuntu-server',
                      'ubuntu-desktop', 'debian', 'centos', 'rocky', 'rockylinux',
                      'almalinux', 'rhel', 'linux', 'anolis', 'ol', 'scientific')
+
+
+class BindingRejected(RuntimeError):
+    """Only a pinned center's HTTP 401 proves that a saved token is obsolete."""
+
+
+class JoinCooldown(RuntimeError):
+    """The official same-machine rebind is waiting for the old heartbeat."""
+
+
+def failure_hint(data):
+    # Do not forward server/CLI text: it may contain private credentials.
+    if u'5 \u5206\u949f\u6ca1\u6709\u8054\u7cfb' in data or u'\u8fd8\u8fde\u7740\u4e2d\u5fc3' in data:
+        raise JoinCooldown('The previous node connection was seen recently')
+    if u'DMI UUID \u4e0d\u540c' in data:
+        return 'this hostname belongs to different hardware; choose a unique hostname or review the original card in the node center'
+    if u'\u4e2d\u5fc3\u6ca1\u6709\u8bb0\u4e0b' in data or u'\u8bfb\u4e0d\u5230 DMI UUID' in data:
+        return 'the center cannot prove this is the original hardware; use its Rebind command once, then rerun setup'
+    if u'\u5bc6\u94a5\u5df2\u4f5c\u5e9f' in data or u'\u5bc6\u94a5\u5df2\u8fc7\u671f' in data or 'join key is not valid' in data:
+        return 'the central enrollment key is invalid, expired or revoked; update the private node-join configuration on the Ventoy center'
+    if u'\u53f0\u5df2\u7ecf\u7528\u5b8c' in data:
+        return 'the central enrollment key has reached its new-node limit'
+    if 'no usable DMI serial' in data or u'\u8bfb\u4e0d\u5230\u8fd9\u53f0\u673a\u5668\u7684\u5e8f\u5217\u53f7' in data:
+        return 'no usable DMI serial; join with an explicit --serial asset number, then rerun setup'
+    if 'existing node configuration retained' in data or 'hostname/serial differs' in data:
+        return 'existing binding or hostname differs; use the registered hostname or review the binding in the node center'
+    if 'older than 0.8.6' in data or 'flag provided but not defined' in data:
+        return 'upgrade both the node and center to 0.8.6 or newer'
+    if 'certificate' in data.lower():
+        return 'verify the configured center address and certificate fingerprint'
+    return 'check the center, enrollment key and installed node version; existing configuration was retained'
 
 
 def validate_node(node, secret=True):
@@ -115,16 +152,7 @@ def command(args, description):
             output.seek(0)
             data = output.read(65536).decode('utf-8', 'replace')
             if process.returncode:
-                hint = 'check the center, certificate fingerprint, join key and installed node version'
-                if 'no usable DMI serial' in data:
-                    hint = 'no usable DMI serial; join this node with an explicit --serial asset number, then retry setup'
-                elif 'existing node configuration retained' in data or 'hostname/serial differs' in data:
-                    hint = 'existing binding or hostname differs; retain it and resolve the binding in the node center'
-                elif 'older than 0.8.6' in data or 'flag provided but not defined' in data:
-                    hint = 'upgrade both the node and center to 0.8.6 or newer'
-                elif 'certificate' in data.lower():
-                    hint = 'verify the configured center address and certificate fingerprint'
-                raise RuntimeError(description + ' failed; ' + hint)
+                raise RuntimeError(description + ' failed; ' + failure_hint(data))
             return data.strip()
         finally:
             if process.poll() is None:
@@ -147,8 +175,8 @@ def ready_hostname():
     return hostname
 
 
-def connection(node):
-    path = connection_path(node)
+def connection(node, path=None):
+    path = path or connection_path(node)
     if os.path.realpath(path) != path:
         raise RuntimeError(node['program'] + ': unsafe node connection file')
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
@@ -164,10 +192,113 @@ def connection(node):
         config = json.loads(raw.decode('utf-8'))
         certificate = ssl.PEM_cert_to_DER_cert(config['ca_pem'])
         if (config['url'] != node['url'] or config['node'] != socket.gethostname() or
+                not re.match(r'^[0-9a-f]{64}\Z', config.get('token', '')) or
+                not re.match(r'^[A-Za-z0-9_.-]{1,96}\Z', config.get('serial', '')) or
+                config['ca_pem'].count('-----BEGIN CERTIFICATE-----') != 1 or
                 hashlib.sha256(certificate).hexdigest() != node['pin']):
             raise ValueError()
     except (ValueError, TypeError, KeyError, AttributeError):
         raise RuntimeError(node['program'] + ': saved connection does not match this host and pinned center')
+    return config
+
+
+def heartbeat(node, config):
+    """Verify authentication without polling, claiming or starting any work.
+
+    Like the official join protocol, trust only the exact leaf fingerprint.
+    Connect and check it BEFORE sending credentials; do not follow redirects.
+    """
+    parsed = urlsplit(node['url'])
+    version = command([trusted_binary(node['program']), 'version'], node['program'] + ': version check')
+    match = re.match(r'^' + node['program'] + r' (\d+\.\d+\.\d+)\Z', version)
+    if not match:
+        raise RuntimeError(node['program'] + ': cannot verify the installed node version')
+    context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+    context.verify_mode = ssl.CERT_NONE
+    client = httplib.HTTPSConnection(parsed.hostname, parsed.port or 443,
+                                    timeout=15, context=context)
+    try:
+        client.connect()
+        if hashlib.sha256(client.sock.getpeercert(binary_form=True)).hexdigest() != node['pin']:
+            raise RuntimeError('certificate fingerprint mismatch')
+        prefix = 'X-Fyhocsys-' if node['program'] == 'fyhocsys' else 'X-Sckocstp-'
+        headers = {'Authorization': 'Bearer ' + config['token'], prefix + 'Node': config['node'],
+                   prefix + 'Request': '1', prefix + 'Version': match.group(1)}
+        # Do not impersonate a node version or overwrite its hardware identity.
+        client.request('GET', '/node/v1/heartbeat', headers=headers)
+        response = client.getresponse()
+        if response.status == 401:
+            raise BindingRejected(node['program'] + ': the center rejected the saved node credential')
+        data = response.read(4097)
+        if response.status != 200 or len(data) > 4096:
+            raise RuntimeError('unexpected center response')
+        reply = json.loads(data.decode('utf-8'))
+        if not isinstance(reply, dict) or not isinstance(reply.get('time'), STRING) or not reply['time']:
+            raise RuntimeError('invalid heartbeat response')
+    except BindingRejected:
+        raise
+    except Exception:
+        raise RuntimeError(node['program'] + ': cannot verify the pinned center online; check network, clock and certificate; saved connection retained')
+    finally:
+        client.close()
+
+
+def enroll(node, binary, hostname, previous):
+    path = connection_path(node)
+    parent = os.path.dirname(path)
+    if os.path.realpath(parent) != parent:
+        raise RuntimeError(node['program'] + ': unsafe node configuration directory')
+    if not os.path.isdir(parent):
+        os.makedirs(parent, 0o700)
+    info = os.stat(parent)
+    if info.st_uid != 0 or info.st_mode & 0o077:
+        raise RuntimeError(node['program'] + ': node configuration directory must be private and root-owned')
+    # Keep the candidate on the same filesystem for an atomic commit. The old
+    # file remains intact while the official command validates DMI + cooldown.
+    folder = tempfile.mkdtemp(prefix='.ventoy-join-', dir=parent)
+    keys = None
+    try:
+        keys = tempfile.mkdtemp(prefix='ventoy-node-join-', dir=KEY_ROOT)
+        keyfile = os.path.join(keys, 'join.key')
+        fd = os.open(keyfile, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, 'wb') as handle:
+            handle.write(node['key'].encode('ascii') + b'\n')
+        candidate = os.path.join(folder, 'connection.json')
+        args = [binary, 'join', '--url', node['url'], '--pin', node['pin'],
+                '--key-file', keyfile, '--config', candidate, '--start=false']
+        deadline = time.time() + REJOIN_WAIT
+        while True:
+            if ready_hostname() != hostname:
+                raise RuntimeError('Hostname changed during node enrollment; no local binding was replaced')
+            try:
+                command(args, node['program'] + ': node enrollment')
+                break
+            except JoinCooldown:
+                if time.time() >= deadline:
+                    raise RuntimeError(node['program'] + ': the old node is still contacting the center; stop that old instance, then rerun setup; no binding was replaced')
+                print('NODE_JOIN_WAIT: %s; old connection seen recently; retrying in %s seconds (at most %s seconds remaining).' %
+                      (node['program'], RETRY_INTERVAL, max(0, int(deadline - time.time()))))
+                sys.stdout.flush()
+                time.sleep(min(RETRY_INTERVAL, max(0, deadline - time.time())))
+        connection(node, candidate)
+        if previous is not None:
+            # Only an explicit HTTP 401 permits replacing a saved binding.
+            # A live, accepted service never passes through this branch.
+            if connection(node) != previous:
+                raise RuntimeError(node['program'] + ': connection changed during enrollment; current file retained')
+            fd, backup = tempfile.mkstemp(prefix='connection.before-setup-', suffix='.json', dir=parent)
+            with os.fdopen(fd, 'wb') as handle, open(path, 'rb') as old:
+                handle.write(old.read()); handle.flush(); os.fsync(handle.fileno())
+            print('NODE_JOIN_BACKUP: ' + backup)
+            command(['systemctl', 'stop', node['program'] + '-node.service'], node['program'] + ': stop obsolete connection')
+        elif os.path.lexists(path):
+            raise RuntimeError(node['program'] + ': connection appeared during enrollment; existing file retained')
+        os.rename(candidate, path)
+        print('NODE_JOIN_REBOUND: ' + node['program'] if previous is not None else 'NODE_JOIN_ENROLLED: ' + node['program'])
+    finally:
+        if keys is not None:
+            shutil.rmtree(keys)
+        shutil.rmtree(folder)
 
 
 def check(nodes):
@@ -176,13 +307,14 @@ def check(nodes):
     for node in nodes:
         validate_node(node, secret=False)
         program = node['program']
-        connection(node)
+        config = connection(node)
         command([trusted_binary(program), 'check'], program + ': node configuration/worker check')
         service = program + '-node.service'
         for action, expected in (('is-enabled', 'enabled'), ('is-active', 'active')):
             if command(['systemctl', action, service], program + ': service check') != expected:
                 raise RuntimeError(program + ': node service is not enabled and active')
-        print('NODE_JOIN_VERIFIED: %s; local binding, certificate, worker and boot service checked.' % program)
+        heartbeat(node, config)
+        print('NODE_JOIN_VERIFIED: %s; center accepted the credential; local binding, certificate, worker and boot service checked.' % program)
 
 
 def configure(nodes, installed_names):
@@ -211,16 +343,17 @@ def configure(nodes, installed_names):
         program = node['program']
         if ready_hostname() != hostname:
             raise RuntimeError('Hostname changed during setup; retry enrollment after confirming the final hostname')
-        folder = tempfile.mkdtemp(prefix='ventoy-node-join-', dir=KEY_ROOT)
-        try:
-            keyfile = os.path.join(folder, 'join.key')
-            fd = os.open(keyfile, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-            with os.fdopen(fd, 'wb') as handle:
-                handle.write(node['key'].encode('ascii') + b'\n')
-            command([binaries[program], 'join', '--url', node['url'], '--pin', node['pin'],
-                     '--key-file', keyfile], program + ': node enrollment')
-        finally:
-            shutil.rmtree(folder)
+        stale = False
+        if os.path.lexists(connection_path(node)):
+            config = connection(node)
+            try:
+                heartbeat(node, config)
+            except BindingRejected:
+                stale = True
+        else:
+            config = None
+        if stale or config is None:
+            enroll(node, binaries[program], hostname, config)
         # Upstream's repeated join is a no-op. Repair a previous failure after
         # saving the connection (e.g. service enable failed), without restarting
         # an already running node or changing its binding.

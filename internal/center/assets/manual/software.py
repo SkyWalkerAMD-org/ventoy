@@ -548,6 +548,12 @@ def verify_archives(items):
         print('FILES_VERIFIED: %s files in %s' % (len(items), ARCHIVES))
 
 
+def configure_nodes(client, family):
+    import node_join
+    nodes = node_join.fetch(client)
+    return node_join.configure(nodes, set(name.split(':')[0] for name in installed(family)))
+
+
 def execute(mode):
     wanted = target()
     family = 'deb' if wanted['os'] in ('ubuntu', 'debian') else 'rpm'
@@ -605,6 +611,7 @@ def execute(mode):
     report = dict(status='failed', target=wanted, group=group['id'] if group else None, manifest=manifest,
                   time=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), packages=[], archives=archives,
                   package_files=files)
+    node_join_attempted = False
     try:
         sync_archives(client, archives)
         # Also retain packages whose installed versions already satisfy the
@@ -633,15 +640,25 @@ def execute(mode):
             import fyhoc_unlock
             report['fyhoc_unlock'] = fyhoc_unlock.configure(client)
         if config.get('node_join'):
-            import node_join
-            nodes = node_join.fetch(client)
-            report['node_join'] = node_join.configure(nodes, set(name.split(':')[0] for name in installed(family)))
+            node_join_attempted = True
+            report['node_join'] = configure_nodes(client, family)
         report['status'], report['changed'] = 'verified', changed
         if unchanged is not None:
             print('VERIFIED: unchanged software group; installed versions and retained package files checked; no installation needed.')
         print('VERIFIED: %s packages installed; %s changed; kernel package set preserved.' % (len(report['packages']), changed))
     except Exception as e:
         report['error'] = str(e)
+        # A different package's failed maintainer script must not prevent an
+        # already installed, verified node from recovering its center binding.
+        # Keep the original software failure; never certify the whole group.
+        if config.get('node_join') and not node_join_attempted:
+            print('NODE_JOIN_CONTINUE: software is incomplete; checking the installed node independently.')
+            try:
+                report['node_join'] = configure_nodes(client, family)
+            except Exception as join_error:
+                report['node_join_error'] = str(join_error)
+                report['error'] += '\nNode enrollment also failed: ' + str(join_error)
+                raise RuntimeError(report['error'])
         raise
     finally:
         for p in report['packages']:
