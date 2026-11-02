@@ -101,11 +101,11 @@ class Boundaries(unittest.TestCase):
                     client.execute('--check-software')
 
     def test_rpm_scriptlet_failure_with_success_exit_is_not_verified(self):
-        warning = ('warning: %post(sckoct-fyh-1:1.1.8-1.el10.x86_64) '
+        warning = ('warning: %post(broken-app-1:1.1.8-1.el10.x86_64) '
                    'scriptlet failed, exit status 1\n'
-                   'Error in POSTIN scriptlet in rpm package sckoct-fyh\nComplete!')
-        package = dict(name='sckoct-fyh', arch='x86_64', version='1:1.1.8-1.el10')
-        current = {'sckoct-fyh:x86_64': package['version']}
+                   'Error in POSTIN scriptlet in rpm package broken-app\nComplete!')
+        package = dict(name='broken-app', arch='x86_64', version='1:1.1.8-1.el10')
+        current = {'broken-app:x86_64': package['version']}
         with tempfile.TemporaryDirectory() as tmp, patch.object(client, 'STATE', tmp), \
              patch.object(client, 'installed', return_value=current):
             with patch.object(client, 'run', return_value=warning):
@@ -120,9 +120,105 @@ class Boundaries(unittest.TestCase):
             with patch.object(client, 'run', side_effect=AssertionError('must not reinstall')):
                 with self.assertRaisesRegex(RuntimeError, 'Unresolved RPM'):
                     client.transaction([package], 'rpm', tmp)
-            current['sckoct-fyh:x86_64'] = '1:1.1.9-1.el10'
+            current['broken-app:x86_64'] = '1:1.1.9-1.el10'
             fixed = dict(package, version='1:1.1.9-1.el10')
             client.verify([fixed], 'rpm')
+
+    def test_copy_only_failure_is_preserved_but_not_certified(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(client, 'STATE', tmp):
+            marker = Path(tmp)/'rpm-scriptlet-failures.json'
+            current = {'sckoct-fyh:x86_64': '1:1.1.8-1.el10'}
+            original = json.dumps(dict(packages=current, unknown=False, errors=['prior post failure']))
+            marker.write_text(original)
+            with patch.object(client, 'installed', return_value=current):
+                client.verify([], 'rpm')
+                package = dict(name='sckoct-fyh', arch='x86_64', version='1:1.1.8-1.el10')
+                with self.assertRaisesRegex(RuntimeError, 'cannot be certified'):
+                    client.verify([package], 'rpm')
+                with self.assertRaisesRegex(RuntimeError, 'must not enter'):
+                    client.transaction([package], 'rpm', tmp)
+                self.assertEqual(marker.read_text(), original)
+                current['another-app:x86_64'] = '1:1-1'
+                marker.write_text(json.dumps(dict(packages=current, unknown=False, errors=[])))
+                with self.assertRaisesRegex(RuntimeError, 'Unresolved RPM'):
+                    client.verify([], 'rpm')
+
+    def test_copy_only_delivery_reclassifies_legacy_cache_and_skips_upgrades(self):
+        for family, wanted in [('deb', dict(os='ubuntu', version='24.04', arch='amd64')),
+                               ('rpm', dict(os='rocky', version='10.2', arch='x86_64'))]:
+            with self.subTest(family=family), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                (root/'software-client.json').write_text('{"enabled":true}')
+                prefix = '/'.join([wanted['os'], wanted['version'], wanted['arch'], 'default'])
+                names = ['ordinary-app'] + list(client.COPY_ONLY_PACKAGES)
+                payloads = dict(('renamed-%d.%s' % (i, family), (name+' v1').encode()) for i, name in enumerate(names))
+                items = [dict(path=prefix+'/'+file, size=len(data), sha256=hashlib.sha256(data).hexdigest()) for file, data in payloads.items()]
+                group = dict(id=prefix, **wanted, files=items)
+                manifest = dict(schema=1, target=wanted, group=group)
+                client.validate_manifest(manifest, wanted)
+                downloads, installs = [], []
+                class FakeClient:
+                    def __init__(self, config): pass
+                    def manifest(self, target): return manifest
+                    def download(self, item, dest):
+                        downloads.append(item['path'])
+                        Path(dest).write_bytes(payloads[Path(dest).name] if Path(dest).name in payloads else payloads[item['path'].rsplit('/', 1)[-1]])
+                def metadata(path, *args):
+                    name, version = Path(path).read_text().split()
+                    return dict(name=name, version=version, arch=wanted['arch'], target_arch=wanted['arch'], file=path)
+                def install(packages, *args):
+                    installs.append([p['name'] for p in packages])
+                    self.assertEqual(installs[-1], ['ordinary-app'])
+                    return 1
+                (root/'state').mkdir()
+                report_path = root/'state/last-result.json'
+                report_path.write_text(json.dumps(dict(status='verified', target=wanted, manifest=manifest,
+                    packages=[dict(name=n, version='v1', arch=wanted['arch']) for n in names])))
+                with patch.object(client, 'HERE', str(root)), patch.object(client, 'STATE', str(root/'state')), \
+                     patch.object(client, 'ARCHIVES', str(root/'files')), patch.object(client, 'Client', FakeClient), \
+                     patch.object(client, 'target', return_value=wanted), patch.object(client, 'metadata', side_effect=metadata), \
+                     patch.object(client, 'transaction', side_effect=install), patch.object(client, 'verify'), \
+                     patch.object(client, 'installed', return_value={}):
+                    with self.assertRaisesRegex(RuntimeError, 'policy changed'):
+                        client.execute('--check-software')
+                    client.execute('--software')
+                    report = json.loads(report_path.read_text())
+                    self.assertEqual([p['name'] for p in report['packages']], ['ordinary-app'])
+                    self.assertEqual([p['name'] for p in report['copy_only_packages']], list(client.COPY_ONLY_PACKAGES))
+                    self.assertEqual(len(downloads), 4)
+                    client.execute('--check-software')
+                    client.execute('--software')
+                    self.assertEqual((len(installs), len(downloads)), (1, 4))
+                    for filename in payloads:
+                        self.assertEqual((root/'files'/filename).read_bytes(), payloads[filename])
+                    # A new excluded version is copied without entering the transaction.
+                    for item in items[1:]:
+                        filename = item['path'].rsplit('/', 1)[-1]
+                        payloads[filename] = payloads[filename].replace(b'v1', b'v2')
+                        item['sha256'] = hashlib.sha256(payloads[filename]).hexdigest()
+                    client.execute('--software')
+                    self.assertEqual(len(downloads), 7)
+                    self.assertTrue(all(p['version']=='v2' for p in json.loads(report_path.read_text())['copy_only_packages']))
+                    client.execute('--check-software')
+
+    def test_apt_refuses_copy_only_dependency_or_pending_configuration(self):
+        for operation in ('Inst', 'Conf'):
+            with self.subTest(operation=operation), tempfile.TemporaryDirectory() as tmp, \
+                 patch.object(client, 'installed', return_value={}), \
+                 patch.object(client, 'run', return_value=operation+' sckoct-fyh:amd64 (1.1.8)') as run:
+                with self.assertRaisesRegex(RuntimeError, 'copy-only package'):
+                    client.transaction([dict(name='ordinary', arch='amd64', version='1', file='/tmp/app.deb')], 'deb', tmp)
+                self.assertEqual(run.call_count, 1)
+                self.assertIn('--simulate', run.call_args.args[0])
+
+    def test_dnf_excludes_copy_only_dependencies(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(client, 'installed', return_value={}), \
+             patch.object(client.os.path, 'isfile', return_value=True), patch.object(client, 'verify'), \
+             patch.object(client, 'run', side_effect=[RuntimeError('missing dependency'), 'test ok']), \
+             patch.object(client, 'run_rpm_transaction') as apply:
+            client.transaction([dict(name='ordinary', arch='x86_64', version='1', file='/tmp/app.rpm')], 'rpm', tmp)
+            for name in client.COPY_ONLY_PACKAGES:
+                self.assertIn('--exclude='+name, apply.call_args.args[0])
 
     def test_rpm_scriptlet_nonzero_and_unknown_failures(self):
         for text in ('error: %post(app-1-1.noarch) scriptlet failed, exit status 1',
