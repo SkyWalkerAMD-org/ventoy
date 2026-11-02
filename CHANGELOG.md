@@ -1,5 +1,15 @@
 # 开发记录
 
+## 0.3.0-alpha.55 — 2026-11-02
+
+- Deliver matching sckoct-pub / sckoct-pub-suite / sckoct-fyh RPM and DEB files
+  to `/root/ventoy-tools` without installing or upgrading them. Match native
+  package identities, including renamed files, and exclude dependency installs.
+- Reclassify old software reports and verify copied files separately from installed
+  software. Preserve previous excluded-package failures as warnings, without
+  claiming repair or suppressing unrelated/unknown installation failures.
+- Apply the shared policy to manual setup and all Linux installation preloads.
+
 ## 0.3.0-alpha.54 — 2026-11-02
 
 - Verify node credentials with a certificate-pinned center heartbeat instead of

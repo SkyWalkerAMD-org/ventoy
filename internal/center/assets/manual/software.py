@@ -33,6 +33,9 @@ STATE = '/var/lib/ventoy-center/software'
 ARCHIVES = '/root/ventoy-tools'
 STAGING = '/var/tmp'
 RPM_IDS = ('centos', 'rocky', 'almalinux', 'rhel', 'ol', 'scientific', 'anolis')
+# Deliver these packages for an operator to install separately. Match the native
+# package identity, not the downloaded filename (which can be renamed).
+COPY_ONLY_PACKAGES = ('sckoct-fyh', 'sckoct-pub', 'sckoct-pub-suite')
 HASH = re.compile(r'^[0-9a-f]{64}$')
 NAME = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9.+_-]*$')
 FILENAME = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9._+~-]{0,240}\.(deb|rpm)$')
@@ -40,6 +43,10 @@ ARCHIVE_NAME = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9._+~-]{0,240}\.(?:tar\.gz|tgz|
 COPY_NAME = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9._+~-]{0,247}\Z')
 MAX_FILE = 4 * 1024**3
 MAX_TOTAL = 8 * 1024**3
+
+
+def copy_only(name):
+    return name.split(':', 1)[0] in COPY_ONLY_PACKAGES
 
 
 def run(args, echo=False):
@@ -218,6 +225,12 @@ def metadata(file, family, arch):
         result = run(['rpm', '-qp', '--qf', '%{NAME}\n%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n%{ARCH}\n', file])
         # rpm can emit signature warnings before its query output.
         name, version, package_arch = result.splitlines()[-3:]
+    if not NAME.match(name) or not version or package_arch not in (arch, 'all' if family == 'deb' else 'noarch'):
+        raise RuntimeError('Invalid package metadata or architecture: ' + os.path.basename(file))
+    package = dict(name=name, version=version, arch=package_arch, target_arch=arch, file=file)
+    if copy_only(name):
+        return package
+    if family == 'rpm':
         provides = run(['rpm', '-qp', '--provides', file])
         obsoletes = run(['rpm', '-qp', '--obsoletes', file])
         installed_names = set(k.split(':')[0] for k in installed('rpm'))
@@ -225,11 +238,9 @@ def metadata(file, family, arch):
             replaced = obsolete.split()[0] if obsolete.split() else ''
             if replaced in installed_names or protected(replaced):
                 raise RuntimeError('RPM would obsolete an installed/protected package: ' + replaced)
-    if not NAME.match(name) or not version or package_arch not in (arch, 'all' if family == 'deb' else 'noarch'):
-        raise RuntimeError('Invalid package metadata or architecture: ' + os.path.basename(file))
     if protected(name) or any(protected(x) for x in re.findall(r'[a-zA-Z0-9][a-zA-Z0-9.+_-]*', provides)):
         raise RuntimeError('Kernel packages cannot be distributed through software setup: ' + name)
-    return dict(name=name, version=version, arch=package_arch, target_arch=arch, file=file)
+    return package
 
 
 def installed(family):
@@ -372,6 +383,11 @@ def check_rpm_scriptlets(current):
     failure = rpm_scriptlet_failures()
     unresolved = [key for key, version in failure['packages'].items()
                   if current.get(key) == version]
+    excluded = [key for key in unresolved if copy_only(key)]
+    if excluded:
+        print('COPY_ONLY_WARNING: previous installation failures remain recorded for %s; '
+              'these packages are excluded from installation verification, not repaired.' % ', '.join(sorted(excluded)))
+    unresolved = [key for key in unresolved if not copy_only(key)]
     if unresolved or failure['unknown']:
         raise RuntimeError('Unresolved RPM installation script failure: %s. '
                            'Install a corrected package version or repair and review '
@@ -381,6 +397,8 @@ def check_rpm_scriptlets(current):
 
 
 def verify(packages, family, before=None):
+    if any(copy_only(p['name']) for p in packages):
+        raise RuntimeError('Copy-only packages cannot be certified as installed; rerun setup --software to refresh the report')
     after = installed(family)
     if family == 'rpm':
         check_rpm_scriptlets(after)
@@ -397,6 +415,8 @@ def verify(packages, family, before=None):
 
 
 def transaction(packages, family, work, allow_dependencies=True):
+    if any(copy_only(p['name']) for p in packages):
+        raise RuntimeError('Copy-only packages must not enter an installation transaction')
     before = installed(family)
     pending = [p for p in packages if current_version(before,p,family) is None or compare_versions(current_version(before,p,family),p['version'],family)<0]
     for p in packages:
@@ -431,6 +451,8 @@ def transaction(packages, family, work, allow_dependencies=True):
             for line in plan.splitlines():
                 if line.startswith('Remv ') or (line.startswith('Inst ') and protected(line.split()[1])):
                     raise RuntimeError('Package transaction would remove software or change the kernel')
+                if line.startswith(('Inst ', 'Conf ')) and copy_only(line.split()[1]):
+                    raise RuntimeError('APT would install or configure a copy-only package: ' + line.split()[1])
             run(base + ['-y', 'install'] + files, echo=True)
         else:
             # First resolve against the supplied set and installed database.
@@ -446,6 +468,7 @@ def transaction(packages, family, work, allow_dependencies=True):
                 # Only this install transaction and its dependencies, never a
                 # whole-system update/upgrade/distro-sync. Preserve user locks.
                 args = [manager, '-y', '--exclude=kernel*', '--setopt=obsoletes=0', '--setopt=install_weak_deps=False', '--setopt=timeout=30', '--setopt=retries=1']
+                args += ['--exclude=' + name for name in COPY_ONLY_PACKAGES]
                 run(args + ['--setopt=tsflags=test', 'install'] + files, echo=True)
                 run_rpm_transaction(args + ['install'] + files)
             else:
@@ -531,7 +554,7 @@ def sync_archives(client, items, packages=False):
             finally:
                 if os.path.exists(temp):
                     os.unlink(temp)
-            purpose = 'package retained for installation and reuse' if packages else 'not extracted or executed'
+            purpose = 'package retained; installation depends on package policy' if packages else 'not extracted or executed'
             print('FILE_SAVED: %s (SHA-256 verified; %s)' % (dest, purpose))
         records[name] = item
         save_json(records, 'archive-state.json')
@@ -562,6 +585,8 @@ def execute(mode):
             report = json.load(f)
         if report.get('status') != 'verified' or report.get('target') != wanted:
             raise RuntimeError('No successfully installed matching software group to verify')
+        if report.get('copy_only_policy') != list(COPY_ONLY_PACKAGES):
+            raise RuntimeError('Software delivery policy changed; run setup --software before checking')
         verify(report['packages'], family)
         verify_archives(report.get('archives', []))
         verify_archives(report.get('package_files', []))
@@ -572,6 +597,8 @@ def execute(mode):
             import node_join
             node_join.check(report['node_join'])
         print('VERIFIED: %s packages are at the requested version or newer.' % len(report['packages']))
+        print('COPY_ONLY_VERIFIED: %s package files retained in %s; installation not checked.' %
+              (len(report.get('copy_only_packages', [])), ARCHIVES))
         return
     with open(os.path.join(HERE, 'software-client.json')) as f:
         config = json.load(f)
@@ -584,6 +611,8 @@ def execute(mode):
     archives = manifest.get('archives', []) + manifest.get('copy_files', [])
     files = group['files'] if group else []
     print('Default software group: %s (%s packages)' % (group['id'] if group else 'none', len(files)))
+    print('Copy-only package policy: %s. Files are retained in %s; no automatic installation or upgrade.' %
+          (', '.join(COPY_ONLY_PACKAGES), ARCHIVES))
     for f in files:
         print('  %s  %s bytes  sha256=%s' % (f['path'].split('/')[-1], f['size'], f['sha256']))
     for f in archives:
@@ -602,6 +631,7 @@ def execute(mode):
         with open(previous) as f:
             last = json.load(f)
         if (last.get('status') == 'verified' and last.get('target') == wanted and
+                last.get('copy_only_policy') == list(COPY_ONLY_PACKAGES) and
                 last.get('manifest', {}).get('group') == group):
             verify(last['packages'], family)
             unchanged = last['packages']
@@ -610,7 +640,7 @@ def execute(mode):
     work = tempfile.mkdtemp(prefix='ventoy-software-', dir=STAGING)
     report = dict(status='failed', target=wanted, group=group['id'] if group else None, manifest=manifest,
                   time=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), packages=[], archives=archives,
-                  package_files=files)
+                  package_files=files, copy_only_policy=list(COPY_ONLY_PACKAGES), copy_only_packages=[])
     node_join_attempted = False
     try:
         sync_archives(client, archives)
@@ -622,6 +652,9 @@ def execute(mode):
             dest = os.path.join(ARCHIVES, item['path'].split('/')[-1])
             p = metadata(dest, family, wanted['arch'])
             p['sha256'] = item['sha256']
+            if copy_only(p['name']):
+                report['copy_only_packages'].append(p)
+                continue
             if family == 'rpm':
                 tag = re.search(r'\.el([0-9]+)(?:[._-]|$)', p['version'])
                 if tag and tag.group(1) != wanted['version'].split('.')[0]:
@@ -630,7 +663,13 @@ def execute(mode):
                         raise RuntimeError('RPM Enterprise Linux release does not match this host: ' + p['name'])
             candidates.append(p)
         report['packages'] = select_latest(candidates, family, wanted['arch']) if unchanged is None else unchanged
+        if unchanged is not None:
+            report['copy_only_packages'] = last.get('copy_only_packages', [])
+        for p in report['copy_only_packages']:
+            print('COPY_ONLY: %s %s; retained, not installed or upgraded.' % (p['name'], p['version']))
         changed = transaction(report['packages'], family, work) if report['packages'] and unchanged is None else 0
+        if not report['packages']:
+            verify([], family)
         policy = os.path.join(HERE, 'linux-update-policy.sh')
         if os.path.isdir('/var/lib/ventoy-center/kernel-policy'):
             run(['sh', policy, '--check'], echo=True)
@@ -646,6 +685,8 @@ def execute(mode):
         if unchanged is not None:
             print('VERIFIED: unchanged software group; installed versions and retained package files checked; no installation needed.')
         print('VERIFIED: %s packages installed; %s changed; kernel package set preserved.' % (len(report['packages']), changed))
+        print('COPY_ONLY_VERIFIED: %s package files retained in %s; installation not checked.' %
+              (len(report['copy_only_packages']), ARCHIVES))
     except Exception as e:
         report['error'] = str(e)
         # A different package's failed maintainer script must not prevent an
@@ -661,7 +702,7 @@ def execute(mode):
                 raise RuntimeError(report['error'])
         raise
     finally:
-        for p in report['packages']:
+        for p in report['packages'] + report['copy_only_packages']:
             p.pop('file', None)
         save_report(report)
         shutil.rmtree(work)
