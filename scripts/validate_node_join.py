@@ -354,6 +354,37 @@ candidate.chmod(0o600)
                 with self.assertRaisesRegex(RuntimeError, 'service stopped'):
                     software.execute('--check-software')
 
+    def test_unrelated_software_failure_does_not_block_node_recovery(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root/'software-client.json').write_text('{"enabled":true,"node_join":true}')
+            target = dict(os='rocky',version='10.2',arch='x86_64')
+            class Client:
+                def __init__(self, config): pass
+                def manifest(self, wanted): return dict(schema=1,target=wanted,group=None)
+            records = [{k:v for k,v in node().items() if k != 'key'}]
+            with patch.object(software,'HERE',folder), patch.object(software,'STAGING',folder), \
+                 patch.object(software,'STATE',str(root/'state')), patch.object(software,'Client',Client), \
+                 patch.object(software,'target',return_value=target), \
+                 patch.object(software,'sync_archives',side_effect=RuntimeError('package stage failed')), \
+                 patch.object(software,'installed',return_value={'fyhocsys-node':'0.8.7'}), \
+                 patch.object(join,'fetch',return_value=[node()]), \
+                 patch.object(join,'configure',return_value=records) as configure:
+                with self.assertRaisesRegex(RuntimeError,'package stage failed'):
+                    software.execute('--software')
+                configure.assert_called_once_with([node()],{'fyhocsys-node'})
+                result=json.loads((root/'state/last-result.json').read_text())
+                self.assertEqual(result['status'],'failed')
+                self.assertEqual(result['node_join'],records)
+                self.assertEqual(result['error'],'package stage failed')
+                configure.reset_mock(); configure.side_effect=RuntimeError('node package missing')
+                with self.assertRaisesRegex(RuntimeError,'Node enrollment also failed: node package missing'):
+                    software.execute('--software')
+                configure.assert_called_once()
+                result=json.loads((root/'state/last-result.json').read_text())
+                self.assertEqual(result['node_join_error'],'node package missing')
+                self.assertNotIn('node_join',result)
+
 
 if __name__ == '__main__':
     unittest.main()

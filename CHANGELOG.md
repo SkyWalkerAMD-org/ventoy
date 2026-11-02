@@ -11,6 +11,8 @@
   seconds. Hardware conflicts, unknown identities, invalid keys and network
   failures remain explicit errors; none can silently replace a live binding.
 - Apply the shared behavior to manual setup and all Linux installation preloads.
+- Attempt enrollment of an installed node even when a different package fails;
+  preserve the package error and failed overall result alongside the verified binding.
 
 ## 0.3.0-alpha.53 — 2026-11-01
 
